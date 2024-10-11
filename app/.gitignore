@@ -1,9 +1,0 @@
-# Ignore Docker-related files
-**/Dockerfile
-**/docker-compose.yml
-**/docker-compose.override.yml
-**/docker-compose.*.yml
-**/.env
-**/docker/*.log
-**/docker/*.tmp
-**/docker/volumes/
