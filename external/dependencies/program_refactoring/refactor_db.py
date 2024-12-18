@@ -140,6 +140,14 @@ def main_call(**kwargs):
     if args.task == "logos":
         header = LOGO_HEADER
         simple_header = SIMPLE_LOGO_HEADER
+<<<<<<< HEAD
+=======
+
+    elif args.task == "textcraft":
+        header = TEXTCRAFT_HEADER
+        simple_header = TEXTCRAFT_HEADER
+
+>>>>>>> origin/main
     elif args.task == "python":
         header = PYTHON_HEADER
         simple_header = PYTHON_HEADER
