@@ -31,7 +31,8 @@ class LOGOProgramSampler:
         position_type = random.choice(["InARow", "Concentric"])
         
         if position_type == "InARow":
-            sub_program, sub_desc = self._generate_random_shape()
+            shape, sub_desc = self._generate_random_shape()
+            sub_program = self.generator.sub_program(shape)
             n_times = random.randint(1, 9)
             sub_desc = sub_desc.removeprefix("a ")
             description += f"{n_times} {sub_desc} in a row"
@@ -56,42 +57,52 @@ class LOGOProgramSampler:
         Generate a random sequence of shapes.
         """
         if snowflake_arm:
-            n_shapes = random.randint(2, 5) # snowflake arms can also start with a space
+            n_shapes = random.randint(2, 3) # snowflake arms should consist of at most 3 shapes
+            even_odd = random.choice([True, False]) 
         else:
-            n_shapes = random.randint(3, 5) # normal shape-sequences shouldn't start with a space and to deserve being described to be connected or separated they have to consist of at least 3 shapes
+            n_shapes = random.randint(3, 5) 
+            even_odd = True
         shapes = []
         descriptions = []
         connected_separated = random.choice([True, False])
-        
+
         for n in range(n_shapes):
-            if connected_separated:
-                shape, desc = self._generate_random_shape()
-            else:
-                if not snowflake_arm and n == 0:                # if it is not the arm of a snowflake,
-                    shape, desc = self._generate_random_shape() # the first element is a shape
-                elif n == n_shapes - 1:
-                    shape, desc = self._generate_random_shape() # and the last element is always a shape
+            if even_odd:
+                if n % 2 == 0:
+                    shape, desc  = self._generate_random_shape(options=["Polygon", "Semicircle"], weights=[7/9, 2/9])
                 else:
-                    if any("space" in d for d in descriptions) or random.choice([True, False]):
-                        shape, desc = self._generate_random_shape()
+                    if connected_separated:
+                        shape, desc  = self._generate_random_shape(options=["Line"], weights=[1])
                     else:
                         length = random.choice([2, 4, 20])
                         angle = random.choice([0, 90, 180, 270])
                         shape = self.generator.generate_space(length, angle)
                         size_desc = "short" if length == 2 else "medium" if length == 4 else "big"
                         desc = f"a {size_desc} space"
+            else:
+                if n % 2 == 0:
+                    if connected_separated:
+                        shape, desc  = self._generate_random_shape(options=["Line"], weights=[1])
+                    else:
+                        length = random.choice([2, 4, 20])
+                        angle = random.choice([0, 90, 180, 270])
+                        shape = self.generator.generate_space(length, angle)
+                        size_desc = "short" if length == 2 else "medium" if length == 4 else "big"
+                        desc = f"a {size_desc} space"
+                else:
+                    shape, desc  = self._generate_random_shape(options=["Polygon", "Semicircle"], weights=[7/9, 2/9])
             shapes.append(shape)
             descriptions.append(desc)
         
         description = f"{'connected' if connected_separated else 'separated'} sequence of shapes: " + ", ".join(descriptions)
         return self.generator.shape_sequence(shapes), description
 
-    def _generate_random_shape(self):
+    def _generate_random_shape(self, options=["Line", "Polygon", "Semicircle"], weights=[1/10, 7/10, 2/10]):
         """
         Generate a random shape.
         """
-        options = ["Line", "Polygon", "Semicircle"]
-        weights = [1/10, 7/10, 2/10]
+        options = options
+        weights = weights
         shape_type = random.choices(population=options, weights=weights, k=1)[0]
         description = ""
 

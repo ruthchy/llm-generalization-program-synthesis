@@ -38,7 +38,7 @@ class generateLOGOPseudoCode():
         if not (5 <= size <= 9):
             raise ValueError("A greek-spiral must have at least 5 turns")
         direction = "left" if left else "right"
-        return f"for i in range({size}):\n    forward(1 * {size})\n    {direction}(90.0)"
+        return f"for i in range({size}):\n    forward(1 * i)\n    {direction}(90.0)"
 
     def generate_staircase(self, n_times: int, length: int, left: bool = True) -> str:
         direction = "left" if left else "right"
