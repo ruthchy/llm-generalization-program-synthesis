@@ -76,7 +76,7 @@ class LOGOProgramSampler:
                     else:
                         length = random.choice([2, 4, 20])
                         angle = random.choice([0, 90, 180, 270])
-                        shape = self.generator.generate_line(length, angle)
+                        shape = self.generator.generate_space(length, angle)
                         size_desc = "short" if length == 2 else "medium" if length == 4 else "big"
                         desc = f"a {size_desc} space"
             else:
