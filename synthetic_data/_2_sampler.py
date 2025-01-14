@@ -33,21 +33,21 @@ class LOGOProgramSampler:
         if position_type == "InARow":
             shape, sub_desc = self._generate_random_shape()
             sub_program = self.generator.sub_program(shape)
-            n_times = random.randint(1, 9)
+            n_times = random.randint(2, 9)
             sub_desc = sub_desc.removeprefix("a ")
             description += f"{n_times} {sub_desc} in a row"
             return self.generator.in_a_row(n_times, sub_program), description
         
         elif position_type == "Concentric":
             shape_type = random.choice(["semicircle", "polygon"])
-            n_times = random.randint(2, 9)
+            n_times = random.randint(3, 9)
             if shape_type == "semicircle":
                 description += f"{n_times} concentric circles"
                 return self.generator.concentric_semicircle(n_times, semicircle=False), description
             else:
                 sides = random.randint(3, 9)
-                length = random.choice([2, 4, 20])
-                size_desc = "small" if length == 2 else "medium" if length == 4 else "big"
+                length = random.choice([2, 4])
+                size_desc = "small" if length == 2 else "medium" 
                 shape_desc = "triangle" if sides == 3 else "square" if sides == 4 else f"{sides}-gon"
                 description += f"{n_times} concentric {size_desc} {shape_desc}"
                 return self.generator.concentric_polygon(n_times, sides, length), description
@@ -76,7 +76,7 @@ class LOGOProgramSampler:
                     else:
                         length = random.choice([2, 4, 20])
                         angle = random.choice([0, 90, 180, 270])
-                        shape = self.generator.generate_space(length, angle)
+                        shape = self.generator.generate_line(length, angle)
                         size_desc = "short" if length == 2 else "medium" if length == 4 else "big"
                         desc = f"a {size_desc} space"
             else:
@@ -115,8 +115,8 @@ class LOGOProgramSampler:
         
         elif shape_type == "Polygon":
             sides = random.randint(3, 9)
-            length = random.choice([2, 4, 20])
-            size_desc = "small" if length == 2 else "medium" if length == 4 else "big"
+            length = random.choice([2, 4])
+            size_desc = "small" if length == 2 else "medium" 
             shape_desc = "triangle" if sides == 3 else "square" if sides == 4 else f"{sides}-gon"
             description += f"a {size_desc} {shape_desc}"
             return self.generator.generate_polygon(sides, length), description
@@ -142,14 +142,14 @@ class LOGOProgramSampler:
             return self.generator.generate_greek_spiral(size), description
         elif special_shape_type == "Staircase":
             n_times = random.randint(2, 9)
-            length = random.choice([2, 4, 20])
-            size_desc = "small" if length == 2 else "medium" if length == 4 else "big"
+            length = random.choice([2, 4])
+            size_desc = "small" if length == 2 else "medium" 
             description += f"a staircase with {n_times} {size_desc} steps"
             return self.generator.generate_staircase(n_times, length), description
         elif special_shape_type == "Zigzag":
             n_times = random.randint(2, 9)
-            length = random.choice([2, 4, 20])
-            size_desc = "small" if length == 2 else "medium" if length == 4 else "big"
+            length = random.choice([2, 4])
+            size_desc = "small" if length == 2 else "medium" 
             description += f"a zigzag with {n_times} {size_desc} steps"
             return self.generator.generate_zigzag(n_times, length), description
         elif special_shape_type == "Star":
