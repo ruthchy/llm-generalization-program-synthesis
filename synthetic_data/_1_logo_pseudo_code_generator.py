@@ -38,7 +38,7 @@ class generateLOGOPseudoCode():
         if not (5 <= size <= 9):
             raise ValueError("A greek-spiral must have at least 5 turns")
         direction = "left" if left else "right"
-        return f"for i in range({size}):\n    forward(1 * i)\n    {direction}(90.0)"
+        return f"for i in range({size+1}):\n    forward(1 * i)\n    {direction}(90.0)"
 
     def generate_staircase(self, n_times: int, length: int, left: bool = True) -> str:
         direction = "left" if left else "right"
@@ -93,15 +93,15 @@ class generateLOGOPseudoCode():
             f"for i in range({HALF_INF}):\n        forward({EPS_DIST} * j)\n        {direction}({EPS_ANGLE})"
         )
         if semicircle:
-            return f"for j in range({n_times}):\n    {semicircle_code}"
+            return f"for j in range({n_times+1}):\n    {semicircle_code}"
         else:
-            return f"for j in range({n_times}):\n    {semicircle_code}\n    {semicircle_code}"
+            return f"for j in range({n_times+1}):\n    {semicircle_code}\n    {semicircle_code}"
 
     def concentric_polygon(self, n_times: int, sides: int, length: int, left: bool = True) -> str:
         angle = 360 / sides
         direction = "left" if left else "right"
         return (
-            f"for j in range({n_times}):\n    for i in range({sides}):\n        forward({length} * j)\n        {direction}({angle})"
+            f"for j in range({n_times+1}):\n    for i in range({sides}):\n        forward({length} * j)\n        {direction}({angle})"
         )
 
 
