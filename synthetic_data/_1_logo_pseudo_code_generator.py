@@ -19,13 +19,14 @@ class generateLOGOPseudoCode():
         return f"for i in range({sides}):\n    forward({length})\n    {direction}({angle})"
 
     def generate_semicircle(self, size: int, semicircle: bool = True, left: bool = True) -> str:
-        EPS_ANGLE = 1.0
-        EPS_DIST = 0.03490481287456702  # Using the defined EPS_DIST value
-        HALF_INF = 180
-        size = EPS_DIST * size
+        #EPS_ANGLE = 1.0
+        #EPS_DIST = 0.03490481287456702  # Using the defined EPS_DIST value
+        #HALF_INF = 180
+        #size = EPS_DIST * size
 
         direction = "left" if left else "right"
-        semicircle_code = f"for i in range({HALF_INF}):\n    forward({size})\n    {direction}({EPS_ANGLE})"
+        #semicircle_code = f"for i in range({HALF_INF}):\n    forward({size})\n    {direction}({EPS_ANGLE})"
+        semicircle_code = f"for i in range(HALF_INF):\n    forward(EPS_DIST*{size})\n    {direction}(EPS_ANGLE)"
         
         if semicircle:
             return semicircle_code
@@ -85,12 +86,15 @@ class generateLOGOPseudoCode():
         return f"for j in range({n_times}):\n    {sub_program}\n    penup()\n    forward(2)\n    {direction}(0.0)\n\n    pendown()"
 
     def concentric_semicircle(self, n_times: int, semicircle: bool = True, left: bool = True) -> str:
-        EPS_ANGLE = 1.0
-        EPS_DIST = 0.03490481287456702
-        HALF_INF = 180
+        #EPS_ANGLE = 1.0
+        #EPS_DIST = 0.03490481287456702
+        #HALF_INF = 180
         direction = "left" if left else "right"
+        #semicircle_code = (
+        #    f"for i in range({HALF_INF}):\n        forward({EPS_DIST} * j)\n        {direction}({EPS_ANGLE})"
+        #)
         semicircle_code = (
-            f"for i in range({HALF_INF}):\n        forward({EPS_DIST} * j)\n        {direction}({EPS_ANGLE})"
+            f"for i in range(HALF_INF):\n        forward(EPS_DIST * j)\n        {direction}(EPS_ANGLE)"
         )
         if semicircle:
             return f"for j in range({n_times+1}):\n    {semicircle_code}"
