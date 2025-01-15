@@ -1,8 +1,14 @@
 import random
 class LOGOProgramSampler:
-    def __init__(self, generator_class):
+    def __init__(self, generator_class, train_df = None, test_df=None):
         self.generator = generator_class
         self.generated = set()  # Track generated programs to avoid duplicates
+
+        if train_df is not None:
+            self.generated.update(train_df["Program"].tolist())
+        if test_df is not None:
+            self.generated.update(test_df["Program"].tolist())
+
 
     def _generate_random_program(self):
         """
