@@ -44,11 +44,15 @@ class PseudoProgramInterpreter:
         self.execute(subprogram, local_vars)
 
             
-    def save_graphics(self, filename="output.png", line_width=5.0):
+    def save_graphics(self, filename="output.png", line_width=2.0):
         """
         Saves the generated graphics as an image file.
         """
-        fig, ax = plt.subplots()
+        # Define figure size in inches to achieve 525x525 pixels
+        target_size_pixels = 525  # Target size for a square output image
+        dpi = 100  # Dots per inch for the output image
+        figsize = (target_size_pixels / dpi, target_size_pixels / dpi)  # Convert pixels to inches
+        fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
         ax.set_aspect('equal', adjustable='datalim')
 
         # Draw paths
@@ -59,10 +63,13 @@ class PseudoProgramInterpreter:
         for (x1, y1), (x2, y2) in self.state.pen_up_path:
             ax.plot([x1, x2], [y1, y2], 'r--', alpha=0.0)  # Pen-up lines in dashed red (if alpha > 0.0)
 
+        # Adjust layout to eliminate any padding
+        plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+
         # Hide axes for a clean output
         ax.axis('off')
         # Save the figure with tight bounding box
-        plt.savefig(filename, bbox_inches='tight')
+        plt.savefig(filename, bbox_inches='tight', dpi=dpi, pad_inches=0)
         plt.close(fig)
 
     def process_and_save_graphics(self, df, output_dir, filename="output.png"):
