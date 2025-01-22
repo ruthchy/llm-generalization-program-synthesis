@@ -1,0 +1,21 @@
+{"time":"2025-01-22T17:18:18.847551585+01:00","level":"INFO","msg":"stream: starting","core version":"0.19.4","symlink path":"/ceph/pratz/GitHub_repos/master-thesis/wandb/run-20250122_171818-ie3e67y3/logs/debug-core.log"}
+{"time":"2025-01-22T17:18:18.957604828+01:00","level":"INFO","msg":"created new stream","id":"ie3e67y3"}
+{"time":"2025-01-22T17:18:18.957644897+01:00","level":"INFO","msg":"stream: started","id":"ie3e67y3"}
+{"time":"2025-01-22T17:18:18.957665087+01:00","level":"INFO","msg":"writer: Do: started","stream_id":"ie3e67y3"}
+{"time":"2025-01-22T17:18:18.957752366+01:00","level":"INFO","msg":"handler: started","stream_id":"ie3e67y3"}
+{"time":"2025-01-22T17:18:18.957764026+01:00","level":"INFO","msg":"sender: started","stream_id":"ie3e67y3"}
+{"time":"2025-01-22T17:18:19.263331175+01:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-01-22T17:18:19.422426633+01:00","level":"INFO","msg":"Pausing system monitor"}
+{"time":"2025-01-22T17:18:19.870158644+01:00","level":"INFO","msg":"Resuming system monitor"}
+{"time":"2025-01-22T17:18:31.151647629+01:00","level":"INFO","msg":"Pausing system monitor"}
+{"time":"2025-01-22T17:19:19.649316806+01:00","level":"INFO","msg":"Resuming system monitor"}
+{"time":"2025-01-22T17:19:25.267196557+01:00","level":"INFO","msg":"Pausing system monitor"}
+{"time":"2025-01-22T17:19:32.695336249+01:00","level":"INFO","msg":"Resuming system monitor"}
+{"time":"2025-01-22T17:19:32.916655039+01:00","level":"INFO","msg":"Pausing system monitor"}
+{"time":"2025-01-22T17:19:35.834187789+01:00","level":"INFO","msg":"Resuming system monitor"}
+{"time":"2025-01-22T17:19:36.326724362+01:00","level":"INFO","msg":"Pausing system monitor"}
+{"time":"2025-01-22T17:19:40.111938901+01:00","level":"INFO","msg":"Resuming system monitor"}
+{"time":"2025-01-22T17:19:40.158319386+01:00","level":"INFO","msg":"Pausing system monitor"}
+{"time":"2025-01-22T17:20:14.387666481+01:00","level":"INFO","msg":"Resuming system monitor"}
+{"time":"2025-01-22T21:00:43.648201231+01:00","level":"INFO","msg":"api: retrying HTTP error","status":502,"url":"https://api.wandb.ai/graphql","body":"\n<html><head>\n<meta http-equiv=\"content-type\" content=\"text/html;charset=utf-8\">\n<title>502 Server Error</title>\n</head>\n<body text=#000000 bgcolor=#ffffff>\n<h1>Error: Server Error</h1>\n<h2>The server encountered a temporary error and could not complete your request.<p>Please try again in 30 seconds.</h2>\n<h2></h2>\n</body></html>\n"}
+{"time":"2025-01-22T22:14:25.821538816+01:00","level":"INFO","msg":"Pausing system monitor"}
