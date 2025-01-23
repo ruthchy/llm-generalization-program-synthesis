@@ -1,0 +1,15 @@
+{"time":"2025-01-23T16:08:45.810390154+01:00","level":"INFO","msg":"stream: starting","core version":"0.19.4","symlink path":"/ceph/pratz/GitHub_repos/master-thesis/wandb/run-20250123_160845-v3vhkwwn/logs/debug-core.log"}
+{"time":"2025-01-23T16:08:45.930262985+01:00","level":"INFO","msg":"created new stream","id":"v3vhkwwn"}
+{"time":"2025-01-23T16:08:45.930334564+01:00","level":"INFO","msg":"stream: started","id":"v3vhkwwn"}
+{"time":"2025-01-23T16:08:45.932402918+01:00","level":"INFO","msg":"sender: started","stream_id":"v3vhkwwn"}
+{"time":"2025-01-23T16:08:45.932462487+01:00","level":"INFO","msg":"handler: started","stream_id":"v3vhkwwn"}
+{"time":"2025-01-23T16:08:45.932478717+01:00","level":"INFO","msg":"writer: Do: started","stream_id":"v3vhkwwn"}
+{"time":"2025-01-23T16:08:46.204219615+01:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-01-23T16:09:15.050455033+01:00","level":"INFO","msg":"stream: closing","id":"v3vhkwwn"}
+{"time":"2025-01-23T16:09:15.050585751+01:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-01-23T16:09:15.052419388+01:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-01-23T16:09:15.685187412+01:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-01-23T16:09:15.901598417+01:00","level":"INFO","msg":"handler: closed","stream_id":"v3vhkwwn"}
+{"time":"2025-01-23T16:09:15.901653726+01:00","level":"INFO","msg":"writer: Close: closed","stream_id":"v3vhkwwn"}
+{"time":"2025-01-23T16:09:15.901746355+01:00","level":"INFO","msg":"sender: closed","stream_id":"v3vhkwwn"}
+{"time":"2025-01-23T16:09:15.901760495+01:00","level":"INFO","msg":"stream: closed","id":"v3vhkwwn"}
