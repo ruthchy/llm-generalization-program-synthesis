@@ -1,2 +1,4 @@
-// ...existing code...
+# Ignore synthetic_data/logo_graphic, wandb and results directories and everything inside them
 synthetic_data/logo_graphic/**/*
+wandb/**/*
+results/**/*
