@@ -1,7 +1,7 @@
 # set the GPU to use
 import os
 os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
-os.environ['CUDA_VISIBLE_DEVICES'] = '3'
+os.environ['CUDA_VISIBLE_DEVICES'] = '7'
 
 # load libraries and model from HF
 import torch
@@ -29,11 +29,26 @@ model, tokenizer = FastLanguageModel.from_pretrained(
     dtype=None,
 )
 # if tokenizer.pad_token is None then an error will be raised therfore set it
-if tokenizer.pad_token == None:
-    tokenizer.pad_token = tokenizer.eos_token or '[PAD]'
-    if tokenizer.pad_token == '[PAD]':
-        tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-    print(f"Added padding token: {tokenizer.pad_token}")
+#if tokenizer.pad_token == None:
+#    tokenizer.pad_token = tokenizer.eos_token or '[PAD]'
+#    if tokenizer.pad_token == '[PAD]':
+#        tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+#    print(f"Added padding token: {tokenizer.pad_token}")
+# Add token for padding and add the it together with the special tokens to the tokenizer
+tokenizer.pad_token = '[PAD]'
+tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+# Add custom tokens to the tokenizer
+custom_tokens = [
+    "<sys_prompt>", 
+    "</sys_prompt>",
+    "<custom_library_desc>",
+    "</custom_library_desc>",
+    "<task>", 
+    "</task>",
+    "<output>", 
+    "</output>"
+]
+tokenizer.add_special_tokens({'additional_special_tokens': custom_tokens})
 
 # LoRA (16-bit) for PEFT => this means I need 16GB of VRAM when training the 7B-codelama model (Alternative: QLoRA could be specified with 8GB VRAM)
 model = FastLanguageModel.get_peft_model(
@@ -58,7 +73,7 @@ def preprocess_function(examples):
         text_pair=examples["Program"],  
         truncation=True,
         max_length=max_seq_length,
-        padding="max_length",
+        padding=True,       # Dynamic padding to the maximum length in the batch rather then the entire split
     )
 
 # Apply the tokenizer to the datasets
