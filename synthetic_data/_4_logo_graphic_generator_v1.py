@@ -44,7 +44,7 @@ class PseudoProgramInterpreter:
         self.execute(subprogram, local_vars)
 
             
-    def save_graphics(self, filename="output.png", line_width=2.0):
+    def save_graphics(self, filename="output.png", line_width=3.0):
         """
         Saves the generated graphics as an image file.
         """
