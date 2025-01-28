@@ -1,7 +1,7 @@
 # set the GPU to use
 import os
 os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
-os.environ['CUDA_VISIBLE_DEVICES'] = '7'
+os.environ['CUDA_VISIBLE_DEVICES'] = '3'
 
 # load libraries and model from HF
 import torch
@@ -73,7 +73,7 @@ def preprocess_function(examples):
         text_pair=examples["Program"],  
         truncation=True,
         max_length=max_seq_length,
-        padding=True,       # Dynamic padding to the maximum length in the batch rather then the entire split
+        padding="max_length",       # True Dynamic padding to the maximum length in the batch rather then the entire split
     )
 
 # Apply the tokenizer to the datasets
