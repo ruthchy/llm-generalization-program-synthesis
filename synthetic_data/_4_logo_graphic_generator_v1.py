@@ -85,8 +85,6 @@ class PseudoProgramInterpreter:
             description = row["Description"].replace(" ", "_")  # Sanitize description for filenames
             filename = os.path.join(output_dir, f"{i}_{description}.png")
             self.save_graphics(filename)
-            df.at[i, "Filename"] = filename
-
       
 
     def reset_state(self):
