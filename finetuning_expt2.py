@@ -1,7 +1,7 @@
 # set the GPU to use
 import os
 os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+os.environ['CUDA_VISIBLE_DEVICES'] = '3'
 
 # load libraries and model from HF
 import torch
@@ -12,14 +12,14 @@ from datasets import load_dataset
 from transformers import AutoTokenizer, TrainingArguments
 from unsloth import FastLanguageModel, is_bfloat16_supported
 
-model_name = "codellama/CodeLlama-7b-hf"
+model_name = "codellama/CodeLlama-7b-Instruct-hf"
 max_seq_length = 2048
 
 timestamp = pd.Timestamp.now().strftime("%Y%m%d%H%M")
 # Initialize WandB (ensure you've logged in using `wandb login`)
 wandb.init(project="code-llama-finetuning", 
-           name=f"fine-tune-semantic-length-generalization-ascii-desc_{timestamp}",
-           config={"learning_rate": 5e-5, "num_train_epochs": 3, "max_seq_length": max_seq_length, "num_epochs": 3,})
+           name=f"fine-tune-instruct-semantic-length-generalization-ascii-desc_{timestamp}",
+           config={"learning_rate": 5e-5, "num_train_epochs": 1, "max_seq_length": max_seq_length, "num_epochs": 1,})
 
 # Model configuration
 model, tokenizer = FastLanguageModel.from_pretrained(
@@ -49,7 +49,8 @@ model = FastLanguageModel.get_peft_model(
 # load the dataset and access the splits
 # Input-Experiment 2: ASCII-art + Description
 dataset = load_dataset("ruthchy/semantic-length-generalization-logo-data-ascii-desc")
-train_dataset, val_dataset, test_dataset = dataset["train"], dataset["validation"], dataset["test"]
+#train_dataset, val_dataset, test_dataset = dataset["train"], dataset["validation"], dataset["test"]
+train_dataset, val_dataset = dataset["train"], dataset["validation"]
 
 # Tokenize the datasets
 def preprocess_function(examples):
@@ -58,19 +59,19 @@ def preprocess_function(examples):
         text_pair=examples["Program"],  
         truncation=True,
         max_length=max_seq_length,
-        padding="max_length",
+        padding=True, # dynamically pad to the maximum length in the batch
     )
 
 # Apply the tokenizer to the datasets
 tokenized_train_dataset = train_dataset.map(preprocess_function, batched=True, num_proc=4)
 tokenized_val_dataset = val_dataset.map(preprocess_function, batched=True, num_proc=4)
-tokenized_test_dataset = test_dataset.map(preprocess_function, batched=True, num_proc=4)
+#tokenized_test_dataset = test_dataset.map(preprocess_function, batched=True, num_proc=4)
 
 # Define a base TrainingArguments
 training_args = TrainingArguments(
     output_dir="./results/02_expt",
-    num_train_epochs=3,
-    per_device_train_batch_size=8,
+    num_train_epochs=1,
+    per_device_train_batch_size=16,
     gradient_accumulation_steps=4,
     eval_strategy="steps",
     save_strategy="steps",
@@ -80,7 +81,7 @@ training_args = TrainingArguments(
     fp16=not is_bfloat16_supported(),
     bf16=is_bfloat16_supported(),
     report_to=["wandb"],
-    hub_model_id="ruthchy/02_expt_code-llama-ascii-desc", 
+    hub_model_id="ruthchy/02_expt_code-llama-instruct-ascii-desc", 
     push_to_hub=True,
     logging_steps = 1,
 )
@@ -98,6 +99,6 @@ trainer = SFTTrainer(
 # Train the model
 trainer.train()
 # Evaluate the model
-results = trainer.evaluate(tokenized_test_dataset)
-wandb.log({"Experiment 2 Results": results})
-print("Experiment 2 Results:", results)
+#results = trainer.evaluate(tokenized_test_dataset)
+#wandb.log({"Experiment 2 Results": results})
+#print("Experiment 2 Results:", results)
