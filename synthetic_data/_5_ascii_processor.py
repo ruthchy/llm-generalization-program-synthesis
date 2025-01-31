@@ -111,5 +111,5 @@ class ASCIIProcessor:
             ascii_inputs.append(ascii_art)
         
         # Update the DataFrame
-        df_copy["ascii_input"] = ascii_inputs
+        df_copy["ASCII-Art"] = ascii_inputs
         return df_copy
