@@ -1,0 +1,26 @@
+cuda:
+  devices: '1' # or comma separated list of device ids e.g. '0,3'
+
+data: "ruthchy/semantic-length-generalization-logo-data-desc-ascii_35"
+
+model:
+  name: "codellama/CodeLlama-7b-hf" 
+  # xu3kev/deepseekcoder-7b-logo-pbe
+training:
+  trainer_output_only: False
+  # pre-processing
+  max_seq_length: 2048
+  # training
+  learning_rate: 5e-5
+  train_epochs: 1
+  #epochs: 1
+  per_device_batch_size: 8
+  gradient_accumulation_steps: 4
+  # checkpointing and evaluation
+  save_steps: 100
+  eval_steps: 100
+  logging_steps: 1
+  # reproducibility
+  random_seed: 3407
+
+
