@@ -12,6 +12,10 @@ cuda_devices = config["cuda"]["devices"]
 data_dir = config["data"]
 # model
 model_name = config["model"]["name"]
+#lora
+rank = int(config["lora"]["rank"])
+alpha = int(config["lora"]["alpha"])
+
 # training
 max_seq_length = config["training"]["max_seq_length"]
 learning_rate = float(config["training"]["learning_rate"])
@@ -58,8 +62,8 @@ model, tokenizer = FastLanguageModel.from_pretrained(
 
 model = FastLanguageModel.get_peft_model(
     model,
-    r=16,
-    lora_alpha=16,
+    r=rank,
+    lora_alpha=alpha,
     lora_dropout=0,
     target_modules=["q_proj", "k_proj", "v_proj", "up_proj", "down_proj", "o_proj", "gate_proj"], 
     use_rslora=True,
@@ -73,8 +77,7 @@ model = FastLanguageModel.get_peft_model(
 dataset = load_dataset(data_dir)
 
 for split in dataset:
-    dataset[split] = dataset[split].map(lambda x: conversational_format(x, include_description=True, include_ascii=True))
-    #dataset[split] = dataset[split].rename_column("messages", "conversations")
+    dataset[split] = dataset[split].map(lambda x: instruction_format(x, include_description=True, include_ascii=True))
 
 train_dataset, val_dataset, test_dataset = dataset["train"], dataset["validation"], dataset["test"]
 
