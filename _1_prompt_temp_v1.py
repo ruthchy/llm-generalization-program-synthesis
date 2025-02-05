@@ -1,3 +1,14 @@
+import yaml
+def load_config(yaml_file):
+    with open(yaml_file, "r") as file:
+        config = yaml.safe_load(file)
+    return config
+
+config = load_config("config.yaml")
+
+include_ascii = config["input"]["include_ascii"]
+include_desc = config["input"]["include_desc"]
+
 sys_prompt = """Your task is to draw simple black and white graphics with the custom library. DO NOT USE THE BUILT-IN TURTLE LIBRARY.
 You will use a custom turtle library, similar to the built-in library, which is sufficient for all tasks.
 
@@ -14,8 +25,7 @@ Here are all the available functions in the custom turtle library:
 
 # Instruction Format 
 def instruction_format(example, include_description=False, include_ascii=False):
-    if not (include_description or include_ascii):
-        raise ValueError("At least one of include_description or include_ascii must be True.")
+    assert include_ascii or include_desc, "At least one of include_ascii or include_desc must be True."
     formated_input = "Generate a python program producing the graphic, which is"
     if include_description and include_ascii:
         formated_input += " described and depicted"
@@ -36,8 +46,7 @@ def instruction_format(example, include_description=False, include_ascii=False):
 
 # Conversational Format
 def conversational_format(example, include_description=False, include_ascii=False):
-    if not (include_description or include_ascii):
-        raise ValueError("At least one of include_description or include_ascii must be True.")
+    assert include_ascii or include_desc, "At least one of include_ascii or include_desc must be True."
     if include_description and include_ascii:
         return {
         "conversations": [
@@ -62,8 +71,7 @@ def conversational_format(example, include_description=False, include_ascii=Fals
 
 # Conversational Format inc system prompt
 def conversational_format_inc_sys(example, include_description=False, include_ascii=False):
-    if not (include_description or include_ascii):
-        raise ValueError("At least one of include_description or include_ascii must be True.")
+    assert include_ascii or include_desc, "At least one of include_ascii or include_desc must be True."
     if include_description and include_ascii:
         return {
         "conversations": [
@@ -92,8 +100,7 @@ def conversational_format_inc_sys(example, include_description=False, include_as
 # Format in Is-PBE
 # Conversational Format
 def conversational_format_PBE_zeroshot(example, include_description=False, include_ascii=False):
-    if not (include_description or include_ascii):
-        raise ValueError("At least one of include_description or include_ascii must be True.")
+    assert include_ascii or include_desc, "At least one of include_ascii or include_desc must be True."
     if include_description and include_ascii:
         return {
         "conversations": [
@@ -115,3 +122,35 @@ def conversational_format_PBE_zeroshot(example, include_description=False, inclu
             {"role": "assistant", "content": example["Program"]}
         ]
     }
+
+######################## test the functions ############################
+# for the completionsonly.py
+def formatting_prompts_func(example):
+    output_texts = []
+    assert include_ascii or include_desc, "At least one of include_ascii or include_desc must be True."
+    for i in range(len(example["Description"])):
+        if include_ascii and include_desc:
+            formated_input = f"Generate a python program producing the graphic, which is described and depicted as follows:\n    The Program draws {example['Description'][i]}\n    Graphic:\n{example['ASCII-Art'][i]}\n"
+        elif include_desc:
+            formated_input = f"Generate a python program producing the graphic, which is described as follows:\n    The Program draws {example['Description'][i]}\n"
+        elif include_ascii:
+            formated_input = f"Generate a python program producing the graphic, which is depicted as follows:\n    Graphic:\n{example['ASCII-Art'][i]}\n"
+
+        text = f"### Instruction: {formated_input}\n### Python Program: {example['Program'][i]}"
+        output_texts.append(text)
+    return output_texts
+
+def formatting_prompts_func_PBE(example):
+    output_texts = []
+    assert include_ascii or include_desc, "At least one of include_ascii or include_desc must be True."
+    for i in range(len(example["Description"])):
+        if include_ascii and include_desc:
+            formated_input = f"Here is a gray scale image described as containing {example['Description'][i]}. The image is represented with integer values 0-9.\n{example['ASCII-Art'][i]}\nPlease, write a Python program that generates this image using our own custom turtle module.\n"
+        elif include_desc:
+            formated_input = f"Here is a gray scale image described as containing {example['Description'][i]}\nPlease, write a Python program that generates this image using our own custom turtle module.\n"
+        elif include_ascii:
+            formated_input = f"Here is a gray scale image represented with integer values 0-9.\n{example['ASCII-Art'][i]}\nPlease, write a Python program that generates this image using our own custom turtle module.\n"
+
+        text = f"### Instruction: {formated_input}\n### Python Program: {example['Program'][i]}"
+        output_texts.append(text)
+    return output_texts

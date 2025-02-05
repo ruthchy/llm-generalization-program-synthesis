@@ -87,15 +87,7 @@ train_dataset, val_dataset, test_dataset = dataset["train"], dataset["validation
 ### Training on completions only ###
 # https://huggingface.co/docs/trl/sft_trainer#train-on-completions-only
 
-### orients on the instruction_format_v1 function from _1_prompt_temp_v2.py but excludes the include_description and include_ascii arguments
-def formatting_prompts_func(example):
-    output_texts = []
-    for i in range(len(example["Description"])):
-        formated_input = f"Generate a python program producing the graphic, which is described and depicted as follows:\n    The Program draws {example['Description'][i]}\n    Graphic:\n{example['ASCII-Art'][i]}\n"
-        text = f"### Instruction: {formated_input}\n### Python Program: {example['Program'][i]}"
-        output_texts.append(text)
-    return output_texts
-
+from _1_prompt_temp_v1 import formatting_prompts_func_PBE 
 
 response_template = "### Python Program:" 
 collator = DataCollatorForCompletionOnlyLM(response_template, tokenizer=tokenizer)
@@ -103,7 +95,7 @@ collator = DataCollatorForCompletionOnlyLM(response_template, tokenizer=tokenize
 trainer = SFTTrainer(
     model,
     data_collator=collator,          
-    formatting_func=formatting_prompts_func, 
+    formatting_func=formatting_prompts_func_PBE, 
     train_dataset=train_dataset,
     eval_dataset=val_dataset,
     compute_metrics=None, # (Callable[[transformers.EvalPrediction], dict], optional defaults to None) — The function used to compute metrics during evaluation. It should return a dictionary mapping metric names to metric values. If not specified, only the loss will be computed during evaluation.
@@ -143,6 +135,6 @@ trainer = SFTTrainer(
         )
     )
 
-trainer.train(resume_from_checkpoint=False, max_steps=5)
+#trainer.train(resume_from_checkpoint=False, max_steps=5)
 
 trainer.train()

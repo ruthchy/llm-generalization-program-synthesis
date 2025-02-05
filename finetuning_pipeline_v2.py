@@ -1,4 +1,3 @@
-### load parameters from config.yaml
 import yaml
 def load_config(yaml_file):
     with open(yaml_file, "r") as file:
@@ -19,7 +18,7 @@ alpha = int(config["lora"]["alpha"])
 # training
 max_seq_length = config["training"]["max_seq_length"]
 learning_rate = float(config["training"]["learning_rate"])
-warmup_steps = str(config["training"]["warmup_steps"])
+warmup_steps = int(config["training"]["warmup_steps"])
 lr_scheduler_type = str(config["training"]["lr_scheduler_type"])
 train_epochs = config["training"]["train_epochs"]
 per_device_batch_size = config["training"]["per_device_batch_size"]
@@ -34,6 +33,7 @@ random_seed = config["training"]["random_seed"]
 import os
 os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
 os.environ['CUDA_VISIBLE_DEVICES'] = cuda_devices
+print("cuda devices:", cuda_devices)
 
 ### load libraries and model from HF 
 import torch
@@ -44,7 +44,7 @@ from trl import SFTTrainer, SFTConfig, DataCollatorForCompletionOnlyLM # to trai
 #from trl.trainer import ConstantLengthDataset
 from datasets import load_dataset
 from _1_prompt_temp_v1 import instruction_format, conversational_format, sys_prompt
-from unsloth import FastLanguageModel, is_bfloat16_supported, apply_chat_template
+from unsloth import FastLanguageModel, is_bfloat16_supported, get_chat_template, apply_chat_template
 
 timestamp = pd.Timestamp.now().strftime("%Y%m%d%H%M")
 # Initialize WandB (ensure you've logged in using `wandb login`)
@@ -78,26 +78,30 @@ model = FastLanguageModel.get_peft_model(
 ########
 dataset = load_dataset(data_dir)
 
+# combines the columns "Description", "ASCII-Art" and "Program" into a single column "conversations"
 for split in dataset:
-    dataset[split] = dataset[split].map(lambda x: instruction_format(x, include_description=True, include_ascii=True))
+    dataset[split] = dataset[split].map(lambda x: conversational_format(x, include_description=True, include_ascii=True))
 
+tokenizer = get_chat_template(
+    tokenizer,
+    chat_template = "llama", # Supports zephyr, chatml, mistral, llama, alpaca, vicuna, vicuna_old, unsloth
+    # next line not needed since my conversational_format function already returns the correct style
+    #mapping = {"role" : "from", "content" : "value", "user" : "human", "assistant" : "gpt"}, # ShareGPT style
+    map_eos_token = True, # Maps <|im_end|> to </s> instead
+)
+def formatting_prompts_func(examples):
+    convos = examples["conversations"]
+    texts = [tokenizer.apply_chat_template(convo, tokenize = False, add_generation_prompt = False) for convo in convos]
+    return { "text" : texts, }
+pass
+
+dataset = dataset.map(formatting_prompts_func, batched = True,)
 train_dataset, val_dataset, test_dataset = dataset["train"], dataset["validation"], dataset["test"]
 
 # Print out a sample to confirm the changes
-print(train_dataset["conversations"][0])
+display(train_dataset.select(range(2)).to_pandas())
 
-### define and apply chat template
-chat_template = """### Instruction:
-{INPUT}
-### Python Program:
-{OUTPUT}"""
 
-dataset = apply_chat_template(
-    dataset,
-    tokenizer = tokenizer,
-    chat_template = chat_template,
-    default_system_message = sys_prompt, # optional
-)
 ##########################
 # Training configuration # 
 ##########################
@@ -207,6 +211,10 @@ trainer_2 = SFTTrainer(
     )
 
 if config["training"]["trainer_output_only"]:
+    # sanity check 
+    trainer_2.train(resume_from_checkpoint=False, max_steps=5)
     trainer_2.train()
 else:
+    trainer_1.train(resume_from_checkpoint=False, max_steps=5)
     trainer_1.train()
+

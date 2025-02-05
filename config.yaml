@@ -3,6 +3,10 @@ cuda:
 
 data: "ruthchy/semantic-length-generalization-logo-data-desc-ascii_35"
 
+input:
+  include_ascii: True
+  include_desc: True
+
 model:
   name: "codellama/CodeLlama-7b-Instruct-hf" 
   # xu3kev/deepseekcoder-7b-logo-pbe
