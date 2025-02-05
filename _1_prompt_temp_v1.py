@@ -61,7 +61,7 @@ def conversational_format(example, include_description=False, include_ascii=Fals
     }
 
 # Conversational Format inc system prompt
-def conversational_format(example, include_description=False, include_ascii=False):
+def conversational_format_inc_sys(example, include_description=False, include_ascii=False):
     if not (include_description or include_ascii):
         raise ValueError("At least one of include_description or include_ascii must be True.")
     if include_description and include_ascii:
@@ -85,6 +85,33 @@ def conversational_format(example, include_description=False, include_ascii=Fals
         "conversations": [
             {"role": "system", "content": sys_prompt},
             {"role": "user", "content": f"Generate a python program producing the graphic, which is depicted as follows:\n Graphic:\n{example['ASCII-Art']}\n"},
+            {"role": "assistant", "content": example["Program"]}
+        ]
+    }
+
+# Format in Is-PBE
+# Conversational Format
+def conversational_format_PBE_zeroshot(example, include_description=False, include_ascii=False):
+    if not (include_description or include_ascii):
+        raise ValueError("At least one of include_description or include_ascii must be True.")
+    if include_description and include_ascii:
+        return {
+        "conversations": [
+            {"role": "user", "content": f"Here is a gray scale image described as containing {example['Description']}. The image is represented with integer values 0-9.\n{example['ASCII-Art']}\nPlease, write a Python program that generates this image using our own custom turtle module."},
+            {"role": "assistant", "content": example["Program"]}
+        ]
+    }
+    elif include_description:
+        return {
+        "conversations": [
+            {"role": "user", "content": f"Here is a gray scale image described as containing {example['Description']}\nPlease, write a Python program that generates this image using our own custom turtle module."},
+            {"role": "assistant", "content": example["Program"]}
+        ]
+    }
+    elif include_description:
+        return {
+        "conversations": [
+            {"role": "user", "content": f"Here is a gray scale image represented with integer values 0-9.\n{example['ASCII-Art']}\nPlease, write a Python program that generates this image using our own custom turtle module."},
             {"role": "assistant", "content": example["Program"]}
         ]
     }
