@@ -137,6 +137,4 @@ trainer = SFTTrainer(
         )
     )
 
-#trainer.train(resume_from_checkpoint=False, max_steps=5)
-
 trainer.train()
