@@ -87,15 +87,17 @@ train_dataset, val_dataset, test_dataset = dataset["train"], dataset["validation
 ### Training on completions only ###
 # https://huggingface.co/docs/trl/sft_trainer#train-on-completions-only
 
-from _1_prompt_temp_v1 import formatting_prompts_func_PBE 
+from _1_prompt_temp_v1 import formatting_prompts_func_PBE_INSTtok 
 
+instruction_template = "[INST]### Instruction:"
 response_template = "### Python Program:" 
-collator = DataCollatorForCompletionOnlyLM(response_template, tokenizer=tokenizer)
+#collator = DataCollatorForCompletionOnlyLM(response_template, tokenizer=tokenizer)
+collator = DataCollatorForCompletionOnlyLM(response_template, instruction_template, tokenizer=tokenizer, mlm=False)
 
 trainer = SFTTrainer(
     model,
     data_collator=collator,          
-    formatting_func=formatting_prompts_func_PBE, 
+    formatting_func=formatting_prompts_func_PBE_INSTtok, 
     train_dataset=train_dataset,
     eval_dataset=val_dataset,
     compute_metrics=None, # (Callable[[transformers.EvalPrediction], dict], optional defaults to None) — The function used to compute metrics during evaluation. It should return a dictionary mapping metric names to metric values. If not specified, only the loss will be computed during evaluation.

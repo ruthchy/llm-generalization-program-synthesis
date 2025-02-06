@@ -154,3 +154,18 @@ def formatting_prompts_func_PBE(example):
         text = f"### Instruction: {formated_input}\n### Python Program: {example['Program'][i]}"
         output_texts.append(text)
     return output_texts
+
+def formatting_prompts_func_PBE_INSTtok(example):
+    output_texts = []
+    assert include_ascii or include_desc, "At least one of include_ascii or include_desc must be True."
+    for i in range(len(example["Description"])):
+        if include_ascii and include_desc:
+            formated_input = f"Here is a gray scale image described as containing {example['Description'][i]}. The image is represented with integer values 0-9.\n{example['ASCII-Art'][i]}\nPlease, write a Python program that generates this image using our own custom turtle module.\n"
+        elif include_desc:
+            formated_input = f"Here is a gray scale image described as containing {example['Description'][i]}\nPlease, write a Python program that generates this image using our own custom turtle module.\n"
+        elif include_ascii:
+            formated_input = f"Here is a gray scale image represented with integer values 0-9.\n{example['ASCII-Art'][i]}\nPlease, write a Python program that generates this image using our own custom turtle module.\n"
+
+        text = f"[INST]### Instruction: {formated_input}[/INST]\n### Python Program: {example['Program'][i]}"
+        output_texts.append(text)
+    return output_texts
