@@ -24,17 +24,17 @@ Here are all the available functions in the custom turtle library:
 - embed(program, local vars): runs the code in program using the current context and teleports back to the original position. Allows you to nest programs. Implementationally, embed gets the turtle state (is down, x, y, heading), executes program, then returns to the original state."""
 
 # Instruction Format 
-def instruction_format(example, include_description=False, include_ascii=False):
+def instruction_format(example):
     assert include_ascii or include_desc, "At least one of include_ascii or include_desc must be True."
     formated_input = "Generate a python program producing the graphic, which is"
-    if include_description and include_ascii:
+    if include_desc and include_ascii:
         formated_input += " described and depicted"
-    elif include_description:
+    elif include_desc:
         formated_input += " described"
     elif include_ascii:
         formated_input += " depicted"
     formated_input += " as follows:\n"
-    if include_description:
+    if include_desc:
         formated_input += f"    The Program draws {example['Description']}\n"
     if include_ascii:
         formated_input += f"    Graphic:\n{example['ASCII-Art']}\n"
@@ -45,23 +45,23 @@ def instruction_format(example, include_description=False, include_ascii=False):
 
 
 # Conversational Format
-def conversational_format(example, include_description=False, include_ascii=False):
+def conversational_format(example):
     assert include_ascii or include_desc, "At least one of include_ascii or include_desc must be True."
-    if include_description and include_ascii:
+    if include_desc and include_ascii:
         return {
         "conversations": [
             {"role": "user", "content": f"Generate a python program producing the graphic, which is described and depicted as follows:\n The Program draws {example['Description']}\n Graphic:\n{example['ASCII-Art']}\n"},
             {"role": "assistant", "content": example["Program"]}
         ]
     }
-    elif include_description:
+    elif include_desc:
         return {
         "conversations": [
             {"role": "user", "content": f"Generate a python program producing the graphic, which is described as follows:\n The Program draws {example['Description']}\n"},
             {"role": "assistant", "content": example["Program"]}
         ]
     }
-    elif include_description:
+    elif include_ascii:
         return {
         "conversations": [
             {"role": "user", "content": f"Generate a python program producing the graphic, which is depicted as follows:\n Graphic:\n{example['ASCII-Art']}\n"},
@@ -70,9 +70,9 @@ def conversational_format(example, include_description=False, include_ascii=Fals
     }
 
 # Conversational Format inc system prompt
-def conversational_format_inc_sys(example, include_description=False, include_ascii=False):
+def conversational_format_inc_sys(example):
     assert include_ascii or include_desc, "At least one of include_ascii or include_desc must be True."
-    if include_description and include_ascii:
+    if include_desc and include_ascii:
         return {
         "conversations": [
             {"role": "system", "content": sys_prompt},
@@ -80,7 +80,7 @@ def conversational_format_inc_sys(example, include_description=False, include_as
             {"role": "assistant", "content": example["Program"]}
         ]
     }
-    elif include_description:
+    elif include_desc:
         return {
         "conversations": [
             {"role": "system", "content": sys_prompt},
@@ -88,7 +88,7 @@ def conversational_format_inc_sys(example, include_description=False, include_as
             {"role": "assistant", "content": example["Program"]}
         ]
     }
-    elif include_description:
+    elif include_ascii:
         return {
         "conversations": [
             {"role": "system", "content": sys_prompt},
@@ -99,23 +99,23 @@ def conversational_format_inc_sys(example, include_description=False, include_as
 
 # Format in Is-PBE
 # Conversational Format
-def conversational_format_PBE_zeroshot(example, include_description=False, include_ascii=False):
+def conversational_format_PBE_zeroshot(example):
     assert include_ascii or include_desc, "At least one of include_ascii or include_desc must be True."
-    if include_description and include_ascii:
+    if include_desc and include_ascii:
         return {
         "conversations": [
             {"role": "user", "content": f"Here is a gray scale image described as containing {example['Description']}. The image is represented with integer values 0-9.\n{example['ASCII-Art']}\nPlease, write a Python program that generates this image using our own custom turtle module."},
             {"role": "assistant", "content": example["Program"]}
         ]
     }
-    elif include_description:
+    elif include_desc:
         return {
         "conversations": [
             {"role": "user", "content": f"Here is a gray scale image described as containing {example['Description']}\nPlease, write a Python program that generates this image using our own custom turtle module."},
             {"role": "assistant", "content": example["Program"]}
         ]
     }
-    elif include_description:
+    elif include_ascii:
         return {
         "conversations": [
             {"role": "user", "content": f"Here is a gray scale image represented with integer values 0-9.\n{example['ASCII-Art']}\nPlease, write a Python program that generates this image using our own custom turtle module."},
