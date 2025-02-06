@@ -5,11 +5,12 @@ data: "ruthchy/semantic-length-generalization-logo-data-desc-ascii_35"
 
 input:
   include_ascii: True
-  include_desc: True
+  include_desc: False
 
 model:
-  name: "codellama/CodeLlama-7b-Instruct-hf" 
-  # xu3kev/deepseekcoder-7b-logo-pbe
+  name_PBE_DeepSeekCoder: "xu3kev/deepseekcoder-7b-logo-pbe" 
+  name_CODELLama7BInst: "codellama/CodeLlama-7b-Instruct-hf" 
+  name_pc: "ruthchy/02_expt_code-llama-ascii-desc"
 training:
   trainer_output_only: False
   # pre-processing

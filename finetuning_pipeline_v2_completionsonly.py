@@ -10,7 +10,7 @@ cuda_devices = config["cuda"]["devices"]
 # data
 data_dir = config["data"]
 # model
-model_name = config["model"]["name"]
+model_name = config["model"]["name_CODELLama7BInst"]
 #lora
 rank = int(config["lora"]["rank"])
 alpha = int(config["lora"]["alpha"])
