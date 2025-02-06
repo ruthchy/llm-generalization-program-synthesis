@@ -89,10 +89,16 @@ train_dataset, val_dataset, test_dataset = dataset["train"], dataset["validation
 
 from _1_prompt_temp_v1 import formatting_prompts_func_PBE_INSTtok 
 
-instruction_template = "[INST]### Instruction:"
-response_template = "### Python Program:" 
+#instruction_template = "[INST]### Instruction:"
+#response_template = "[/INST]\n### Python Program:" 
 #collator = DataCollatorForCompletionOnlyLM(response_template, tokenizer=tokenizer)
-collator = DataCollatorForCompletionOnlyLM(response_template, instruction_template, tokenizer=tokenizer, mlm=False)
+#collator = DataCollatorForCompletionOnlyLM(response_template, instruction_template, tokenizer=tokenizer, mlm=False)
+
+# for the LLAMA model the tokens vary depending on how much context is given therefore, we use tht token ids rather then the raw text
+response_template = "\n### Python Program:" 
+response_template_id = tokenizer.encode(response_template, add_special_tokens=False)[2:] 
+print(response_template_id)
+collator = DataCollatorForCompletionOnlyLM(response_template_id, tokenizer=tokenizer)
 
 trainer = SFTTrainer(
     model,
