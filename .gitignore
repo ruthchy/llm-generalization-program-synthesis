@@ -2,5 +2,4 @@
 synthetic_data/logo_graphic/**/*
 wandb/**/*
 results/**/*
-#added unsloth temporary saved buffers to gitignore
 _unsloth_temporary_saved_buffers/**/*
