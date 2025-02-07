@@ -11,7 +11,7 @@ cuda_devices = config["cuda"]["devices"]
 # data
 data_dir = config["data"]
 # model
-model_name = config["model"]["name"]
+model_name = config["model"]["name_CODELLama7BInst"]
 #lora
 rank = int(config["lora"]["rank"])
 alpha = int(config["lora"]["alpha"])
@@ -79,7 +79,7 @@ model = FastLanguageModel.get_peft_model(
 dataset = load_dataset(data_dir)
 
 for split in dataset:
-    dataset[split] = dataset[split].map(lambda x: instruction_format(x, include_description=True, include_ascii=True))
+    dataset[split] = dataset[split].map(lambda x: instruction_format(x))
 
 train_dataset, val_dataset, test_dataset = dataset["train"], dataset["validation"], dataset["test"]
 
