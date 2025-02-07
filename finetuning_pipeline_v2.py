@@ -10,7 +10,7 @@ cuda_devices = config["cuda"]["devices"]
 # data
 data_dir = config["data"]
 # model
-model_name = config["model"]["name"]
+model_name = config["model"]["name_CODELLama7BInst"]
 #lora
 rank = int(config["lora"]["rank"])
 alpha = int(config["lora"]["alpha"])
@@ -70,7 +70,8 @@ model = FastLanguageModel.get_peft_model(
     target_modules=["q_proj", "k_proj", "v_proj", "up_proj", "down_proj", "o_proj", "gate_proj"], 
     use_rslora=True,
     use_gradient_checkpointing="unsloth",
-    random_state= random_seed
+    random_state= random_seed,
+    modules_to_save=["lm_head", "embed_tokens"] # also added at the trainer suggested for Llama models (https://huggingface.co/docs/trl/sft_trainer#training-adapters)
 )
 
 ########
@@ -80,7 +81,7 @@ dataset = load_dataset(data_dir)
 
 # combines the columns "Description", "ASCII-Art" and "Program" into a single column "conversations"
 for split in dataset:
-    dataset[split] = dataset[split].map(lambda x: conversational_format(x, include_description=True, include_ascii=True))
+    dataset[split] = dataset[split].map(conversational_format)
 
 tokenizer = get_chat_template(
     tokenizer,
@@ -155,24 +156,20 @@ trainer_1 = SFTTrainer(
 # https://huggingface.co/docs/trl/sft_trainer#train-on-completions-only
 
 ### orients on the instruction_format_v1 function from _1_prompt_temp_v2.py but excludes the include_description and include_ascii arguments
-def formatting_prompts_func(example):
-    output_texts = []
-    for i in range(len(example["Description"])):
-        formated_input = f"Generate a python program producing the graphic, which is described and depicted as follows:\n    The Program draws {example['Description'][i]}\n    Graphic:\n{example['ASCII-Art'][i]}\n"
-        text = f"### Instruction: {formated_input}\n### Python Program: {example['Program'][i]}"
-        output_texts.append(text)
-    return output_texts
+from _1_prompt_temp_v1 import formatting_prompts_func_PBE_INSTtok
 
-
-response_template = "### Python Program:" 
-collator = DataCollatorForCompletionOnlyLM(response_template, tokenizer=tokenizer)
+response_template = "\n### Python Program:" 
+response_template_id = tokenizer.encode(response_template, add_special_tokens=False)[2:] 
+print(response_template_id)
+collator = DataCollatorForCompletionOnlyLM(response_template_id, tokenizer=tokenizer)
 
 trainer_2 = SFTTrainer(
     model,
     data_collator=collator,          
-    formatting_func=formatting_prompts_func, 
+    formatting_func=formatting_prompts_func_PBE_INSTtok, 
     train_dataset=train_dataset,
     eval_dataset=val_dataset,
+    modules_to_save=["lm_head", "embed_tokens"],
     compute_metrics=None, # (Callable[[transformers.EvalPrediction], dict], optional defaults to None) — The function used to compute metrics during evaluation. It should return a dictionary mapping metric names to metric values. If not specified, only the loss will be computed during evaluation.
     args = SFTConfig(
         output_dir = f"./results/fine-tune-{model_name.split('/')[-1]}-{data_dir.split('/')[-1]}",
