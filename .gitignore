@@ -2,3 +2,4 @@
 synthetic_data/logo_graphic/**/*
 wandb/**/*
 results/**/*
+_unsloth_temporary_saved_buffers/**/*
