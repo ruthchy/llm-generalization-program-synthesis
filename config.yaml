@@ -1,5 +1,5 @@
 cuda:
-  devices: '6' # or comma separated list of device ids e.g. '0,3'
+  devices: '1' # or comma separated list of device ids e.g. '0,3'
 
 data: "ruthchy/semantic-length-generalization-logo-data-desc-ascii_35"
 
@@ -10,7 +10,10 @@ input:
 model:
   name_PBE_DeepSeekCoder: "xu3kev/deepseekcoder-7b-logo-pbe" 
   name_CODELLama7BInst: "codellama/CodeLlama-7b-Instruct-hf" 
-  name_pc: "ruthchy/02_expt_code-llama-ascii-desc"
+  name_pc: "ruthchy/fine-tune-CodeLlama-7b-Instruct-sem-len-generalization-logo-ascii-35-completions-only-20250206"
+  topk_train: 1 # no. of I/O pairs during finetuning
+  topk_prompt: 0 # no. of I/O pairs during inference in addition to the I (zero-shot prompting = 0, …)
+  
 training:
   trainer_output_only: False
   # pre-processing
@@ -20,7 +23,7 @@ training:
   warmup_steps: 20 # 20, 100, 500, 1000 recommended 20 in PBE paper
   lr_scheduler_type: "cosine" # "linear" (default), "cosine", "cosine_with_restarts", "polynomial", "constant", "constant_with_warmup" # linear and cosine are usually; used cosine is used in PBE
   train_epochs: 1
-  per_device_batch_size: 32 # PBE 64 
+  per_device_batch_size: 64 # 4, 8, 16, 32, 64, 128, 256, 512 recommended 64 in PBE 
   gradient_accumulation_steps: 4
   # checkpointing and evaluation
   save_steps: 10
