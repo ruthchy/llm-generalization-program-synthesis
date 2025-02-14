@@ -1,7 +1,10 @@
 # Version 1 - no bbox calculation
 import os
 import matplotlib.pyplot as plt
-from _3_executable_logo_primitives import ReGALLOGOPrimitives
+try:
+    from _3_executable_logo_primitives import ReGALLOGOPrimitives
+except ImportError:
+    from synthetic_data._3_executable_logo_primitives import ReGALLOGOPrimitives
 
 # Interpreter class
 class PseudoProgramInterpreter:
@@ -44,9 +47,13 @@ class PseudoProgramInterpreter:
         self.execute(subprogram, local_vars)
 
             
-    def save_graphics(self, filename="output.png", line_width=3.0):
+    def save_graphics(self, filename="output.png", line_width=3.0, eval_mode=False):
         """
         Saves the generated graphics as an image file.
+        Args:
+            filename: str, name of the output file
+            line_width: float, width of the drawing lines
+            eval_mode: bool, if True saves in evaluation results directory
         """
         # Define figure size in inches to achieve 525x525 pixels
         target_size_pixels = 525  # Target size for a square output image
@@ -68,11 +75,20 @@ class PseudoProgramInterpreter:
 
         # Hide axes for a clean output
         ax.axis('off')
+        
+        # If in eval mode, modify the save path
+        if eval_mode:
+            # Extract model name from filename path if it exists
+            model_name = os.path.dirname(filename).split('/')[-1] if '/' in filename else ''
+            eval_dir = os.path.join('results', 'data', model_name, 'logo_graphics')
+            os.makedirs(eval_dir, exist_ok=True)
+            filename = os.path.join(eval_dir, os.path.basename(filename))
+        
         # Save the figure with tight bounding box
         plt.savefig(filename, bbox_inches='tight', dpi=dpi, pad_inches=0)
         plt.close(fig)
 
-    def process_and_save_graphics(self, df, output_dir, filename="output.png"):
+    def process_and_save_graphics(self, df, output_dir, filename="output.png", eval_mode=False):
         """
         Executes a program and saves the resulting graphics as an image file.
         """
@@ -84,7 +100,7 @@ class PseudoProgramInterpreter:
             self.execute(row["Program"])
             description = row["Description"].replace(" ", "_")  # Sanitize description for filenames
             filename = os.path.join(output_dir, f"{i}_{description}.png")
-            self.save_graphics(filename)
+            self.save_graphics(filename, eval_mode=eval_mode)
       
 
     def reset_state(self):

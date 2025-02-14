@@ -2,6 +2,8 @@ import os
 import numpy as np
 from PIL import Image
 import pandas as pd
+import io
+import matplotlib.pyplot as plt
 
 class ASCIIProcessor:
     def __init__(self, n_blocks=35, m_blocks=35, levels=10):
@@ -69,6 +71,55 @@ class ASCIIProcessor:
                 # Quantize the density into levels
                 quantized_value = int(density * self.levels)
                 ascii_matrix[i, j] = min(quantized_value, self.levels - 1)  # Ensure within range
+        
+        return ascii_matrix
+
+    def figure_to_ascii(self, fig):
+        """
+        Convert a matplotlib figure directly to ASCII art without saving to disk.
+        Args:
+            fig: matplotlib figure object
+        Returns:
+            ascii_matrix: A matrix representing the ASCII art.
+        """
+        # Convert matplotlib figure to image array
+        buf = io.BytesIO()
+        fig.savefig(buf, format='png', bbox_inches='tight', dpi=100, pad_inches=0)
+        buf.seek(0)
+        image = Image.open(buf).convert('L')
+        image = np.array(image)
+        
+        # Get the dimensions of the image
+        height, width = image.shape
+        
+        # Ensure image size matches the required dimensions
+        if height != 525 or width != 525:
+            # Resize to 525x525 if necessary
+            image = Image.fromarray(image).resize((525, 525))
+            image = np.array(image)
+            height, width = image.shape
+        
+        # Calculate block sizes
+        block_height = height // self.n_blocks
+        block_width = width // self.m_blocks
+        
+        # Initialize the ASCII matrix
+        ascii_matrix = np.zeros((self.n_blocks, self.m_blocks), dtype=int)
+        
+        # Process each block
+        for i in range(self.n_blocks):
+            for j in range(self.m_blocks):
+                block = image[
+                    i * block_height : (i + 1) * block_height,
+                    j * block_width : (j + 1) * block_width
+                ]
+                
+                # Calculate the density of black pixels
+                density = np.mean(block < 128)
+                
+                # Quantize the density into levels
+                quantized_value = int(density * self.levels)
+                ascii_matrix[i, j] = min(quantized_value, self.levels - 1)
         
         return ascii_matrix
 
