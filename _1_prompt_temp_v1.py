@@ -123,6 +123,30 @@ def conversational_format_PBE_zeroshot(example):
         ]
     }
 
+def conversational_format_PBE_zeroshot_inference(example):
+    assert include_ascii or include_desc, "At least one of include_ascii or include_desc must be True."
+    if include_desc and include_ascii:
+        return {
+        "conversations": [
+            {"role": "user", "content": f"Here is a gray scale image described as containing {example['Description']}. The image is represented with integer values 0-9.\n{example['ASCII-Art']}\nPlease, write a Python program that generates this image using our own custom turtle module."},
+            #{"role": "assistant", "content": example["Program"]}
+        ]
+    }
+    elif include_desc:
+        return {
+        "conversations": [
+            {"role": "user", "content": f"Here is a gray scale image described as containing {example['Description']}\nPlease, write a Python program that generates this image using our own custom turtle module."},
+            #{"role": "assistant", "content": example["Program"]}
+        ]
+    }
+    elif include_ascii:
+        return {
+        "conversations": [
+            {"role": "user", "content": f"Here is a gray scale image represented with integer values 0-9.\n{example['ASCII-Art']}\nPlease, write a Python program that generates this image using our own custom turtle module."},
+            #{"role": "assistant", "content": example["Program"]}
+        ]
+    }
+
 ######################## test the functions ############################
 # for the completionsonly.py
 def formatting_prompts_func(example):
