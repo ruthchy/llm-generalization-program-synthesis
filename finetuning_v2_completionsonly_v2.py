@@ -18,9 +18,9 @@ config = load_config("config.yaml")
 
 cuda_devices = config["cuda"]["devices"]
 # data
-data_dir = config["data"]
+data_dir = config["data"]["dataset_id"]
 # model
-model_name = config["model"]["name_CODELLama7BInst"]
+model_name = config["model"]["model_id"]
 #lora
 rank = int(config["lora"]["rank"])
 alpha = int(config["lora"]["alpha"])
@@ -113,8 +113,8 @@ model.config.topktrain = config["model"]["topk_train"]
 example_prompt = formatting_prompts_func_PBE_INSTtok(train_dataset[0])
 model.config.prompt_info = {
     "template_function": "formatting_prompts_func_PBE_INSTtok",
-    "include_ascii": config["input"]["include_ascii"],
-    "include_desc": config["input"]["include_desc"],
+    "include_ascii": config["data"]["include_ascii"],
+    "include_desc": config["data"]["include_desc"],
     "example_formatted_prompt": example_prompt
 }
 model.config.base_model = model_name

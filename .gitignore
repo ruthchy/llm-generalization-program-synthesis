@@ -5,3 +5,4 @@ results/**/*
 _unsloth_temporary_saved_buffers/**/*
 __pycache__/**/*
 external/prompt-loss-weight/**/*
+unsloth_compiled_cache/**/*

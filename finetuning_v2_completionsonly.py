@@ -8,9 +8,9 @@ config = load_config("config.yaml")
 
 cuda_devices = config["cuda"]["devices"]
 # data
-data_dir = config["data"]
+data_dir = config["data"]["dataset_id"]
 # model
-model_name = config["model"]["name_CODELLama7BInst"]
+model_name = config["model"]["model_id"]
 #lora
 rank = int(config["lora"]["rank"])
 alpha = int(config["lora"]["alpha"])

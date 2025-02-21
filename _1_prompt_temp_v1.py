@@ -6,8 +6,8 @@ def load_config(yaml_file):
 
 config = load_config("config.yaml")
 
-include_ascii = config["input"]["include_ascii"]
-include_desc = config["input"]["include_desc"]
+include_ascii = config["data"]["include_ascii"]
+include_desc = config["data"]["include_desc"]
 
 sys_prompt = """Your task is to draw simple black and white graphics with the custom library. DO NOT USE THE BUILT-IN TURTLE LIBRARY.
 You will use a custom turtle library, similar to the built-in library, which is sufficient for all tasks.
