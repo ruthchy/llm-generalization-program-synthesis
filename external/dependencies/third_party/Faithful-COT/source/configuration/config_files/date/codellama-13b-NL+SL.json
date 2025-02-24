@@ -1,5 +1,0 @@
-{
-  "LM": "codellama/CodeLlama-13b-Instruct-hf",
-  "prompt_name": "NL+SL",
-  "n_votes": 1
-}

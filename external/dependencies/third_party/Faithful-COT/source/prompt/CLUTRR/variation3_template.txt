@@ -1,2 +1,0 @@
-# Context: [QUESTION]
-# To solve this question, we answer each of the following subquestions with a Python program:

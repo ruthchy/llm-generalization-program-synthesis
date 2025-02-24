@@ -1,2 +1,0 @@
-Context: [QUESTION]
-To answer this question, we need to answer the following subquestions:

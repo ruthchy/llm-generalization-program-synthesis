@@ -1,2 +1,0 @@
-User query: [QUESTION]
-Goal in PDDL:

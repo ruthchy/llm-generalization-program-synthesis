@@ -1,4 +1,0 @@
-Q: [QUESTION]
-Answer Choices:
-[OPTIONS_FORMATTED]
-A: To answer the above question, we need to answer the following subquestions:

@@ -1,8 +1,0 @@
-*.pyc
-logo_data/images
-logo_data/images/*
-*_data/my_vectordb
-*_data/my_vectordb/*
-
-logs/*
-test_runs/*
