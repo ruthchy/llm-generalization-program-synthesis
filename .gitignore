@@ -1,10 +1,13 @@
 # Ignore synthetic_data/logo_graphic, wandb and results directories and everything inside them
 synthetic_data/logo_graphic/**/*
+# Explicit wandb ignores
 wandb/**/*
+wandb/debug*.log
+wandb/latest-run
+wandb/**/
 results/**/*
 _unsloth_temporary_saved_buffers/**/*
 __pycache__/**/*
-external/prompt-loss-weight/**/*
 unsloth_compiled_cache/**/*
-#external/*
-#!external/dependencies/
+# ignore cloned repo
+external/prompt-loss-weight/**/*
