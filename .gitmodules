@@ -1,0 +1,4 @@
+[submodule "external/dependencies"]
+	path = external/dependencies
+	url = https://github.com/ruthchy/regal_program_learning.git
+	branch = main
