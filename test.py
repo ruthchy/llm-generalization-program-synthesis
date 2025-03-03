@@ -197,8 +197,12 @@ def load_model_and_tokenizer(config: Config):
    
     return  model, tokenizer
 
-def prepare_dataset(config: Config, tokenizer):
+def prepare_dataset(config: Config, tokenizer, sample_fraction = 1.0):
     dataset = load_dataset(config.data.dataset_id)
+    if sample_fraction < 1.0:
+        dataset["train"] = dataset["train"].shuffle(seed=config.training.random_seed).select(range(int(len(dataset["train"]) * sample_fraction)))
+        dataset["validation"] = dataset["validation"].shuffle(seed=config.training.random_seed).select(range(int(len(dataset["validation"]) * sample_fraction)))
+        dataset["test"] = dataset["test"].shuffle(seed=config.training.random_seed).select(range(int(len(dataset["test"]) * sample_fraction)))
 
     def format_prompt(example, split_type, idx):
         """Formats a single example with the template"""
@@ -520,12 +524,9 @@ if __name__ == "__main__":
     try:
         config, result_dir = load_config("config.yaml")
         model, tokenizer = load_model_and_tokenizer(config)
-        dataset = prepare_dataset(config, tokenizer)
+        dataset = prepare_dataset(config, tokenizer, sample_fraction=0.04) 
         print(dataset)
-        # testing #
-        sample_fraction = 0.0002
-        #model = train_model(model, tokenizer, dataset["train"].shuffle(seed=config.training.random_seed).select(range(int(len(dataset["train"]) * sample_fraction))), dataset["validation"].shuffle(seed=config.training.random_seed).select(range(int(len(dataset["validation"]) * sample_fraction))), config)
-        # testing #
+        # training
         model = train_model(model, tokenizer, dataset, config)
 
     except Exception as e:
