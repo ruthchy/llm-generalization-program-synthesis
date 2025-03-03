@@ -150,7 +150,7 @@ class Config:
             include_ascii=bool(config_dict["data"]["include_ascii"])
         )
         self.prompt = PromptConfig(
-            include_sys_prompt=bool(config_dict.get("prompt", {}).get("include_sys_prompt", True))
+            include_sys_prompt=bool(config_dict["data"]["include_sys_prompt"])
         )
 
 def load_config(model_name: str) -> Tuple[Config, str]:
