@@ -1,13 +1,23 @@
 # Ignore synthetic_data/logo_graphic, wandb and results directories and everything inside them
+# ignore cloned repo
+external/prompt-loss-weight/**/*
+
+# ignore graphic data
 synthetic_data/logo_graphic/**/*
+
 # Explicit wandb ignores
 wandb/**/*
 wandb/debug*.log
 wandb/latest-run
 wandb/**/
+
+# Explicit results ignores
 results/**/*
-_unsloth_temporary_saved_buffers/**/*
+output/**/*
+
+# Ignore compiled files
 __pycache__/**/*
+
+# Ignore Unsloth related files
 unsloth_compiled_cache/**/*
-# ignore cloned repo
-external/prompt-loss-weight/**/*
+_unsloth_temporary_saved_buffers/**/*
