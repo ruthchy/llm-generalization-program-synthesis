@@ -1,8 +1,8 @@
-cuda:
-  devices: '0' # or comma separated list of device ids e.g. '0,3'
+#cuda:
+#  devices: '0' # or comma separated list of device ids e.g. '0,3'
 
 logging:
-  use_wandb: False
+  use_wandb: True
 
 data: 
   dataset_id: "ruthchy/semantic-length-generalization-logo-data-desc-ascii_35"
@@ -21,7 +21,6 @@ model:
 
 training:
   prompt_loss_weight: 0.1
-  completion_loss_weight: 1.0
   # pre-processing
   max_seq_length: 2048
   # training
@@ -29,7 +28,7 @@ training:
   warmup_steps: 20 # 20, 100, 500, 1000 recommended 20 in PBE paper
   lr_scheduler_type: "cosine" # "linear" (default), "cosine", "cosine_with_restarts", "polynomial", "constant", "constant_with_warmup" # linear and cosine are usually; used cosine is used in PBE
   train_epochs: 1
-  per_device_batch_size: 32 # 4, 8, 16, 32, 64, 128, 256, 512 recommended 64 in PBE 
+  per_device_batch_size: 16 # 4, 8, 16, 32, 64, 128, 256, 512 recommended 64 in PBE 
   gradient_accumulation_steps: 8 # 4
   # checkpointing and evaluation
   save_steps: 10

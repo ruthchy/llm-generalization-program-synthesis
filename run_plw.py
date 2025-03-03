@@ -135,7 +135,7 @@ training_args = TrainingArguments(
     gradient_checkpointing_kwargs   = {"use_reentrant": True},
     report_to                       = "wandb",  # report metrics to wandb
     # only use deepspeed for multi-GPU training: torchrun --nproc_per_node 4 run_plw.py
-    deepspeed = os.path.dirname(os.path.abspath(__file__))+"/zero3_decay.json" if 'LOCAL_RANK' in os.environ else None,
+    deepspeed = os.path.dirname(os.path.abspath(__file__))+"/zero3_decay_plw.json" if 'LOCAL_RANK' in os.environ else None,
     push_to_hub = True,
     hub_model_id = f"fine-tune-codeLlama-2-7b-len-gen-ascii-art",
 )
