@@ -7,7 +7,7 @@
 #SBATCH --mail-user=priscilla.ruth.chyrva@students.uni-mannheim.de
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --gres=gpu:1
-#SBATCH --time=10:00:00
+#SBATCH --time=12:00:00
 #SBATCH --chdir=/ceph/pratz/GitHub_repos/master-thesis/external/prompt-loss-weight
 #SBATCH --partition=gpu-vram-48gb
 
@@ -26,11 +26,17 @@ python run_plw.py \
     --completion_template "{Program}" \
     --prompt_loss_weight 0.1 \
     --data_dir ~/data \
-    --rand_seed 1234 \
+    --rand_seed 42 \
     --max_seq_length 2048 \
+    --learning_rate 2e-4 \
     --subsample_train 8006.0 \
     --subsample_eval 997.0 \
     --max_samples 500000 \
+    --save_steps 500 \
+    --eval_steps 100 \
+    --logging_steps 5 \
     --lora_alpha 64 \
     --lora_r 64 \
-    --lora_dropout 0.0
+    --lora_dropout 0.0 \
+    --push_to_hub True \
+    --hub_model_id f"CodeLlama-7b-Inst-Length-Gen-Logo-Ascii_35"
