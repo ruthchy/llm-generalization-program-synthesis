@@ -576,6 +576,7 @@ def train_model(model, tokenizer, train_dataset, eval_dataset, config: Config, m
         num_train_epochs=config.training.train_epochs,
         per_device_train_batch_size=config.training.per_device_batch_size,
         gradient_accumulation_steps=config.training.gradient_accumulation_steps,
+        remove_unused_columns = False,
         learning_rate=config.training.learning_rate,
         warmup_steps=config.training.warmup_steps,
         lr_scheduler_type=config.training.lr_scheduler_type,

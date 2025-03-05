@@ -99,10 +99,10 @@ Here are all the available functions in the custom turtle library:
             raise ValueError("At least one of include_ascii or include_desc must be True")
         
         # Wrap the task description and system prompt with appropriate tokens
-        prompt = "[INST]"
+        prompt = ""#"[INST]"
         if self.include_sys_prompt:
-            prompt += f"[SYS]{self.system_prompt}[/SYS]"
-        prompt += task_description + "[/INST]"
+            prompt += f"[SYS]{self.system_prompt}[/SYS]\n"
+        prompt += task_description + "\n" #+ "\n[/INST]"
         return prompt
 
 @dataclass
@@ -185,6 +185,14 @@ def load_model_and_tokenizer(config: Config):
             config.model.model_id,
             load_in_4bit=True,
         )
+    
+    # Add dedicated padding token
+    if tokenizer.pad_token is None or tokenizer.pad_token == tokenizer.unk_token:
+        tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+    #tokenizer.pad_token = tokenizer.eos_token # in run_plw eos_token is used as padding token
+    print("Initialized model and tokenizer")
+    print(f"Padding token: {tokenizer.pad_token}, ID: {tokenizer.pad_token_id}")
+    print(f"EOS token: {tokenizer.eos_token}, ID: {tokenizer.eos_token_id}")
 
     model = FastLanguageModel.get_peft_model(
             model,
@@ -211,19 +219,25 @@ def prepare_dataset(config: Config, tokenizer, sample_fraction = 1.0):
             include_ascii=config.data.include_ascii
         )
         
-        formatted_prompt = prompt.format(**example)
-        completion = example['Program']
+        user_text = prompt.format(**example)
+        asst_text = example['Program']
         
         if split_type == "test":
-            full_text = f"{formatted_prompt}"
+            messages = [{"role": "user", "content": user_text}]
+            #full_text = user_text
         else:
-            full_text = f"{formatted_prompt}\n{completion}"
-        prompt_length = len(formatted_prompt) + 1  # +1 for newline
-        
+            messages = [{"role": "user", "content": user_text},
+                        {"role": "assistant", "content": asst_text }]
+            #full_text = user_text + "\n" + asst_text
+        #prompt_length = len(formated_prompt) + 1  # +1 for newline
+        prompt_text = tokenizer.apply_chat_template(messages[:1], tokenize=False, add_generation_prompt=True)
         return {
-            "text": full_text,
-            "prompt_length": prompt_length
+            "text": tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False),
+            "prompt_length": len(prompt_text)
+            #"text": full_text,
+            #"prompt_length": prompt_length
         }
+    
     def format_dataset(dataset: DatasetDict):
         def map_format_prompt(example, idx, split_type):
             return format_prompt(example, split_type, idx)
@@ -239,6 +253,8 @@ def prepare_dataset(config: Config, tokenizer, sample_fraction = 1.0):
         return formatted_splits
 
     formatted_dataset = format_dataset(dataset)
+    #print(formatted_dataset['validation'][0]['text'])           # debug
+    #print(formatted_dataset['validation'][0]['prompt_length'])  # debug
 
     def tokenize_and_mask(examples):   
         tokenized = tokenizer(
@@ -253,8 +269,12 @@ def prepare_dataset(config: Config, tokenizer, sample_fraction = 1.0):
         completion_masks = []
         
         for offsets, length in zip(tokenized["offset_mapping"], examples["prompt_length"]):
+            #print(f"Offsets: {offsets}")                        # debug
+            #print(f"Prompt length: {length}")                   # debug
             prompt_mask = [1 if offset[1] <= length else 0 for offset in offsets]
             completion_mask = [0 if offset[1] <= length else 1 for offset in offsets]
+            #print(f"Prompt mask: {prompt_mask}")                # debug # note the prompt mask also masks the padding_tokens
+            #print(f"Completion mask: {completion_mask}")        # debug
             prompt_masks.append(prompt_mask)
             completion_masks.append(completion_mask)
         
@@ -387,7 +407,7 @@ def train_model(model, tokenizer, dataset, config: Config):
         report_to = "wandb"
     else:
         report_to = "none"
-    
+    print("Started training...")
     class PLWTrainer(Trainer):
         def __init__(self, *args, prompt_loss_weight=1.0, shuffle=False, **kwargs):
             self.processor = kwargs.pop('tokenizer', None)
@@ -397,7 +417,6 @@ def train_model(model, tokenizer, dataset, config: Config):
             self.distributed_training = torch.distributed.is_initialized() # not used in single GPU setup
 
         def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None): # num_items_in_batch can be used to normalize the loss but I'm not using it here since the loss is calculated per token
-            print("num_items_in_batch: {num_items_in_batch}")
             outputs = model(input_ids=inputs["input_ids"],
                             attention_mask=inputs["attention_mask"])
             logits = outputs.get("logits")
@@ -424,6 +443,20 @@ def train_model(model, tokenizer, dataset, config: Config):
 
             return (loss, outputs) if return_outputs else loss
 
+        
+        #def get_train_dataloader(self):
+        #    if self.train_dataset is None:
+        #        raise ValueError("Training requires a train_dataset.")
+
+        #    return torch.utils.data.DataLoader(
+        #        self.train_dataset,
+        #        batch_size=self.args.train_batch_size,
+        #        sampler=self._get_train_sampler(),
+        #        collate_fn=self.data_collator,
+        #        drop_last=self.args.dataloader_drop_last,
+        #        num_workers=self.args.dataloader_num_workers,
+        #        pin_memory=self.args.dataloader_pin_memory,
+        #    )
         def get_train_dataloader(self):
             if self.train_dataset is None:
                 raise ValueError("Training requires a train_dataset.")
@@ -438,12 +471,12 @@ def train_model(model, tokenizer, dataset, config: Config):
                 pin_memory=self.args.dataloader_pin_memory,
             )
 
-            # Print a sample batch for debugging
-            #first_batch = next(iter(dataloader))
-            #print("🚀 First batch keys:", first_batch.keys())
-            #print("🚀 First batch shapes:")
-            #for key, value in first_batch.items():
-            #    print(f"  - {key}: {value.shape if isinstance(value, torch.Tensor) else type(value)}")
+            # 🔍 Print a sample batch for debugging
+            first_batch = next(iter(dataloader))
+            print("🚀 First batch keys:", first_batch.keys())
+            print("🚀 First batch shapes:")
+            for key, value in first_batch.items():
+                print(f"  - {key}: {value.shape if isinstance(value, torch.Tensor) else type(value)}")
 
             return dataloader
 
@@ -512,11 +545,12 @@ if __name__ == "__main__":
     try:
         config, result_dir = load_config("config.yaml")
         model, tokenizer = load_model_and_tokenizer(config)
-        dataset = prepare_dataset(config, tokenizer)#, sample_fraction=0.04) 
+        dataset = prepare_dataset(config, tokenizer, sample_fraction=0.04) 
         #print(dataset)
+        #print(dataset['test']['prompt_mask'][0])       # debug
+        #print(dataset['test']['completion_mask'][0])   # debug
         # training
         model = train_model(model, tokenizer, dataset, config)
-
 
     except Exception as e:
         print(f"An error occurred: {e}")
