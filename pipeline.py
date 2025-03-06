@@ -1,55 +1,31 @@
-"""
-This file contains a pipeline for finetuning and inference of a model.
-It is designed to handle single GPU training and inference using unsloth and also 
-multi-GPU training and inference using torch with prompt loss weighting support.
-"""
-# 1. GPU Setup and Utilities - housekeeping related to single/multi-GPU training
-# Initialize the distributed environment
+'''
+python test.py
+torchrun --nproc_per_node=2 test.py
+'''
+############################################################################################################
+# Housekeeping - single GPU unsloth setup
 import os
-import torch
-if 'LOCAL_RANK' in os.environ and torch.cuda.is_available():
-    capability = torch.cuda.get_device_capability(0)  # Get major and minor version
-    cuda_arch = f"{capability[0]}.{capability[1]}"
-    os.environ["TORCH_CUDA_ARCH_LIST"] = cuda_arch
-    print(f"Setting TORCH_CUDA_ARCH_LIST={cuda_arch}")
+os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+
+# Step 1: Load the YAML Configuration
 import yaml
-import json
-from datetime import datetime
-# Basic imports that both setups need
-from transformers import (
-    AutoTokenizer, 
-    AutoModelForCausalLM,
-    Trainer, 
-    TrainingArguments, 
-    DataCollatorForLanguageModeling
-)
-from peft import LoraConfig
-from dataclasses import dataclass, field
-from typing import List, Set, Union, Optional, Dict, Any
-from enum import Enum
+import torch
 import wandb
-from Levenshtein import distance as levenshtein_distance
+import json
 import numpy as np
+from dataclasses import dataclass, field
+from typing import List, Dict, Any, Tuple, Optional
+from datetime import datetime
+from unsloth import FastLanguageModel, is_bfloat16_supported
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+from datasets import load_dataset, DatasetDict
+from transformers import TrainingArguments, Trainer, get_scheduler, EarlyStoppingCallback
+#from transformers import default_data_collator
+from torch.nn import CrossEntropyLoss
+from torch.optim import AdamW
+from Levenshtein import distance as levenshtein_distance
 
-# Import appropriate backend
-if 'LOCAL_RANK' in os.environ:
-    import deepspeed
-    deepspeed.init_distributed("nccl")
-else:
-    from unsloth import FastLanguageModel #, is_bfloat16_supported
-
-def is_bfloat16_supported():
-    """Check if bfloat16 is supported on the current device"""
-    if torch.cuda.is_available():
-        capability = torch.cuda.get_device_capability()[0]
-        return capability >= 8  # Ampere and newer GPUs support bf16
-    return False
-
-print("all imports done")
-################
-# Setup
-################
-# 1.) Argument parsing
 @dataclass
 class LoraSettings:
     rank: int
@@ -62,16 +38,19 @@ class TrainingConfig:
     prompt_loss_weight: float
     max_seq_length: int
     learning_rate: float
-    warmup_steps: int
     lr_scheduler_type: str
     train_epochs: int
-    per_device_batch_size: int
+    per_device_train_batch_size: int
+    per_device_eval_batch_size: int
     gradient_accumulation_steps: int
     save_steps: int
     eval_steps: int
     logging_steps: int
     random_seed: int
     shuffle: bool
+    gradient_checkpointing: bool
+    warmup_steps: Optional[int] = None
+    warmup_ratio: Optional[float] = None
 
 @dataclass
 class ModelConfig:
@@ -88,9 +67,6 @@ class DataConfig:
     dataset_id: str
     include_desc: bool
     include_ascii: bool
-
-from dataclasses import dataclass, field
-from typing import Optional
 
 @dataclass
 class PromptConfig:
@@ -151,16 +127,19 @@ class Config:
             prompt_loss_weight=float(config_dict["training"]["prompt_loss_weight"]),
             max_seq_length=int(config_dict["training"]["max_seq_length"]),
             learning_rate=float(config_dict["training"]["learning_rate"]),
-            warmup_steps=int(config_dict["training"]["warmup_steps"]),
-            lr_scheduler_type=str(config_dict["training"]["lr_scheduler_type"]),
+                        lr_scheduler_type=str(config_dict["training"]["lr_scheduler_type"]),
             train_epochs=int(config_dict["training"]["train_epochs"]),
-            per_device_batch_size=int(config_dict["training"]["per_device_batch_size"]),
+            per_device_train_batch_size=int(config_dict["training"]["per_device_train_batch_size"]),
+            per_device_eval_batch_size=int(config_dict["training"]["per_device_eval_batch_size"]),
             gradient_accumulation_steps=int(config_dict["training"]["gradient_accumulation_steps"]),
             save_steps=int(config_dict["training"]["save_steps"]),
             eval_steps=int(config_dict["training"]["eval_steps"]),
             logging_steps=int(config_dict["training"]["logging_steps"]),
             random_seed=int(config_dict["training"]["random_seed"]),
-            shuffle=bool(config_dict["training"]["shuffle"])
+            shuffle=bool(config_dict["training"]["shuffle"]),
+            gradient_checkpointing=bool(config_dict["training"].get("gradient_checkpointing", False)),
+            warmup_steps=int(config_dict["training"]["warmup_steps"]) if config_dict["training"]["warmup_steps"] not in [None, 'None'] else None,
+            warmup_ratio=float(config_dict["training"]["warmup_ratio"]) if config_dict["training"]["warmup_ratio"] not in [None, 'None'] else None
         )
         self.model = ModelConfig(
             model_id=str(config_dict["model"]["model_id"]),
@@ -176,130 +155,82 @@ class Config:
             include_ascii=bool(config_dict["data"]["include_ascii"])
         )
         self.prompt = PromptConfig(
-            include_sys_prompt=bool(config_dict.get("prompt", {}).get("include_sys_prompt", True))
+            include_sys_prompt=bool(config_dict["data"]["include_sys_prompt"])
         )
 
-def load_config(model_name):
+def load_config(model_name: str) -> Tuple[Config, str, str, str, str]:
     """Load training configuration from yaml file and store a copy in results directory"""
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    result_dir = f"results/data/{model_name}_{timestamp}"
-    os.makedirs(result_dir, exist_ok=True)
-    
     source_config = "config.yaml"
-    target_config = os.path.join(result_dir, "config.yaml")
     
     if os.path.exists(source_config):
         with open(source_config, 'r') as f:
             config_dict = yaml.safe_load(f)
-        
-        # Validiere und konvertiere Konfiguration mit der Config-Klasse
+        # Validate and convert configuration with the Config class
         config = Config(config_dict)
-        
+            
+        # Generate timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+
+        # Determine generalization type
+        gen_type = ""
+        dataset_id = config.data.dataset_id
+        if "generalization" in dataset_id:
+            dataset_name = dataset_id.split('/')[-1]
+            parts = dataset_name.split('-')
+            for i, part in enumerate(parts):
+                if "generalization" in part and i > 0:
+                    gen_type = parts[i - 1]
+                    break
+
+        # Short model name
+        model_type = config.model.model_id.split('/')[-1]
+        model_type_short = model_type.split('-')[0]
+
+        # Result directory
+        result_dir = f"results/{gen_type}/{model_type_short}_{timestamp}"
+        os.makedirs(result_dir, exist_ok=True)
+
         # Copy the config to results directory
-        with open(target_config, 'w') as f:
+        with open(os.path.join(result_dir, 'config.yaml'), 'w') as f:
             yaml.dump(config_dict, f)
     else:
         raise FileNotFoundError(
             "No config.yaml file found in current directory. "
             "Please create a config.yaml file with your training configuration."
         )
-    print(f"Loaded configuration from {source_config}\n{result_dir}")
-    return config, result_dir
-
-# 2.) GPU setup
-def is_main():
-    """Check if this is the main process (rank 0) or single GPU"""
-    if 'LOCAL_RANK' in os.environ:
-        return int(os.environ['LOCAL_RANK']) == 0
-    return True
-
-def main(func):
-    """Decorator to run function only on main process"""
-    def wrapper(*args, **kwargs):
-        if is_main():
-            result = func(*args, **kwargs)
-            if torch.distributed.is_initialized():
-                torch.distributed.barrier()
-            return result
-        else:
-            if torch.distributed.is_initialized():
-                torch.distributed.barrier()
-            return None
-    return wrapper
-
-@main
-def print_gpus():
-    """Print available GPU information"""
-    if torch.cuda.is_available():
-        num_gpus = torch.cuda.device_count()
-        gpu_names = [torch.cuda.get_device_name(i) for i in range(num_gpus)]
-        print(f"Number of CUDA devices: {num_gpus}")
-        for idx, name in enumerate(gpu_names):
-            print(f"GPU {idx}: {name}")
-    else:
-        print("CUDA is not available.")
-
-# 3.) Model setup
-def setup_model(config: Config, multi_gpu=False):
-    """Setup model based on single/multi GPU configuration"""
-    # Let SLURM handle GPU visibility
-    n_gpus = torch.cuda.device_count()
-    if is_main():
-        print(f"Number of visible GPUs: {n_gpus}")
-        for i in range(n_gpus):
-            print(f"GPU {i}: {torch.cuda.get_device_name(i)}")
     
-    if multi_gpu and n_gpus > 1:
-        # Multi-GPU setup with DeepSpeed
-        print("Using DeepSpeed for multi-GPU training")
-        model = AutoModelForCausalLM.from_pretrained(
-            config.model.model_id,
-            trust_remote_code=True,
-            torch_dtype=torch.bfloat16,
-        )
-        if is_main():
-            tokenizer = AutoTokenizer.from_pretrained(
-                config.model.model_id,
-                trust_remote_code=True,
-            )
-    else:
-        # Force single GPU for unsloth
-        if n_gpus > 1:
-            print("Multiple GPUs detected. Forcing single GPU (0) for unsloth")
-            os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-            torch.cuda.set_device(0)
-        
-        print("Using unsloth for single-GPU training")
-        model, tokenizer = FastLanguageModel.from_pretrained(
+    # Check for conflicting parameters
+    if config.training.warmup_steps is not None and config.training.warmup_ratio is not None:
+        raise ValueError("Both 'warmup_steps' and 'warmup_ratio' are set. Please set only one of them.")
+    
+    print(f"Loaded configuration from {source_config}\n{result_dir}")
+    return config, timestamp, gen_type, model_type_short, result_dir
+
+def load_model_and_tokenizer(config: Config):
+    model, tokenizer = FastLanguageModel.from_pretrained(
             config.model.model_id,
             load_in_4bit=True,
         )
-    
-    # Add dedicated padding token
-    if tokenizer.pad_token is None:
-        tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-        if not multi_gpu:  # Unsloth handles embedding resize internally
-            model.resize_token_embeddings(len(tokenizer))
-    
-    if is_main():
-        print("Initialized model and tokenizer")
-        print(f"Padding token: {tokenizer.pad_token}, ID: {tokenizer.pad_token_id}")
-        print(f"EOS token: {tokenizer.eos_token}, ID: {tokenizer.eos_token_id}")
-    
-    return model, tokenizer
 
-###############
-# Data Prep.
-###############
-if 'LOCAL_RANK' in os.environ:
-    from torch.utils.data import DataLoader, DistributedSampler
-    import torch.distributed as dist
+    model = FastLanguageModel.get_peft_model(
+            model,
+            r=config.lora.rank,
+            lora_alpha=config.lora.alpha,
+            lora_dropout=config.lora.dropout,
+            target_modules=config.lora.target_modules,
+            bias="none",
+            use_gradient_checkpointing=True)
+   
+    return  model, tokenizer
 
-def prepare_dataset(dataset, config: Config, tokenizer, multi_gpu=False):
-    """Prepares the dataset according to configuration"""
-    if is_main():
-        print(f"Preparing dataset with {len(dataset)} examples")
-    def format_prompt(example, idx):
+def prepare_dataset(config: Config, tokenizer, sample_fraction = 1.0):
+    dataset = load_dataset(config.data.dataset_id)
+    if sample_fraction < 1.0:
+        dataset["train"] = dataset["train"].shuffle(seed=config.training.random_seed).select(range(int(len(dataset["train"]) * sample_fraction)))
+        dataset["validation"] = dataset["validation"].shuffle(seed=config.training.random_seed).select(range(int(len(dataset["validation"]) * sample_fraction)))
+        dataset["test"] = dataset["test"].shuffle(seed=config.training.random_seed).select(range(int(len(dataset["test"]) * sample_fraction)))
+
+    def format_prompt(example, split_type, idx):
         """Formats a single example with the template"""
         prompt = config.prompt.get_prompt_template(
             include_desc=config.data.include_desc,
@@ -309,30 +240,39 @@ def prepare_dataset(dataset, config: Config, tokenizer, multi_gpu=False):
         formatted_prompt = prompt.format(**example)
         completion = example['Program']
         
-        full_text = f"{formatted_prompt}\n{completion}"
+        if split_type == "test":
+            full_text = f"{formatted_prompt}"
+        else:
+            full_text = f"{formatted_prompt}\n{completion}"
         prompt_length = len(formatted_prompt) + 1  # +1 for newline
         
         return {
             "text": full_text,
             "prompt_length": prompt_length
         }
+    def format_dataset(dataset: DatasetDict):
+        def map_format_prompt(example, idx, split_type):
+            return format_prompt(example, split_type, idx)
+        
+        formatted_splits = {}
+        for split in dataset.keys(): 
+            formatted_splits[split] = dataset[split].map(
+                lambda ex, idx: map_format_prompt(ex, idx, split),
+                with_indices=True,
+                desc=f"Formatting {split} prompts",
+                batched=False
+            )
+        return formatted_splits
 
-    # Format dataset with distributed-aware mapping
-    formatted_dataset = dataset.map(
-        format_prompt,
-        with_indices=True,
-        desc="Formatting prompts",
-        load_from_cache_file=False  # Important for distributed setup
-    )
-    
+    formatted_dataset = format_dataset(dataset)
+
     def tokenize_and_mask(examples):   
         tokenized = tokenizer(
             examples["text"],
             truncation=True,
             max_length=config.training.max_seq_length,
             padding="max_length",
-            return_tensors="pt",
-            return_offsets_mapping=True
+            return_offsets_mapping=True,
         )
         
         prompt_masks = []
@@ -346,75 +286,29 @@ def prepare_dataset(dataset, config: Config, tokenizer, multi_gpu=False):
         
         tokenized["prompt_mask"] = prompt_masks
         tokenized["completion_mask"] = completion_masks
-        tokenized["labels"] = tokenized["input_ids"].clone()
+        tokenized["labels"] = tokenized["input_ids"].copy() # labels are grund truth
         
         del tokenized["offset_mapping"]
         del examples["text"]  # Remove after tokenization
-    return tokenized
+        return tokenized
     
-    # Tokenize with consistent settings
-    tokenized_dataset = formatted_dataset.map(
-        tokenize_and_mask,
-        batched=True,
-        remove_columns=formatted_dataset.column_names,
-        desc="Tokenizing and masking",
-        load_from_cache_file=False
-    )
-    
-    if is_main():
-        print(f"Dataset preparation complete. Size: {len(tokenized_dataset)}")
-    
-    # Use DistributedSampler for multi-GPU
-    sampler = DistributedSampler(tokenized_dataset, shuffle=True) if multi_gpu else None
-
-    dataloader = DataLoader(
-    tokenized_dataset,
-    batch_size=config.training.per_device_batch_size,
-    sampler=sampler,
-    shuffle=(sampler is None),
-    num_workers=2,
-    pin_memory=True
-    )
-    torch.cuda.empty_cache()
-    return dataloader
-
-###############
-# Finetuning
-###############
-def prepare_training(model, config: Config, multi_gpu=False):
-    """Prepare model for training with appropriate configuration"""
-    if multi_gpu:
-        # For multi-GPU, we'll let the Trainer handle DeepSpeed initialization
-        return model
-    else:
-        # Single-GPU using unsloth
-        return FastLanguageModel.get_peft_model(
-            model,
-            r=config.lora.rank,
-            lora_alpha=config.lora.alpha,
-            lora_dropout=config.lora.dropout,
-            target_modules=config.lora.target_modules,
-            bias="none",
-            use_gradient_checkpointing=True
+    tokenized_dataset = {}
+    for split in formatted_dataset.keys():
+        tokenized_dataset[split] = formatted_dataset[split].map(
+            tokenize_and_mask,
+            batched=True,
+            remove_columns=formatted_dataset[split].column_names, 
+            desc=f"Tokenizing {split} set",
+            load_from_cache_file=False
         )
+    
+    return tokenized_dataset
 
-def init_wandb(config: Config):
+# Step 4: WandB 
+def init_wandb(config: Config, timestamp: str, gen_type: str, model_type_short: str):
     """Initialize wandb with configuration"""
-    if not is_main():
-        return 
-    gen_type = ""
-    if "generalization" in config.data.dataset_id:
-        dataset_name = config.data.dataset_id.split('/')[-1]
-        parts = dataset_name.split('-')
-        for i, part in enumerate(parts):
-            if "generalization" in part:
-                gen_type = parts[i-1]
-                break
-    model_type = config.model.model_id.split('/')[-1]
-    model_type_short = model_type.split('-')[0]
-
     # Generate a unique experiment name
-    experiment_name = f"{gen_type}_{model_type_short}_{datetime.now().strftime('%Y%m%d_%H%M')}"
+    experiment_name = f"{gen_type}_{model_type_short}_{timestamp}"
     
     # Make config JSON serializable
     def make_json_serializable(obj):
@@ -434,16 +328,17 @@ def init_wandb(config: Config):
         name=experiment_name,
         config=config_dict
     )
-
+# Step 5: Training Preperation
 # Custom Metrics
 from torch.nn import CrossEntropyLoss
+from Levenshtein import distance as levenshtein_distance
 
-def prepare_compute_metrics(eval_dataset, tokenizer):
+def prepare_compute_metrics(dataset: DatasetDict, tokenizer):
     """Prepare custom metrics function for Trainer"""
 
     # extract prompt/completion masks
-    prompt_mask = np.array([x["prompt_mask"] for x in eval_dataset])
-    completion_mask = np.array([x["completion_mask"] for x in eval_dataset])
+    prompt_mask = np.array([x["prompt_mask"] for x in dataset['validation']])
+    completion_mask = np.array([x["completion_mask"] for x in dataset['validation']])
 
     # uses numpy arrays (on CPU)
     def compute_metrics(data):
@@ -470,13 +365,15 @@ def prepare_compute_metrics(eval_dataset, tokenizer):
         pred_program = tokenizer.batch_decode(pred_comp_tokens, skip_special_tokens=True)
         # 3rd: compute levenshtein-distance
         distances = [levenshtein_distance(pred, true) for pred, true in zip(pred_program, true_program)]
-
+        avg_levenshtein_dist = np.mean(distances)
+        std_levenshtein_dist = np.std(distances)
 
         # return metrics
         return {
             'comp_loss': completion_loss,
             'prompt_loss': prompt_loss,
-            'levenshtein_dist': distances,
+            'avg_levenshtein_dist': avg_levenshtein_dist,
+            'std_levenshtein_dist': std_levenshtein_dist,
         }
     return compute_metrics
 
@@ -495,15 +392,13 @@ def preprocess_logits_for_metrics(logits, labels):
     predictions = (token_preds, token_losses)
     return predictions
 
-
-
 # Custom Trainer
-def train_model(model, tokenizer, train_dataset, eval_dataset, config: Config, multi_gpu=False):
+def train_model(model, tokenizer, dataset, result_dir: str, config: Config, timestamp: str, gen_type: str, model_type_short: str):
     """Training loop with configurable prompt and completion weights"""
     
     # Only if set True in config logging to wandb will be enabled
-    if config.logging.use_wandb and is_main():
-        init_wandb(config)
+    if config.logging.use_wandb:
+        init_wandb(config, timestamp, gen_type, model_type_short)
         report_to = "wandb"
     else:
         report_to = "none"
@@ -514,43 +409,41 @@ def train_model(model, tokenizer, train_dataset, eval_dataset, config: Config, m
             super().__init__(*args, **kwargs)
             self.prompt_loss_weight = prompt_loss_weight
             self.shuffle = shuffle
-            self.distributed_training = torch.distributed.is_initialized()
+            self.distributed_training = torch.distributed.is_initialized() # not used in single GPU setup
 
-        def compute_loss(self, model, inputs, return_outputs=False):
-            print(f"compute_loss called with num_items_in_batch: {num_items_in_batch}, kwargs: {kwargs}") # DEBUG
-
-            # get outputs without computing loss (by not passing in labels)
-            outputs = model(input_ids=inputs["input_ids"], 
+        def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None): # num_items_in_batch can be used to normalize the loss but I'm not using it here since the loss is calculated per token
+            #print(f"num_items_in_batch: {num_items_in_batch}")
+            outputs = model(input_ids=inputs["input_ids"],
                             attention_mask=inputs["attention_mask"])
             logits = outputs.get("logits")
             labels = inputs.pop("labels")
 
-            # compute per-token weights
+            # Compute per-token weights
             weights = self.prompt_loss_weight * inputs["prompt_mask"] + inputs["completion_mask"]
 
-            # Shift so that tokens < n predict n
+            # Shift logits and labels for next-token prediction
             shift_logits = logits[..., :-1, :].contiguous()
             shift_labels = labels[..., 1:].contiguous()
             shift_weights = weights[..., 1:].contiguous()
 
-            # Enable model parallelism
+            # Move tensors to correct device
             shift_labels = shift_labels.to(shift_logits.device)
             shift_weights = shift_weights.to(shift_logits.device)
 
-            # per-token losses
+            # Compute per-token loss
             loss_fct = CrossEntropyLoss(reduction="none")
-            token_losses = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), 
-                                    shift_labels.view(-1))
+            token_losses = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
 
             # Compute weighted average of losses
             loss = (token_losses.float() @ shift_weights.view(-1).float()) / shift_weights.sum()
+
             return (loss, outputs) if return_outputs else loss
-        
+
         def get_train_dataloader(self):
             if self.train_dataset is None:
                 raise ValueError("Training requires a train_dataset.")
 
-            return torch.utils.data.DataLoader(
+            dataloader = torch.utils.data.DataLoader(
                 self.train_dataset,
                 batch_size=self.args.train_batch_size,
                 sampler=self._get_train_sampler(),
@@ -559,26 +452,36 @@ def train_model(model, tokenizer, train_dataset, eval_dataset, config: Config, m
                 num_workers=self.args.dataloader_num_workers,
                 pin_memory=self.args.dataloader_pin_memory,
             )
-        
+
+            # Print a sample batch for debugging
+            #first_batch = next(iter(dataloader))
+            #print("🚀 First batch keys:", first_batch.keys())
+            #print("🚀 First batch shapes:")
+            #for key, value in first_batch.items():
+            #    print(f"  - {key}: {value.shape if isinstance(value, torch.Tensor) else type(value)}")
+
+            return dataloader
+
+
         # this allows us to toggle on/off data shuffling, which can sometimes cause 'staircase' effects in training loss
         def _get_train_sampler(self):
-            if self.distributed_training:
-                return torch.utils.data.distributed.DistributedSampler(self.train_dataset, shuffle=self.shuffle)
+            #if self.distributed_training: # not used in single GPU setup
+            #    return torch.utils.data.distributed.DistributedSampler(self.train_dataset, shuffle=self.shuffle) 
             if self.shuffle:
                 return torch.utils.data.RandomSampler(self.train_dataset)
             return torch.utils.data.SequentialSampler(self.train_dataset)
 
-
-
     # Training arguments based on config
     training_args = TrainingArguments(
-        output_dir=f"results/models/{config.model.model_id}", 
+        output_dir=f"{result_dir}/fn_model", 
         num_train_epochs=config.training.train_epochs,
-        per_device_train_batch_size=config.training.per_device_batch_size,
+        per_device_train_batch_size=config.training.per_device_train_batch_size,
+        per_device_eval_batch_size=config.training.per_device_train_batch_size,
         gradient_accumulation_steps=config.training.gradient_accumulation_steps,
-        remove_unused_columns = False,
+        remove_unused_columns=False,
         learning_rate=config.training.learning_rate,
-        warmup_steps=config.training.warmup_steps,
+        #warmup_steps=config.training.warmup_steps,
+        warmup_ratio=config.training.warmup_ratio,
         lr_scheduler_type=config.training.lr_scheduler_type,
         logging_steps=config.training.logging_steps,
         eval_steps=config.training.eval_steps,
@@ -587,136 +490,63 @@ def train_model(model, tokenizer, train_dataset, eval_dataset, config: Config, m
         eval_strategy="steps",
         fp16=not is_bfloat16_supported(),
         bf16=is_bfloat16_supported(),
-        deepspeed=os.path.join(os.path.dirname(os.path.abspath(__file__)), 
-                              "zero3_decay.json") if multi_gpu else None,
+        tf32=True,              # bc set in run_plw.py
         seed=config.training.random_seed, 
-        report_to=report_to,  # dynamic wandb reporting
+        report_to=report_to,    # dynamic wandb reporting
         gradient_checkpointing=True,     # use gradient checkpointing to save memory
         gradient_checkpointing_kwargs={"use_reentrant": True},
-        weight_decay=0.01  # Set weight_decay to match DeepSpeed config
-    )
+        weight_decay=0.001,     # Set weight_decay to match DeepSpeed config 
+        max_grad_norm=0.3,      # bc set in run_plw.py
+        label_names=["labels"],
+        load_best_model_at_end=True,
+        metric_for_best_model="comp_loss",
+        greater_is_better=False  # Whether a higher metric value is better
+    )    
 
     # Initialize trainer with configurable weights
     trainer = PLWTrainer(
         model=model,
         args=training_args,
-        train_dataset=train_dataset,
-        eval_dataset=eval_dataset,
+        train_dataset=dataset["train"],
+        eval_dataset=dataset["validation"],
         shuffle=config.training.shuffle,
         prompt_loss_weight=config.training.prompt_loss_weight,
         #processing_class=tokenizer,
-        compute_metrics=prepare_compute_metrics(eval_dataset, tokenizer),
+        compute_metrics=prepare_compute_metrics(dataset, tokenizer),
         preprocess_logits_for_metrics=preprocess_logits_for_metrics,
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=5)]
     )
+
+    trainer.optimizer = AdamW(trainer.model.parameters(), lr=training_args.learning_rate, weight_decay=training_args.weight_decay)
+    print("🚀 Optimizer:", trainer.optimizer)
+
+    trainer.lr_scheduler = get_scheduler(
+        name=training_args.lr_scheduler_type,
+        optimizer=trainer.optimizer,
+        num_warmup_steps=training_args.warmup_steps,
+        num_training_steps=training_args.num_train_epochs * len(trainer.get_train_dataloader())
+    )
+    print("🚀 Scheduler:", trainer.lr_scheduler)
 
     # Train the model
     trainer.train()
     
     # Logging is only disabled if it was enabled before
-    if config.logging.use_wandb and is_main():
+    if config.logging.use_wandb:
         wandb.finish()
     
     return model
 
-###############
-# Inference
-###############
-def run_inference(model, tokenizer, prompt):
-    """Run inference on trained model"""
-    # ... inference implementation ...
-    pass
 
-###############
-# Evaluation
-###############
-def evaluate_model(model, tokenizer, eval_dataset):
-    """Evaluate model performance"""
-    # ... evaluation implementation ...
-    pass
-
-
-
-###############
-# Main
-###############
+# MAIN
 if __name__ == "__main__":
     try:
-        # Check if running with torchrun
-        multi_gpu = torch.cuda.device_count() > 1 and 'LOCAL_RANK' in os.environ
-        if multi_gpu:
-            print("Multi-GPU training with DeepSpeed")
-        else:
-            print("Single-GPU training with unsloth")
-                
-        # Print GPU information
-        if is_main():
-            print_gpus()
-        
-        # Load configuration
-        if is_main():
-            print("Loading configuration...")
-        config, result_dir = load_config("config.yaml")
-        if is_main():
-            print("Configuration loaded.")
-        
-        # Setup model
-        if is_main():
-            print("Setting up model...")
-        model, tokenizer = setup_model(config, multi_gpu)
-        if is_main():
-            print("Model setup complete.")
-        
-        # Broadcast tokenizer to all processes
-        if multi_gpu:
-            if is_main():
-                tokenizer_data = tokenizer.save_pretrained(".")
-            torch.distributed.barrier()
-            if not is_main():
-                tokenizer = AutoTokenizer.from_pretrained(".")
-        
-        # Prepare model for training
-        if is_main():
-            print("Preparing model for training...")
-        model = prepare_training(model, config, multi_gpu)
-        if is_main():
-            print("Model preparation complete.")
-        
-        # Load training and evaluation datasets
-        if is_main():
-            print("Loading datasets...")
-        from datasets import load_dataset
-        dataset = load_dataset(config.data.dataset_id)
-        #train_dataset = dataset['train']
-        #eval_dataset = dataset['validation']        
-        # Select a sample of 0.02% of the data
-        sample_fraction = 0.0002
-        train_dataset = dataset['train'].shuffle(seed=config.training.random_seed).select(range(int(len(dataset['train']) * sample_fraction)))
-        eval_dataset = dataset['validation'].shuffle(seed=config.training.random_seed).select(range(int(len(dataset['validation']) * sample_fraction)))
-        if is_main():
-            print("Sampled datasets.")
-        
-        # Prepare datasets
-        if is_main():
-            print("Preparing datasets...")
-        train_dataloader = prepare_dataset(train_dataset, config, tokenizer, multi_gpu)
-        eval_dataloader = prepare_dataset(eval_dataset, config, tokenizer, multi_gpu)
-        if is_main():
-            print("Datasets prepared.")
-        
-        # Train the model
-        if is_main():
-            print("Training model...")
-        model = train_model(model, tokenizer, train_dataloader, eval_dataloader, config, multi_gpu)
-        if is_main():
-            print("Model training complete.")
-        
-        # Inference and evaluation (placeholders)
-        # test_dataset = dataset['test']
-        # prompt = ""
-        # run_inference(model, tokenizer, prompt)
-        # evaluate_model(model, tokenizer, eval_dataset)
+        config, timestamp, gen_type, model_type_short, result_dir = load_config("config.yaml")
+        model, tokenizer = load_model_and_tokenizer(config)
+        dataset = prepare_dataset(config, tokenizer)
+        # Training
+        model = train_model(model, tokenizer, dataset, result_dir, config, timestamp, gen_type, model_type_short)
     except Exception as e:
-        if is_main():
-            print(f"An error occurred: {e}")
-            import traceback
-            traceback.print_exc()
+        print(f"An error occurred: {e}")
+        import traceback
+        traceback.print_exc()

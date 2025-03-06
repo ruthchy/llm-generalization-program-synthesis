@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=myjob-01
+#SBATCH --job-name=myjob-runplw-01
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=20
 #SBATCH --mem=30G
@@ -39,4 +39,5 @@ python run_plw.py \
     --lora_r 64 \
     --lora_dropout 0.0 \
     --push_to_hub True \
-    --hub_model_id f"CodeLlama-7b-Inst-Length-Gen-Logo-Ascii_35"
+    --hub_model_id f"CodeLlama-7b-Inst-Length-Gen-Logo-Ascii_35"\
+    --resume_from_checkpoint True
