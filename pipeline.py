@@ -14,6 +14,7 @@ import torch
 import wandb
 import json
 import numpy as np
+import random
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Tuple, Optional
 from datetime import datetime
@@ -198,13 +199,27 @@ def load_config(model_name: str) -> Tuple[Config, str, str, str, str]:
             "No config.yaml file found in current directory. "
             "Please create a config.yaml file with your training configuration."
         )
-    
+
     # Check for conflicting parameters
     if config.training.warmup_steps is not None and config.training.warmup_ratio is not None:
         raise ValueError("Both 'warmup_steps' and 'warmup_ratio' are set. Please set only one of them.")
-    
+
     print(f"Loaded configuration from {source_config}\n{result_dir}")
     return config, timestamp, gen_type, model_type_short, result_dir
+
+def set_random_seeds(seed: int):
+    """Set random seeds for reproducibility"""
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+
+    # For CUDA operations if available
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+    print(f"Random seed set to: {seed}")
 
 def load_model_and_tokenizer(config: Config):
     model, tokenizer = FastLanguageModel.from_pretrained(
@@ -336,13 +351,28 @@ from Levenshtein import distance as levenshtein_distance
 def prepare_compute_metrics(dataset: DatasetDict, tokenizer):
     """Prepare custom metrics function for Trainer"""
 
-    # extract prompt/completion masks
-    prompt_mask = np.array([x["prompt_mask"] for x in dataset['validation']])
-    completion_mask = np.array([x["completion_mask"] for x in dataset['validation']])
+    # Extract masks for both train and validation splits
+    train_prompt_mask = np.array([x["prompt_mask"] for x in dataset['train']])
+    train_completion_mask = np.array([x["completion_mask"] for x in dataset['train']])
+    val_prompt_mask = np.array([x["prompt_mask"] for x in dataset['validation']])
+    val_completion_mask = np.array([x["completion_mask"] for x in dataset['validation']])
+    
+    # Store masks in a dictionary for easy access
+    masks = {
+        'train': {
+            'prompt_mask': train_prompt_mask,
+            'completion_mask': train_completion_mask
+        },
+        'validation': {
+            'prompt_mask': val_prompt_mask,
+            'completion_mask': val_completion_mask
+        }
+    }
 
     # uses numpy arrays (on CPU)
-    def compute_metrics(data):
-
+    def compute_metrics(data, split="validation"):
+        prompt_mask = masks[split]['prompt_mask']
+        completion_mask = masks[split]['completion_mask']
         # data.predictions contains the tuple (token_preds, token_losses)
         # from the preprocess_logits_for_metrics function (below)
         token_preds, token_losses = data.predictions
@@ -411,8 +441,7 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
             self.shuffle = shuffle
             self.distributed_training = torch.distributed.is_initialized() # not used in single GPU setup
 
-        def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None): # num_items_in_batch can be used to normalize the loss but I'm not using it here since the loss is calculated per token
-            #print(f"num_items_in_batch: {num_items_in_batch}")
+        def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None): # num_items_in_batch(batch_size*gradient_accumulation_steps) not used
             outputs = model(input_ids=inputs["input_ids"],
                             attention_mask=inputs["attention_mask"])
             logits = outputs.get("logits")
@@ -539,13 +568,18 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
     
     return model
 
+def inference(model, tokenizer, dataset, config: Config, result_dir: str):
+    pass
+
+
 
 # MAIN
 if __name__ == "__main__":
     try:
         config, timestamp, gen_type, model_type_short, result_dir = load_config("config.yaml")
+        set_random_seeds(config.training.random_seed)
         model, tokenizer = load_model_and_tokenizer(config)
-        dataset = prepare_dataset(config, tokenizer)
+        dataset = prepare_dataset(config, tokenizer, sample_fraction = 0.2)
         # Training
         model = train_model(model, tokenizer, dataset, result_dir, config, timestamp, gen_type, model_type_short)
     except Exception as e:

@@ -205,6 +205,20 @@ def load_config(model_name: str) -> Tuple[Config, str, str, str, str]:
     
     print(f"Loaded configuration from {source_config}\n{result_dir}")
     return config, timestamp, gen_type, model_type_short, result_dir
+    
+def set_random_seeds(seed: int):
+    """Set random seeds for reproducibility"""
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    # Optional: Set seeds for other libraries if used
+    # For CUDA operations if available
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+    print(f"Random seed set to: {seed}")
 
 # Step 2: Load the Model and Tokenizer
 def load_model_and_tokenizer(config: Config):
@@ -592,6 +606,7 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
 if __name__ == "__main__":
     try:
         config, timestamp, gen_type, model_type_short, result_dir = load_config("config.yaml")
+        set_random_seeds(config.training.random_seed)
         model, tokenizer = load_model_and_tokenizer(config)
         dataset = prepare_dataset(config, tokenizer)
         # Training
