@@ -7,6 +7,7 @@ torchrun --nproc_per_node=2 test.py
 import os
 os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+os.environ['UNSLOTH_RETURN_LOGITS'] = '1'  # new
 
 # Step 1: Load the YAML Configuration
 import yaml
@@ -351,44 +352,93 @@ from Levenshtein import distance as levenshtein_distance
 def prepare_compute_metrics(dataset: DatasetDict, tokenizer):
     """Prepare custom metrics function for Trainer"""
 
-    # Extract masks for both train and validation splits
-    prompt_mask = np.array([x["prompt_mask"] for x in dataset['validation']])
-    completion_mask = np.array([x["completion_mask"] for x in dataset['validation']])
+    val_prompt_mask = np.array([x["prompt_mask"] for x in dataset['validation']])
+    val_completion_mask = np.array([x["completion_mask"] for x in dataset['validation']])
 
-    # uses numpy arrays (on CPU)
+    # Store masks in a dictionary for each split
+    val_masks = {
+        'prompt_mask': val_prompt_mask,
+        'completion_mask': val_completion_mask # uses numpy arrays (on CPU)
+    }
+
+# uses numpy arrays (on CPU)
     def compute_metrics(data, split='validation'):
-        # data.predictions contains the tuple (token_preds, token_losses)
-        # from the preprocess_logits_for_metrics function (below)
+        # Get masks based on split
+        if split == 'validation':
+            # Use precomputed validation masks
+            prompt_mask = val_masks['prompt_mask']
+            completion_mask = val_masks['completion_mask']
+        else:
+            batch_labels = data.label_ids
+            batch_size, seq_len = batch_labels.shape
+            if hasattr(data, 'inputs') and 'prompt_mask' in data.inputs and 'completion_mask' in data.inputs:
+                prompt_mask = data.inputs['prompt_mask'].detach().cpu().numpy() if isinstance(data.inputs['prompt_mask'], torch.Tensor) else data.inputs['prompt_mask']
+                completion_mask = data.inputs['completion_mask'].detach().cpu().numpy() if isinstance(data.inputs['completion_mask'], torch.Tensor) else data.inputs['completion_mask']
+        
+        # Process predictions (token_preds, token_losses)
         token_preds, token_losses = data.predictions
-
+        
+        # Move tensors to CPU before NumPy operations
+        if isinstance(token_preds, torch.Tensor):
+            token_preds = token_preds.detach().cpu().numpy()
+        if isinstance(token_losses, torch.Tensor):
+            token_losses = token_losses.detach().cpu().numpy()
+            
+        # Ensure labels are on CPU
+        labels = data.label_ids
+        if isinstance(labels, torch.Tensor):
+            labels = labels.detach().cpu().numpy()
+            
         # shift labels and masks
-        labels = data.label_ids[..., 1:]
+        labels = labels[..., 1:]
         shift_prompt_mask = prompt_mask[..., 1:]
         shift_comp_mask = completion_mask[..., 1:]
 
-        # average both losses (prompt and completion) over their respective tokens
-        prompt_loss = token_losses.reshape(-1) @ shift_prompt_mask.reshape(-1) / shift_prompt_mask.sum()
-        completion_loss = token_losses.reshape(-1) @ shift_comp_mask.reshape(-1) / shift_comp_mask.sum()
+        # For training data, we need to ensure we're only using the batch data
+        if split == 'train':
+            # Make sure we're only using the amount of data in the current batch
+            batch_size = labels.shape[0]
+            shift_prompt_mask = shift_prompt_mask[:batch_size]
+            shift_comp_mask = shift_comp_mask[:batch_size]
 
-        # compute levenshtein-distance (edit-distance) between pred-programs and grund-truth programs
-        # 1st: identify completion tokens
-        true_comp_tokens = [l[m == 1] for l, m in zip(labels, shift_comp_mask)]
-        pred_comp_tokens = [p[m == 1] for p, m in zip(token_preds, shift_comp_mask)]
-        # 2nd: decode completion tokens => program 
-        true_program = tokenizer.batch_decode(true_comp_tokens, skip_special_tokens=True)
-        pred_program = tokenizer.batch_decode(pred_comp_tokens, skip_special_tokens=True)
-        # 3rd: compute levenshtein-distance
-        distances = [levenshtein_distance(pred, true) for pred, true in zip(pred_program, true_program)]
-        avg_levenshtein_dist = np.mean(distances)
-        std_levenshtein_dist = np.std(distances)
+        # Check shapes before operations
+        if token_losses.reshape(-1).shape[0] != shift_prompt_mask.reshape(-1).shape[0]:
+            print(f"Shape mismatch in {split}: token_losses={token_losses.reshape(-1).shape}, prompt_mask={shift_prompt_mask.reshape(-1).shape}")
+            
+        else:
+            # Normal calculation if shapes match
+            prompt_loss = np.sum(token_losses.reshape(-1) * shift_prompt_mask.reshape(-1)) / (shift_prompt_mask.sum() or 1)
+            completion_loss = np.sum(token_losses.reshape(-1) * shift_comp_mask.reshape(-1)) / (shift_comp_mask.sum() or 1)
 
-        # return metrics
+        # Compute Levenshtein distance
+        try:
+            true_comp_tokens = [l[m == 1] for l, m in zip(labels, shift_comp_mask)]
+            pred_comp_tokens = [p[m == 1] for p, m in zip(token_preds, shift_comp_mask)]
+            
+            true_program = tokenizer.batch_decode(true_comp_tokens, skip_special_tokens=True)
+            pred_program = tokenizer.batch_decode(pred_comp_tokens, skip_special_tokens=True)
+            
+            distances = [levenshtein_distance(pred, true) for pred, true in zip(pred_program, true_program)]
+            avg_levenshtein_dist = np.mean(distances)
+            std_levenshtein_dist = np.std(distances)
+        except Exception as e:
+            print(f"Error computing Levenshtein distance: {str(e)}")
+            avg_levenshtein_dist = 0.0
+            std_levenshtein_dist = 0.0
+        
+        # Clean up to free memory, especially important for training batches
+        if split == 'train':
+            # Force cleanup of large arrays
+            del token_preds, token_losses, labels, shift_prompt_mask, shift_comp_mask
+            
+        # Return metrics with Python native types
         return {
-            'comp_loss': completion_loss,
-            'prompt_loss': prompt_loss,
-            'avg_levenshtein_dist': avg_levenshtein_dist,
-            'std_levenshtein_dist': std_levenshtein_dist,
+            'comp_loss': float(completion_loss),
+            'prompt_loss': float(prompt_loss),
+            'avg_levenshtein_dist': float(avg_levenshtein_dist),
+            'std_levenshtein_dist': float(std_levenshtein_dist),
         }
+        
     return compute_metrics
 
 # uses PyTorch tensors (on GPU)
@@ -407,6 +457,9 @@ def preprocess_logits_for_metrics(logits, labels):
     return predictions
 
 # Custom Trainer
+import transformers
+from transformers import TrainerCallback, TrainerState, TrainerControl
+
 def train_model(model, tokenizer, dataset, result_dir: str, config: Config, timestamp: str, gen_type: str, model_type_short: str):
     """Training loop with configurable prompt and completion weights"""
     
@@ -466,15 +519,7 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
                 pin_memory=self.args.dataloader_pin_memory,
             )
 
-            # Print a sample batch for debugging
-            #first_batch = next(iter(dataloader))
-            #print("🚀 First batch keys:", first_batch.keys())
-            #print("🚀 First batch shapes:")
-            #for key, value in first_batch.items():
-            #    print(f"  - {key}: {value.shape if isinstance(value, torch.Tensor) else type(value)}")
-
             return dataloader
-
 
         # this allows us to toggle on/off data shuffling, which can sometimes cause 'staircase' effects in training loss
         def _get_train_sampler(self):
@@ -483,6 +528,110 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
             if self.shuffle:
                 return torch.utils.data.RandomSampler(self.train_dataset)
             return torch.utils.data.SequentialSampler(self.train_dataset)
+
+
+    class MetricsLoggingCallback(TrainerCallback):
+        """Custom callback to compute metrics for both training and validation"""
+        
+        def __init__(self, trainer, eval_dataset, train_dataset, tokenizer, compute_metrics_fn, preprocess_fn, logging_steps):
+            self.trainer = trainer
+            self.eval_dataset = eval_dataset
+            self.train_dataset = train_dataset
+            self.tokenizer = tokenizer
+            self.compute_metrics_fn = compute_metrics_fn
+            self.preprocess_fn = preprocess_fn
+            self.logging_steps = logging_steps
+            self.is_currently_logging = False  # Flag to prevent recursive calls
+            
+        def on_log(self, args, state: TrainerState, control: TrainerControl, logs=None, **kwargs):
+            # Prevent recursive calls
+            if self.is_currently_logging:
+                return control
+            
+            # Skip if not on a logging step or if we're just starting
+            if state.global_step % self.logging_steps != 0 or state.global_step == 0:
+                return control
+                
+            # Set flag to prevent recursive calls
+            self.is_currently_logging = True
+            
+            try:
+                # Calculate which step these metrics belong to (the previous step)
+                metrics_step = state.global_step - 1
+                train_dataloader = self.trainer.get_train_dataloader()
+                try:
+                    batch = next(iter(train_dataloader))
+                except StopIteration:
+                    self.is_currently_logging = False
+                    return control  # No batches available
+                        
+                # Move batch to correct device
+                batch = self.trainer._prepare_inputs(batch)
+                
+                # Store a copy of the masks for later
+                prompt_mask = batch.pop("prompt_mask", None)
+                completion_mask = batch.pop("completion_mask", None)
+                    
+                # No gradient computation needed for metrics
+                with torch.no_grad():
+                    # Run model
+                    outputs = self.trainer.model(**batch)                            
+                    # Process logits
+                    if self.preprocess_fn is not None:
+                        predictions = self.preprocess_fn(outputs.logits, batch["labels"])
+                    else:
+                        predictions = outputs.logits.argmax(-1)
+                            
+                    # Create EvalPrediction object
+                    from transformers.trainer_utils import EvalPrediction
+                    eval_prediction = EvalPrediction(
+                        predictions=predictions,
+                        label_ids=batch["labels"]
+                        )
+                        
+                    # Add the masks back to the inputs dictionary
+                    batch["prompt_mask"] = prompt_mask
+                    batch["completion_mask"] = completion_mask
+                    
+                    # Store the full batch with masks in the inputs attribute
+                    eval_prediction.inputs = batch
+
+                    # Compute metrics for training data
+                    train_metrics = self.compute_metrics_fn(eval_prediction,split='train')
+                    
+                    # Add train/ prefix to all metrics
+                    train_metrics_prefixed = {f"train/{k}": v for k, v in train_metrics.items()}
+                        
+                # Log directly to wandb or other trackers without going through trainer.log to avoid recursion
+                if self.trainer.is_world_process_zero():
+                    if hasattr(args, "report_to") and "wandb" in args.report_to:
+                        wandb.log(train_metrics_prefixed, step=metrics_step)
+                    
+            except Exception as e:
+                print(f"Error in metrics callback: {e}")
+                import traceback
+                traceback.print_exc()
+            finally:
+                # Always reset the flag, even if an error occurred
+                self.is_currently_logging = False
+                
+                # Clean up to free memory
+                if 'batch' in locals():
+                    del batch
+                if 'outputs' in locals():
+                    del outputs
+                if 'predictions' in locals():
+                    del predictions
+                if 'eval_prediction' in locals():
+                    del eval_prediction
+                    
+                import gc
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                    
+            return control
+
 
     # Training arguments based on config
     training_args = TrainingArguments(
@@ -543,6 +692,17 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
     )
     print("🚀 Scheduler:", trainer.lr_scheduler)
 
+    # Add custom callback for logging metrics
+    trainer.add_callback(MetricsLoggingCallback(
+        trainer=trainer,
+        eval_dataset=dataset["validation"],
+        train_dataset=dataset["train"],
+        tokenizer=tokenizer,
+        compute_metrics_fn=prepare_compute_metrics(dataset, tokenizer),
+        preprocess_fn=preprocess_logits_for_metrics,
+        logging_steps=config.training.logging_steps
+    ))
+
     # Train the model
     trainer.train()
     
@@ -554,7 +714,6 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
 
 def inference(model, tokenizer, dataset, config: Config, result_dir: str):
     pass
-
 
 
 # MAIN
