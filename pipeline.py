@@ -500,7 +500,9 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
         label_names=["labels"],
         load_best_model_at_end=True,
         metric_for_best_model="comp_loss",
-        greater_is_better=False  # Whether a higher metric value is better
+        greater_is_better=False,  # Whether a higher metric value is better
+        push_to_hub = True,
+        hub_model_id = f"fine-tune-codeLlama-2-7b-len-gen-ascii-art"
     )    
 
     # Initialize trainer with configurable weights
@@ -514,7 +516,7 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
         #processing_class=tokenizer,
         compute_metrics=prepare_compute_metrics(dataset, tokenizer),
         preprocess_logits_for_metrics=preprocess_logits_for_metrics,
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=5)]
+        #callbacks=[EarlyStoppingCallback(early_stopping_patience=5)]
     )
 
     trainer.optimizer = AdamW(trainer.model.parameters(), lr=training_args.learning_rate, weight_decay=training_args.weight_decay)
