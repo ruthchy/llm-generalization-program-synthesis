@@ -352,27 +352,11 @@ def prepare_compute_metrics(dataset: DatasetDict, tokenizer):
     """Prepare custom metrics function for Trainer"""
 
     # Extract masks for both train and validation splits
-    train_prompt_mask = np.array([x["prompt_mask"] for x in dataset['train']])
-    train_completion_mask = np.array([x["completion_mask"] for x in dataset['train']])
-    val_prompt_mask = np.array([x["prompt_mask"] for x in dataset['validation']])
-    val_completion_mask = np.array([x["completion_mask"] for x in dataset['validation']])
-    
-    # Store masks in a dictionary for easy access
-    masks = {
-        'train': {
-            'prompt_mask': train_prompt_mask,
-            'completion_mask': train_completion_mask
-        },
-        'validation': {
-            'prompt_mask': val_prompt_mask,
-            'completion_mask': val_completion_mask
-        }
-    }
+    prompt_mask = np.array([x["prompt_mask"] for x in dataset['validation']])
+    completion_mask = np.array([x["completion_mask"] for x in dataset['validation']])
 
     # uses numpy arrays (on CPU)
-    def compute_metrics(data, split="validation"):
-        prompt_mask = masks[split]['prompt_mask']
-        completion_mask = masks[split]['completion_mask']
+    def compute_metrics(data, split='validation'):
         # data.predictions contains the tuple (token_preds, token_losses)
         # from the preprocess_logits_for_metrics function (below)
         token_preds, token_losses = data.predictions
@@ -530,8 +514,8 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
         load_best_model_at_end=True,
         metric_for_best_model="comp_loss",
         greater_is_better=False,  # Whether a higher metric value is better
-        push_to_hub = True,
-        hub_model_id = f"fine-tune-codeLlama-2-7b-len-gen-ascii-art"
+        #push_to_hub = True,
+        #hub_model_id = f"fine-tune-codeLlama-2-7b-len-gen-ascii-art"
     )    
 
     # Initialize trainer with configurable weights
