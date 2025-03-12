@@ -6,11 +6,16 @@ Steps:
     4. Wandb initalization for the fine-tuning run
     5. Training Preperation
     6. Training the model with custom PLW-Trainer
-    7. Inference using the recently fine-tuned model
-    8. Inference using model from hub                   # not yet implemented
+    7. Preparing Inference
+    8.1 Inference using the recently fine-tuned model
+    8.2 Inference using model from hub
     9. Evaluation                                       # not yet implemented
 Run script in conda thesis_env (can be gererated using the requirements.txt file)
-python test.py 
+
+python pipeline_v2.py 
+    --fine_tune False       # False = only inf with a model from the hub (Step 1, 2, 7, 8.2, 9)
+    --fine_tune True        # True = fine-tune the model and do inf (Step 1, 2, 3, 4, 5, 6, 7, 8.1, 9)
+    --sample_fraction 1.0   # the entire dataset is used or by setting the number < 1 a random sample of the dataset is used
 '''
 ############################################################################################################
 # Housekeeping - single GPU unsloth setup
@@ -18,6 +23,17 @@ import os
 os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 os.environ['UNSLOTH_RETURN_LOGITS'] = '1'  # new
+
+# Decide the mode in which the script should run fine-tuning and/or inference in testing or production mode
+import argparse
+parser = argparse.ArgumentParser(description='Run fine-tuning and/or inference pipeline')
+parser.add_argument('--fine_tune', type=lambda x: x.lower() == 'true', default=False, help='Whether to fine-tune the model (True) or run inference only (False)')
+parser.add_argument('--sample_fraction', type=float, default=1.0, help='Fraction of dataset to use (for debugging)')
+args = parser.parse_args()
+        
+fine_tune = args.fine_tune
+sample_fraction = args.sample_fraction
+print(f"Running with fine_tune={fine_tune}, sample_fraction={sample_fraction}")
 
 # Step 1: Load the YAML Configuration
 import yaml
@@ -69,6 +85,9 @@ class ModelConfig:
     model_id: str
     topk_train: int
     topk_prompt: int
+    top_k: int
+    temperature: float
+    max_new_tokens: int
 
 @dataclass
 class LoggingConfig:
@@ -153,7 +172,10 @@ class Config:
         self.model = ModelConfig(
             model_id=str(config_dict["model"]["model_id"]),
             topk_train=int(config_dict["model"]["topk_train"]),
-            topk_prompt=int(config_dict["model"]["topk_prompt"])
+            topk_prompt=int(config_dict["model"]["topk_prompt"]),
+            top_k=int(config_dict["model"]["top_k"]),
+            temperature=int(config_dict["model"]["temperature"]),
+            max_new_tokens=int(config_dict["model"]["max_new_tokens"])
         )
         self.logging = LoggingConfig(
             use_wandb=bool(config_dict.get("logging", {}).get("use_wandb", False))
@@ -168,10 +190,8 @@ class Config:
             include_sys_prompt_inf=bool(config_dict["data"]["include_sys_prompt_inf"])
         )
 
-def load_config(model_name: str) -> Tuple[Config, str, str, str, str]:
-    """Load training configuration from yaml file and store a copy in results directory"""
-    source_config = "config.yaml"
-    
+def load_config(source_config: str, fine_tune: bool) -> Tuple[Config, str, str, str, str]:
+    """Load training configuration from yaml file and store a copy in results directory"""    
     if os.path.exists(source_config):
         with open(source_config, 'r') as f:
             config_dict = yaml.safe_load(f)
@@ -197,7 +217,12 @@ def load_config(model_name: str) -> Tuple[Config, str, str, str, str]:
         model_type_short = model_type.split('-')[0]
 
         # Result directory
-        result_dir = f"results/{gen_type}/{model_type_short}_{timestamp}"
+        if fine_tune:
+            result_dir = f"results/{gen_type}/{model_type_short}_{timestamp}"
+        else: # inference loading model from hub
+            if model_type_short.startswith("{gen_type}_"):
+                model_type_short = model_type_short[len("{gen_type}_"):]
+            result_dir = f"results/{gen_type}/{model_type_short}/inference/{timestamp}"
         os.makedirs(result_dir, exist_ok=True)
 
         # Copy the config to results directory
@@ -716,7 +741,7 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
         metric_for_best_model="comp_loss",
         greater_is_better=False,  # Whether a higher metric value is better
         push_to_hub = True,
-        hub_model_id = f"ft-codeLlama-2-7b-len-gen-ascii-art"
+        hub_model_id = f"{gen_type}_{model_type_short}_{timestamp}"
     )    
 
     # Initialize trainer with configurable weights
@@ -764,7 +789,7 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
     
     return model
 
-# Step 7: Inference using the recently fine-tuned model
+# Step 7: Preparing Inference
 def init_wandb_for_inf(config: Config, model_id: str, inference_type: str):
     wandb.init(
         project="master-thesis--inference", 
@@ -780,7 +805,34 @@ def init_wandb_for_inf(config: Config, model_id: str, inference_type: str):
             "inference_type": inference_type
         }
     )
+# Preprocessing of predicted Progs before calculating Levenshtein distance to ground-truth 
+def remove_py_comments(code_string):
+    """
+    Remove comments from Python code before calculating Levenshtein distance.
+    
+    Args:
+        code_string: The Python code as a string
+        
+    Returns:
+        Cleaned code with comments removed
+    """
+    # Initialize variables
+    cleaned_lines = []
+    
+    # Process each line individually to handle line comments
+    for line in code_string.splitlines():
+        # Remove comments (everything after #)
+        if '#' in line:
+            line = line.split('#', 1)[0]
+            
+        # Only add non-empty lines after stripping whitespace
+        if line.strip():
+            cleaned_lines.append(line)
+    
+    # Rejoin with newlines
+    return '\n'.join(cleaned_lines)
 
+# Step 8.1: Inference using the recently fine-tuned model
 def inference(model, tokenizer, config: Config, result_dir: str, inference_type: str, sample_fraction = 1.0):
     # Initialize WandB for inference
     if config.logging.use_wandb:
@@ -791,8 +843,8 @@ def inference(model, tokenizer, config: Config, result_dir: str, inference_type:
     inf_dir = os.path.join(result_dir, "inference")
     os.makedirs(inf_dir, exist_ok=True)
 
-    model.eval()  # model in evaluation mode
-
+    model.eval()  # model in evaluation mode (PyTorch)
+    
     try:
         from unsloth import FastLanguageModel
         model = FastLanguageModel.for_inference(model)
@@ -855,9 +907,9 @@ def inference(model, tokenizer, config: Config, result_dir: str, inference_type:
                 generated_ids = model.generate(
                     input_ids=input_ids,
                     attention_mask=attention_mask,
-                    max_new_tokens=250,
-                    temperature=0.8,
-                    top_k=config.model.topk_prompt,
+                    max_new_tokens=config.model.max_new_tokens,
+                    temperature=config.model.temperature,
+                    top_k=config.model.top_k,
                     do_sample=True
                 )
                 
@@ -874,9 +926,9 @@ def inference(model, tokenizer, config: Config, result_dir: str, inference_type:
                 
                 # Get ground truth
                 ground_truth = example["Program"]
-                
+                completion_clean = remove_py_comments(completion)
                 # Calculate Levenshtein distance
-                lev_distance = levenshtein_distance(completion, ground_truth)
+                lev_distance = levenshtein_distance(completion_clean, ground_truth)
                 
                 # Store result for this example
                 result = {
@@ -979,19 +1031,263 @@ def inference(model, tokenizer, config: Config, result_dir: str, inference_type:
         
         wandb.finish()
     return results
+    
+# Step 8.2: Inference using model from hub
+def inference_from_hub(config: Config, result_dir: str, inference_type: str, sample_fraction = 1.0):
+    """
+    Runs inference using a model loaded directly from the Hugging Face Hub.
+    
+    Args:
+        config: Configuration object
+        result_dir: Directory to save results
+        inference_type: Type of inference being performed
+        sample_fraction: Fraction of test dataset to use
+    """
+    
+    # Initialize WandB for inference
+    if config.logging.use_wandb:
+        hub_model_name = config.model.model_id.split("/")[-1]
+        init_wandb_for_inf(config, hub_model_name, inference_type)
+   
+    print(f'Begin inference on test dataset using model from hub: {config.model.model_id}')
+
+    inf_dir = result_dir
+    os.makedirs(inf_dir, exist_ok=True)
+
+    # Load model and tokenizer from Hub
+    try:
+        from unsloth import FastLanguageModel
+        model, tokenizer = FastLanguageModel.from_pretrained(
+            config.model.model_id,
+            load_in_4bit=True,
+        )
+        model = FastLanguageModel.for_inference(model)
+        print(f"Loaded model {config.model.model_id} using Unsloth's optimized inference")
+    except Exception as e:
+        print(f"Could not load with Unsloth, falling back to HF Transformers: {e}")
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+        tokenizer = AutoTokenizer.from_pretrained(config.model.model_id)
+        model = AutoModelForCausalLM.from_pretrained(
+            config.model.model_id,
+            torch_dtype=torch.bfloat16 if is_bfloat16_supported() else torch.float16,
+            device_map="auto",
+        )
+        print(f"Loaded model {config.model.model_id} using standard HF Transformers")
+    
+    # Load the raw test dataset
+    raw_test_dataset = load_dataset(config.data.dataset_id)["test"]
+    if sample_fraction < 1.0:
+        raw_test_dataset = raw_test_dataset.shuffle(seed=config.training.random_seed).select(range(int(len(raw_test_dataset) * sample_fraction)))
+    
+    results = []
+    batch_metrics = []
+    
+    # Get prompt template
+    prompt_template = config.prompt.get_prompt_template(
+        include_desc=config.data.include_desc,
+        include_ascii=config.data.include_ascii
+    )
+    
+    # Process in smaller batches to avoid memory issues
+    batch_size = config.training.per_device_eval_batch_size
+    num_examples = len(raw_test_dataset)
+    
+    with torch.no_grad():
+        for batch_start in range(0, num_examples, batch_size):
+            batch_end = min(batch_start + batch_size, num_examples)
+            batch_indices = list(range(batch_start, batch_end))
+            
+            print(f"Processing batch {batch_start//batch_size + 1}/{(num_examples-1)//batch_size + 1} " +
+                 f"(examples {batch_start}-{batch_end-1})")
+            
+            batch_results = []
+            
+            for i in batch_indices:
+                example = raw_test_dataset[i]
+                
+                # Format prompt
+                formatted_prompt = prompt_template.format(**example)
+                
+                # Create messages list with system prompt if configured
+                messages = []
+                if config.prompt.include_sys_prompt_inf:
+                    messages.append({"role": "system", "content": config.prompt._system_prompt})
+                messages.append({"role": "user", "content": formatted_prompt})
+                
+                # Apply chat template for consistent formatting
+                chat_formatted_prompt = tokenizer.apply_chat_template(
+                    messages, 
+                    tokenize=False,
+                    add_generation_prompt=True
+                )
+                
+                # Generate with the model
+                tokenized_input = tokenizer(chat_formatted_prompt, return_tensors="pt", padding=True)
+                input_ids = tokenized_input.input_ids.to(model.device)
+                attention_mask = tokenized_input.attention_mask.to(model.device)
+                
+                generated_ids = model.generate(
+                    input_ids=input_ids,
+                    attention_mask=attention_mask,
+                    max_new_tokens=config.model.max_new_tokens,
+                    temperature=config.model.temperature,
+                    top_k=config.model.top_k,
+                    do_sample=True
+                )
+                
+                # Decode generation
+                generated_text = tokenizer.decode(generated_ids[0], skip_special_tokens=True)
+                
+                # Extract the completion part - adapting to different model formats
+                if "<|assistant|>" in generated_text:
+                    # Extract between assistant token and end token
+                    completion = generated_text.split("<|assistant|>")[-1].split("<|end|>")[0].strip()
+                elif "[/INST]" in generated_text:
+                    # Llama format
+                    completion = generated_text.split("[/INST]")[-1].strip()
+                elif "assistant:" in generated_text.lower():
+                    # Generic assistant format
+                    completion = generated_text.split("assistant:", 1)[-1].strip()
+                else:
+                    # Fallback - just take everything after the user's last message
+                    user_content = messages[-1]["content"]
+                    if user_content in generated_text:
+                        completion = generated_text.split(user_content, 1)[-1].strip()
+                    else:
+                        completion = generated_text  # Last resort
+                
+                # Get ground truth
+                ground_truth = example["Program"]
+                completion_clean = remove_py_comments(completion)
+                
+                # Calculate Levenshtein distance
+                lev_distance = levenshtein_distance(completion_clean, ground_truth)
+                
+                # Store result for this example
+                result = {
+                    "id": i,
+                    "prompt": chat_formatted_prompt,
+                    "completion": completion,
+                    "ground_truth": ground_truth,
+                    "levenshtein_distance": lev_distance
+                }
+                
+                results.append(result)
+                batch_results.append(result)
+            
+            # Calculate batch metrics
+            batch_avg_levenshtein = sum(r["levenshtein_distance"] for r in batch_results) / len(batch_results)
+            current_avg_levenshtein = sum(r["levenshtein_distance"] for r in results) / len(results)
+            
+            # Store batch metrics
+            batch_metric = {
+                "batch_num": batch_start//batch_size + 1,
+                "batch_examples": f"{batch_start}-{batch_end-1}",
+                "batch_size": len(batch_results),
+                "batch_avg_levenshtein": batch_avg_levenshtein,
+                "cumulative_examples": len(results),
+                "cumulative_avg_levenshtein": current_avg_levenshtein
+            }
+            batch_metrics.append(batch_metric)
+            
+            if config.logging.use_wandb:
+                wandb.log({
+                    "batch/avg_levenshtein": batch_avg_levenshtein,
+                    "cumulative/avg_levenshtein": current_avg_levenshtein,
+                    "progress/examples_processed": len(results),
+                    "progress/batch_number": batch_start//batch_size + 1
+                })
+                
+                # Also log individual example metrics
+                for result in batch_results:
+                    wandb.log({
+                        "examples/levenshtein": result["levenshtein_distance"],
+                        "examples/id": result["id"]
+                    })
+                    
+            # Save the metrics file with all batches processed so far
+            metrics = {
+                "batch_summaries": batch_metrics,
+                "current_total_examples": len(results),
+                "current_avg_levenshtein": current_avg_levenshtein
+            }
+            with open(os.path.join(inf_dir, "metrics.json"), "w") as f:
+                json.dump(metrics, f, indent=2)
+            
+            # Free memory after each batch
+            torch.cuda.empty_cache()
+    
+    # After all batches are processed, save the final results
+    if results:
+        # Save all predictions in a single file
+        with open(os.path.join(inf_dir, "predictions.json"), "w") as f:
+            json.dump(results, f, indent=2)
+        
+        # Calculate final average metrics
+        avg_levenshtein = sum(r["levenshtein_distance"] for r in results) / len(results)
+        
+        # Update and save final metrics
+        final_metrics = {
+            "batch_summaries": batch_metrics,
+            "total_examples": len(results),
+            "avg_levenshtein_distance": avg_levenshtein,
+            "completed": True
+        }
+        
+        with open(os.path.join(inf_dir, "metrics.json"), "w") as f:
+            json.dump(final_metrics, f, indent=2)
+        
+        print(f"Hub inference completed. Average Levenshtein distance: {avg_levenshtein:.2f}")
+    else:
+        print("Hub inference completed but no results were generated.")
+    
+    if config.logging.use_wandb:
+        if results:
+            avg_levenshtein = sum(r["levenshtein_distance"] for r in results) / len(results)
+            # Log summary metrics and artifacts
+            wandb.log({
+                "final_avg_levenshtein": avg_levenshtein,
+                "total_examples": len(results)
+            })
+            
+            # Save predictions as an artifact
+            predictions_artifact = wandb.Artifact(
+                name=f"predictions-{inference_type}-{hub_model_name}", 
+                type="predictions"
+            )
+            predictions_artifact.add_file(os.path.join(inf_dir, "predictions.json"))
+            wandb.log_artifact(predictions_artifact)
+        else:
+            wandb.log({
+                "total_examples": 0
+            })
+        
+        wandb.finish()
+    
+    # Clean up resources
+    del model
+    torch.cuda.empty_cache()
+    
+    return results
+
+# Step 9: Evaluation
 
 # MAIN
 if __name__ == "__main__":
     try:
-        config, timestamp, gen_type, model_type_short, result_dir = load_config("config.yaml")
+        config, timestamp, gen_type, model_type_short, result_dir = load_config("config.yaml", fine_tune)
         set_random_seeds(config.training.random_seed)
-        model, tokenizer = load_model_and_tokenizer(config)
-        dataset = prepare_dataset(config, tokenizer, sample_fraction = 0.01)
-        #dataset = prepare_dataset(config, tokenizer)
-        # Training
-        model = train_model(model, tokenizer, dataset, result_dir, config, timestamp, gen_type, model_type_short)
-        # Inference after Finetuning
-        inference(model, tokenizer, config, result_dir, inference_type=f"test_{timestamp}", sample_fraction = 0.1)
+        if fine_tune:
+            # Prep
+            model, tokenizer = load_model_and_tokenizer(config)
+            dataset = prepare_dataset(config, tokenizer, sample_fraction = sample_fraction) 
+            # Training
+            model = train_model(model, tokenizer, dataset, result_dir, config, timestamp, gen_type, model_type_short)
+            # Inference after Finetuning
+            inference(model, tokenizer, config, result_dir, inference_type=f"test_{timestamp}", sample_fraction = sample_fraction)
+        else:
+            # Inference with Model from Hub
+            inference_from_hub(config, result_dir, inference_type=f"test_hub_{timestamp}", sample_fraction = sample_fraction)
     except Exception as e:
         print(f"An error occurred: {e}")
         import traceback

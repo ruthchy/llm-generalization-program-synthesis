@@ -21,6 +21,9 @@ model:
   #model_id: "ruthchy/fine-tune-codeLlama-2-7b-len-gen-ascii-art"
   topk_train: 1 # no. of I/O pairs during finetuning
   topk_prompt: 0 # no. of I/O pairs during inference in addition to the I (zero-shot prompting = 0, …)
+  top_k: 50 # Tobi set in his pipline.py
+  temperature: 1.0 # Tobi set in his pipline.py
+  max_new_tokens: 250 # 200 Tobi set in his pipline.py
 
 training:
   prompt_loss_weight: 0.1
