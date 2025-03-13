@@ -10,6 +10,7 @@ Steps:
     8.1 Inference using the recently fine-tuned model
     8.2 Inference using model from hub
     9. Evaluation                                       # not yet implemented
+    
 Run script in conda thesis_env (can be gererated using the requirements.txt file)
 
 python pipeline_v2.py 
@@ -24,7 +25,7 @@ os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 os.environ['UNSLOTH_RETURN_LOGITS'] = '1'  # new
 
-# Decide the mode in which the script should run fine-tuning and/or inference in testing or production mode
+# Decide the mode in which the script should run fine-tuning and/or inference; in testing or production mode
 import argparse
 parser = argparse.ArgumentParser(description='Run fine-tuning and/or inference pipeline')
 parser.add_argument('--fine_tune', type=lambda x: x.lower() == 'true', default=False, help='Whether to fine-tune the model (True) or run inference only (False)')
@@ -494,14 +495,23 @@ def prepare_compute_metrics(dataset: DatasetDict, tokenizer):
             
             true_program = tokenizer.batch_decode(true_comp_tokens, skip_special_tokens=True)
             pred_program = tokenizer.batch_decode(pred_comp_tokens, skip_special_tokens=True)
+
+            # Calculate normalized Levenshtein distances (1.0 = identical, 0.0 = completely different)
+            normalized_distances = []
+            for pred, true in zip(pred_program, true_program):
+                max_len = max(len(pred), len(true))
+                if max_len == 0:  # Handle edge case of empty strings
+                    normalized_distances.append(1.0)
+                else:
+                    lev_dist = levenshtein_distance(pred, true)
+                    normalized_distances.append(1.0 - (lev_dist / max_len))
             
-            distances = [levenshtein_distance(pred, true) for pred, true in zip(pred_program, true_program)]
-            avg_levenshtein_dist = np.mean(distances)
-            std_levenshtein_dist = np.std(distances)
+            avg_norm_levenshtein_dist = np.mean(normalized_distances)
+            std_norm_levenshtein_dist = np.std(normalized_distances)
         except Exception as e:
-            print(f"Error computing Levenshtein distance: {str(e)}")
-            avg_levenshtein_dist = 0.0
-            std_levenshtein_dist = 0.0
+            print(f"Error computing normalized Levenshtein distance: {str(e)}")
+            avg_norm_levenshtein_dist = 0.0
+            std_norm_levenshtein_dist = 0.0
         
         # Clean up to free memory, especially important for training batches
         if split == 'train':
@@ -512,8 +522,8 @@ def prepare_compute_metrics(dataset: DatasetDict, tokenizer):
         return {
             'comp_loss': float(completion_loss),
             'prompt_loss': float(prompt_loss),
-            'avg_levenshtein_dist': float(avg_levenshtein_dist),
-            'std_levenshtein_dist': float(std_levenshtein_dist),
+            'avg_norm_levenshtein_dist': float(avg_norm_levenshtein_dist),
+            'avg_norm_levenshtein_dist': float(avg_norm_levenshtein_dist),
         }
         
     return compute_metrics
@@ -1030,7 +1040,7 @@ def inference(model, tokenizer, config: Config, result_dir: str, inference_type:
             })
         
         wandb.finish()
-    return results
+    return results, inf_dir
     
 # Step 8.2: Inference using model from hub
 def inference_from_hub(config: Config, result_dir: str, inference_type: str, sample_fraction = 1.0):
@@ -1268,9 +1278,55 @@ def inference_from_hub(config: Config, result_dir: str, inference_type: str, sam
     del model
     torch.cuda.empty_cache()
     
-    return results
+    return results, inf_dir
 
 # Step 9: Evaluation
+def evaluation(inf_dir: str):
+    """
+    Evaluate model predictions using the LLMCodeEvaluator class.
+    
+    Args:
+        inf_dir (str): Directory containing predictions.json
+        
+    Returns:
+        tuple: (metrics, summary)
+    """
+    from __eval import LLMCodeEvaluator
+    
+    print(f"Starting evaluation on predictions in {inf_dir}")
+    
+    # Initialize the evaluator
+    evaluator = LLMCodeEvaluator()
+    
+    try:
+        # Run the evaluation pipeline
+        metrics, summary = evaluator.evaluate_and_summarize(inf_dir)
+        
+        # Save the evaluation results
+        with open(os.path.join(inf_dir, "evaluation.json"), "w") as f:
+            json.dump(summary, f, indent=2)
+        
+        with open(os.path.join(inf_dir, "detailed_metrics.json"), "w") as f:
+            # Convert any non-serializable values to strings
+            serializable_metrics = []
+            for metric in metrics:
+                serializable_metric = {}
+                for k, v in metric.items():
+                    if isinstance(v, (str, int, float, bool, list, dict, type(None))):
+                        serializable_metric[k] = v
+                    else:
+                        serializable_metric[k] = str(v)
+                serializable_metrics.append(serializable_metric)
+            json.dump(serializable_metrics, f, indent=2)
+        
+        print(f"Evaluation complete. Results saved to {inf_dir}/evaluation.json")
+        return metrics, summary
+        
+    except Exception as e:
+        print(f"Error during evaluation: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return None, None
 
 # MAIN
 if __name__ == "__main__":
@@ -1288,6 +1344,9 @@ if __name__ == "__main__":
         else:
             # Inference with Model from Hub
             inference_from_hub(config, result_dir, inference_type=f"test_hub_{timestamp}", sample_fraction = sample_fraction)
+        metrics, summary = evaluation(inf_dir)
+        print("Pipeline completed successfully! 🎉")
+
     except Exception as e:
         print(f"An error occurred: {e}")
         import traceback
