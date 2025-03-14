@@ -1,6 +1,22 @@
 '''
-python test.py
-torchrun --nproc_per_node=2 test.py
+Steps:
+    1. Load the YAML Configuration
+    2. Load the Model and Tokenizer
+    3. Prepare the Dataset
+    4. Wandb initalization for the fine-tuning run
+    5. Training Preperation
+    6. Training the model with custom PLW-Trainer
+    7. Preparing Inference
+    8.1 Inference using the recently fine-tuned model
+    8.2 Inference using model from hub
+    9. Evaluation                                       # not yet implemented
+    
+Run script in conda thesis_env (can be gererated using the requirements.txt file)
+
+python pipeline_v2.py 
+    --fine_tune False       # False = only inf with a model from the hub (Step 1, 2, 7, 8.2, 9)
+    --fine_tune True        # True = fine-tune the model and do inf (Step 1, 2, 3, 4, 5, 6, 7, 8.1, 9)
+    --sample_fraction 1.0   # the entire dataset is used or by setting the number < 1 a random sample of the dataset is used
 '''
 ############################################################################################################
 # Housekeeping - single GPU unsloth setup
@@ -8,6 +24,17 @@ import os
 os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 os.environ['UNSLOTH_RETURN_LOGITS'] = '1'  # new
+
+# Decide the mode in which the script should run fine-tuning and/or inference; in testing or production mode
+import argparse
+parser = argparse.ArgumentParser(description='Run fine-tuning and/or inference pipeline')
+parser.add_argument('--fine_tune', type=lambda x: x.lower() == 'true', default=False, help='Whether to fine-tune the model (True) or run inference only (False)')
+parser.add_argument('--sample_fraction', type=float, default=1.0, help='Fraction of dataset to use (for debugging)')
+args = parser.parse_args()
+        
+fine_tune = args.fine_tune
+sample_fraction = args.sample_fraction
+print(f"Running with fine_tune={fine_tune}, sample_fraction={sample_fraction}")
 
 # Step 1: Load the YAML Configuration
 import yaml
@@ -59,6 +86,9 @@ class ModelConfig:
     model_id: str
     topk_train: int
     topk_prompt: int
+    top_k: int
+    temperature: float
+    max_new_tokens: int
 
 @dataclass
 class LoggingConfig:
@@ -72,7 +102,8 @@ class DataConfig:
 
 @dataclass
 class PromptConfig:
-    include_sys_prompt: bool = True
+    include_sys_prompt_fn: bool = False
+    include_sys_prompt_inf: bool = False
     _system_prompt: str = """Your task is to draw simple black and white graphics with the custom library. DO NOT USE THE BUILT-IN TURTLE LIBRARY.
 You will use a custom turtle library, similar to the built-in library, which is sufficient for all tasks.
 
@@ -88,8 +119,9 @@ Here are all the available functions in the custom turtle library:
 - embed(program, local vars): runs the code in program using the current context and teleports back to the original position. Allows you to nest programs. Implementationally, embed gets the turtle state (is down, x, y, heading), executes program, then returns to the original state."""
     
     @property
-    def system_prompt(self) -> Optional[str]:
-        return self._system_prompt if self.include_sys_prompt else None
+    def system_prompt(self) -> str:
+        """Property for backward compatibility"""
+        return self._system_prompt
     
     def get_prompt_template(self, include_desc: bool, include_ascii: bool) -> str:
         """Generates the prompt template based on configuration flags"""
@@ -103,12 +135,7 @@ Here are all the available functions in the custom turtle library:
         else:
             raise ValueError("At least one of include_ascii or include_desc must be True")
         
-        # Wrap the task description and system prompt with appropriate tokens
-        prompt = "[INST]"
-        if self.include_sys_prompt:
-            prompt += f"[SYS]{self.system_prompt}[/SYS]"
-        prompt += task_description + "[/INST]"
-        return prompt
+        return task_description
 
 @dataclass
 class ScriptArguments:
@@ -146,7 +173,10 @@ class Config:
         self.model = ModelConfig(
             model_id=str(config_dict["model"]["model_id"]),
             topk_train=int(config_dict["model"]["topk_train"]),
-            topk_prompt=int(config_dict["model"]["topk_prompt"])
+            topk_prompt=int(config_dict["model"]["topk_prompt"]),
+            top_k=int(config_dict["model"]["top_k"]),
+            temperature=int(config_dict["model"]["temperature"]),
+            max_new_tokens=int(config_dict["model"]["max_new_tokens"])
         )
         self.logging = LoggingConfig(
             use_wandb=bool(config_dict.get("logging", {}).get("use_wandb", False))
@@ -157,13 +187,12 @@ class Config:
             include_ascii=bool(config_dict["data"]["include_ascii"])
         )
         self.prompt = PromptConfig(
-            include_sys_prompt=bool(config_dict["data"]["include_sys_prompt"])
+            include_sys_prompt_fn=bool(config_dict["data"]["include_sys_prompt_fn"]),
+            include_sys_prompt_inf=bool(config_dict["data"]["include_sys_prompt_inf"])
         )
 
-def load_config(model_name: str) -> Tuple[Config, str, str, str, str]:
-    """Load training configuration from yaml file and store a copy in results directory"""
-    source_config = "config.yaml"
-    
+def load_config(source_config: str, fine_tune: bool) -> Tuple[Config, str, str, str, str]:
+    """Load training configuration from yaml file and store a copy in results directory"""    
     if os.path.exists(source_config):
         with open(source_config, 'r') as f:
             config_dict = yaml.safe_load(f)
@@ -189,7 +218,12 @@ def load_config(model_name: str) -> Tuple[Config, str, str, str, str]:
         model_type_short = model_type.split('-')[0]
 
         # Result directory
-        result_dir = f"results/{gen_type}/{model_type_short}_{timestamp}"
+        if fine_tune:
+            result_dir = f"results/{gen_type}/{model_type_short}_{timestamp}"
+        else: # inference loading model from hub
+            if model_type_short.startswith("{gen_type}_"):
+                model_type_short = model_type_short[len("{gen_type}_"):]
+            result_dir = f"results/{gen_type}/{model_type_short}/inference/{timestamp}"
         os.makedirs(result_dir, exist_ok=True)
 
         # Copy the config to results directory
@@ -222,6 +256,7 @@ def set_random_seeds(seed: int):
         torch.backends.cudnn.benchmark = False
     print(f"Random seed set to: {seed}")
 
+# Step 2: Load the Model and Tokenizer
 def load_model_and_tokenizer(config: Config):
     model, tokenizer = FastLanguageModel.from_pretrained(
             config.model.model_id,
@@ -239,6 +274,7 @@ def load_model_and_tokenizer(config: Config):
    
     return  model, tokenizer
 
+# Step 3: Prepare the Dataset
 def prepare_dataset(config: Config, tokenizer, sample_fraction = 1.0):
     dataset = load_dataset(config.data.dataset_id)
     if sample_fraction < 1.0:
@@ -256,16 +292,56 @@ def prepare_dataset(config: Config, tokenizer, sample_fraction = 1.0):
         formatted_prompt = prompt.format(**example)
         completion = example['Program']
         
-        if split_type == "test":
-            full_text = f"{formatted_prompt}"
-        else:
-            full_text = f"{formatted_prompt}\n{completion}"
-        prompt_length = len(formatted_prompt) + 1  # +1 for newline
+        # Create messages list based on split type and configuration
+        messages = []
         
+        # For test dataset with system prompt only in inference
+        if split_type == "test":
+            if config.prompt.include_sys_prompt_inf:
+                messages.append({"role": "system", "content": config.prompt._system_prompt})
+            messages.append({"role": "user", "content": formatted_prompt})
+        # For train/validation datasets
+        else:
+            if config.prompt.include_sys_prompt_fn:
+                messages.append({"role": "system", "content": config.prompt._system_prompt})
+            messages.append({"role": "user", "content": formatted_prompt})
+            messages.append({"role": "assistant", "content": completion})
+        
+        # For prompt_length calculation, we need to include everything that's part of the input
+        # but not part of what the model should generate (i.e., not the assistant's response)
+        prompt_messages = []
+        
+        # Include system message if it exists
+        if messages and messages[0]["role"] == "system":
+            prompt_messages.append(messages[0])
+        
+        # Always include user message
+        for msg in messages:
+            if msg["role"] == "user":
+                prompt_messages.append(msg)
+        
+        # Calculate prompt_length from system + user messages
+        prompt_text = tokenizer.apply_chat_template(
+            conversation=prompt_messages,
+            tokenize=False, 
+            add_generation_prompt=True
+        )
+        full_text = tokenizer.apply_chat_template(conversation=messages, tokenize=False, add_generation_prompt=False)
+
+        # DEBUG: Print formatted examples
+        if idx < 3:  # Only print the first few examples for each split
+            print(f"\n--- DEBUG: {split_type} EXAMPLE #{idx} ---")
+            print(f"System prompt included: {config.prompt.include_sys_prompt_fn if split_type != 'test' else config.prompt.include_sys_prompt_inf}")
+            print(f"Messages format: {messages}")
+            print(f"PROMPT TEXT (for length calculation):\n{prompt_text}")
+            print(f"FULL TEXT (with completion):\n{full_text}")
+            print("--- END DEBUG ---\n")
+
         return {
-            "text": full_text,
-            "prompt_length": prompt_length
+            "text": full_text, #tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False),
+            "prompt_length": len(prompt_text)
         }
+
     def format_dataset(dataset: DatasetDict):
         def map_format_prompt(example, idx, split_type):
             return format_prompt(example, split_type, idx)
@@ -356,9 +432,11 @@ def prepare_compute_metrics(dataset: DatasetDict, tokenizer):
     val_completion_mask = np.array([x["completion_mask"] for x in dataset['validation']])
 
     # Store masks in a dictionary for each split
-    val_masks = {
+    masks = {'validation': 
+        {
         'prompt_mask': val_prompt_mask,
         'completion_mask': val_completion_mask # uses numpy arrays (on CPU)
+        }
     }
 
 # uses numpy arrays (on CPU)
@@ -366,8 +444,8 @@ def prepare_compute_metrics(dataset: DatasetDict, tokenizer):
         # Get masks based on split
         if split == 'validation':
             # Use precomputed validation masks
-            prompt_mask = val_masks['prompt_mask']
-            completion_mask = val_masks['completion_mask']
+            prompt_mask = masks[f'{split}']['prompt_mask']
+            completion_mask = masks[f'{split}']['completion_mask']
         else:
             batch_labels = data.label_ids
             batch_size, seq_len = batch_labels.shape
@@ -417,14 +495,27 @@ def prepare_compute_metrics(dataset: DatasetDict, tokenizer):
             
             true_program = tokenizer.batch_decode(true_comp_tokens, skip_special_tokens=True)
             pred_program = tokenizer.batch_decode(pred_comp_tokens, skip_special_tokens=True)
+
+            # Clean code before Levenshtein calculation (remove py comments)
+            clean_true_program = [LLMCodeEvaluator.clean_python_code(code) for code in true_program]
+            clean_pred_program = [LLMCodeEvaluator.clean_python_code(code) for code in pred_program]
+
+            # Calculate normalized Levenshtein distances using cleaned code (1.0 = perfect match, 0.0 = no match)
+            normalized_distances = []
+            for pred, true in zip(clean_pred_program, clean_true_program):
+                max_len = max(len(pred), len(true))
+                if max_len == 0:  # Handle edge case of empty strings
+                    normalized_distances.append(1.0)
+                else:
+                    lev_dist = levenshtein_distance(pred, true)
+                    normalized_distances.append(1.0 - (lev_dist / max_len))
             
-            distances = [levenshtein_distance(pred, true) for pred, true in zip(pred_program, true_program)]
-            avg_levenshtein_dist = np.mean(distances)
-            std_levenshtein_dist = np.std(distances)
+            avg_norm_levenshtein_dist = np.mean(normalized_distances)
+            std_norm_levenshtein_dist = np.std(normalized_distances)
         except Exception as e:
-            print(f"Error computing Levenshtein distance: {str(e)}")
-            avg_levenshtein_dist = 0.0
-            std_levenshtein_dist = 0.0
+            print(f"Error computing normalized Levenshtein distance: {str(e)}")
+            avg_norm_levenshtein_dist = 0.0
+            std_norm_levenshtein_dist = 0.0
         
         # Clean up to free memory, especially important for training batches
         if split == 'train':
@@ -435,8 +526,8 @@ def prepare_compute_metrics(dataset: DatasetDict, tokenizer):
         return {
             'comp_loss': float(completion_loss),
             'prompt_loss': float(prompt_loss),
-            'avg_levenshtein_dist': float(avg_levenshtein_dist),
-            'std_levenshtein_dist': float(std_levenshtein_dist),
+            'avg_norm_levenshtein_dist': float(avg_norm_levenshtein_dist),
+            'avg_norm_levenshtein_dist': float(avg_norm_levenshtein_dist),
         }
         
     return compute_metrics
@@ -456,7 +547,7 @@ def preprocess_logits_for_metrics(logits, labels):
     predictions = (token_preds, token_losses)
     return predictions
 
-# Custom Trainer
+# Step 6. Training the model with custom PLW-Trainer
 import transformers
 from transformers import TrainerCallback, TrainerState, TrainerControl
 
@@ -663,8 +754,8 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
         load_best_model_at_end=True,
         metric_for_best_model="comp_loss",
         greater_is_better=False,  # Whether a higher metric value is better
-        #push_to_hub = True,
-        #hub_model_id = f"fine-tune-codeLlama-2-7b-len-gen-ascii-art"
+        push_to_hub = True,
+        hub_model_id = f"{gen_type}_{model_type_short}_{timestamp}"
     )    
 
     # Initialize trainer with configurable weights
@@ -712,19 +803,407 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
     
     return model
 
-def inference(model, tokenizer, dataset, config: Config, result_dir: str):
-    pass
+# Step 7: Preparing Inference
+def init_wandb_for_inf(config: Config, model_id: str, inference_type: str):
+    wandb.init(
+        project="master-thesis--inference", 
+        name=f"{model_id}-{inference_type}",
+        tags=[model_id, inference_type, "inference"],
+        config={
+            "model_id": config.model.model_id,
+            "include_sys_prompt": config.prompt.include_sys_prompt_inf,
+            "include_ascii": config.data.include_ascii,
+            "include_desc": config.data.include_desc,
+            "temperature": 0.8,  # Add generation params
+            "max_new_tokens": 250,
+            "inference_type": inference_type
+        }
+    )
 
+# Step 8.1: Inference using the recently fine-tuned model
+def inference(model, tokenizer, config: Config, result_dir: str, inference_type: str, sample_fraction = 1.0):
+    # Initialize WandB for inference
+    if config.logging.use_wandb:
+        model_id = config.model.model_id.split("/")[-1]
+        init_wandb_for_inf(config, model_id, inference_type)
+   
+    print(f'Begin inference on test dataset')
+    inf_dir = os.path.join(result_dir, "inference")
+    os.makedirs(inf_dir, exist_ok=True)
+
+    model.eval()  # model in evaluation mode (PyTorch)
+    
+    try:
+        from unsloth import FastLanguageModel
+        model = FastLanguageModel.for_inference(model)
+        print("Using Unsloth's optimized inference")
+    except Exception as e:
+        print(f"Could not enable Unsloth's optimized inference: {e}")
+    
+    # Load the raw test dataset
+    raw_test_dataset = load_dataset(config.data.dataset_id)["test"]
+    if sample_fraction < 1.0:
+        raw_test_dataset = raw_test_dataset.shuffle(seed=config.training.random_seed).select(range(int(len(raw_test_dataset) * sample_fraction)))
+    
+    results = []
+    
+    # Get prompt template
+    prompt_template = config.prompt.get_prompt_template(
+        include_desc=config.data.include_desc,
+        include_ascii=config.data.include_ascii
+    )
+    
+    # Process in smaller batches to avoid memory issues
+    batch_size = config.training.per_device_eval_batch_size
+    num_examples = len(raw_test_dataset)
+    
+    with torch.no_grad():
+        for batch_start in range(0, num_examples, batch_size):
+            batch_end = min(batch_start + batch_size, num_examples)
+            batch_indices = list(range(batch_start, batch_end))
+            
+            print(f"Processing batch {batch_start//batch_size + 1}/{(num_examples-1)//batch_size + 1} " +
+                 f"(examples {batch_start}-{batch_end-1})")
+            
+            for i in batch_indices:
+                example = raw_test_dataset[i]
+                
+                # Format prompt
+                formatted_prompt = prompt_template.format(**example)
+                
+                # Create messages list with system prompt if configured
+                messages = []
+                if config.prompt.include_sys_prompt_inf:
+                    messages.append({"role": "system", "content": config.prompt._system_prompt})
+                messages.append({"role": "user", "content": formatted_prompt})
+                
+                # Apply chat template for consistent formatting with training
+                chat_formatted_prompt = tokenizer.apply_chat_template(
+                    messages, 
+                    tokenize=False,
+                    add_generation_prompt=True
+                )
+                
+                # Generate with the model - using the chat template
+                tokenized_input = tokenizer(chat_formatted_prompt, return_tensors="pt", padding=True)
+                input_ids = tokenized_input.input_ids.cuda()
+                attention_mask = tokenized_input.attention_mask.cuda()
+                
+                generated_ids = model.generate(
+                    input_ids=input_ids,
+                    attention_mask=attention_mask,
+                    max_new_tokens=config.model.max_new_tokens,
+                    temperature=config.model.temperature,
+                    top_k=config.model.top_k,
+                    do_sample=True
+                )
+                
+                # Decode generation
+                generated_text = tokenizer.decode(generated_ids[0], skip_special_tokens=True)
+                
+                # Extract the completion part
+                if "<|assistant|>" in generated_text:
+                    # Extract between assistant token and end token
+                    completion = generated_text.split("<|assistant|>")[-1].split("<|end|>")[0].strip()
+                else:
+                    # Fall back to [/INST] pattern
+                    completion = generated_text.split("[/INST]")[-1].strip()
+                
+                # Get ground truth
+                ground_truth = example["Program"]
+                
+                # Store result for this example
+                result = {
+                    "id": i,
+                    "prompt": chat_formatted_prompt,
+                    "completion": completion,
+                    "ground_truth": ground_truth,
+                }
+                
+                results.append(result)
+            
+            if config.logging.use_wandb:
+                wandb.log({
+                    "progress/examples_processed": len(results),
+                    "progress/batch_number": batch_start//batch_size + 1
+                })
+                
+            # Free memory after each batch
+            torch.cuda.empty_cache()
+    
+    # After all batches are processed, save the final results
+    if results:
+        # Save all predictions in a single file
+        with open(os.path.join(inf_dir, "predictions.json"), "w") as f:
+            json.dump(results, f, indent=2)
+        
+        print(f"Inference completed. Generated {len(results)} predictions.")
+    else:
+        print("Inference completed but no results were generated.")
+    
+    if config.logging.use_wandb:
+        if results:
+            # Log summary metrics and artifacts
+            wandb.log({
+                "total_examples": len(results)
+            })
+            
+            # Save predictions as an artifact
+            predictions_artifact = wandb.Artifact(
+                name=f"predictions-{inference_type}", 
+                type="predictions"
+            )
+            predictions_artifact.add_file(os.path.join(inf_dir, "predictions.json"))
+            wandb.log_artifact(predictions_artifact)
+        else:
+            wandb.log({
+                "total_examples": 0
+            })
+        
+        wandb.finish()
+    return results, inf_dir
+
+# Step 8.2: Inference using model from hub
+def inference_from_hub(config: Config, result_dir: str, inference_type: str, sample_fraction = 1.0):
+    """
+    Runs inference using a model loaded directly from the Hugging Face Hub.
+    
+    Args:
+        config: Configuration object
+        result_dir: Directory to save results
+        inference_type: Type of inference being performed
+        sample_fraction: Fraction of test dataset to use
+    """
+    
+    # Initialize WandB for inference
+    if config.logging.use_wandb:
+        hub_model_name = config.model.model_id.split("/")[-1]
+        init_wandb_for_inf(config, hub_model_name, inference_type)
+   
+    print(f'Begin inference on test dataset using model from hub: {config.model.model_id}')
+
+    inf_dir = result_dir
+    os.makedirs(inf_dir, exist_ok=True)
+
+    # Load model and tokenizer from Hub
+    try:
+        from unsloth import FastLanguageModel
+        model, tokenizer = FastLanguageModel.from_pretrained(
+            config.model.model_id,
+            load_in_4bit=True,
+        )
+        model = FastLanguageModel.for_inference(model)
+        print(f"Loaded model {config.model.model_id} using Unsloth's optimized inference")
+    except Exception as e:
+        print(f"Could not load with Unsloth, falling back to HF Transformers: {e}")
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+        tokenizer = AutoTokenizer.from_pretrained(config.model.model_id)
+        model = AutoModelForCausalLM.from_pretrained(
+            config.model.model_id,
+            torch_dtype=torch.bfloat16 if is_bfloat16_supported() else torch.float16,
+            device_map="auto",
+        )
+        print(f"Loaded model {config.model.model_id} using standard HF Transformers")
+    
+    # Load the raw test dataset
+    raw_test_dataset = load_dataset(config.data.dataset_id)["test"]
+    if sample_fraction < 1.0:
+        raw_test_dataset = raw_test_dataset.shuffle(seed=config.training.random_seed).select(range(int(len(raw_test_dataset) * sample_fraction)))
+    
+    results = []
+    
+    # Get prompt template
+    prompt_template = config.prompt.get_prompt_template(
+        include_desc=config.data.include_desc,
+        include_ascii=config.data.include_ascii
+    )
+    
+    # Process in smaller batches to avoid memory issues
+    batch_size = config.training.per_device_eval_batch_size
+    num_examples = len(raw_test_dataset)
+    
+    with torch.no_grad():
+        for batch_start in range(0, num_examples, batch_size):
+            batch_end = min(batch_start + batch_size, num_examples)
+            batch_indices = list(range(batch_start, batch_end))
+            
+            print(f"Processing batch {batch_start//batch_size + 1}/{(num_examples-1)//batch_size + 1} " +
+                 f"(examples {batch_start}-{batch_end-1})")
+            
+            for i in batch_indices:
+                example = raw_test_dataset[i]
+                
+                # Format prompt
+                formatted_prompt = prompt_template.format(**example)
+                
+                # Create messages list with system prompt if configured
+                messages = []
+                if config.prompt.include_sys_prompt_inf:
+                    messages.append({"role": "system", "content": config.prompt._system_prompt})
+                messages.append({"role": "user", "content": formatted_prompt})
+                
+                # Apply chat template for consistent formatting
+                chat_formatted_prompt = tokenizer.apply_chat_template(
+                    messages, 
+                    tokenize=False,
+                    add_generation_prompt=True
+                )
+                
+                # Generate with the model
+                tokenized_input = tokenizer(chat_formatted_prompt, return_tensors="pt", padding=True)
+                input_ids = tokenized_input.input_ids.to(model.device)
+                attention_mask = tokenized_input.attention_mask.to(model.device)
+                
+                generated_ids = model.generate(
+                    input_ids=input_ids,
+                    attention_mask=attention_mask,
+                    max_new_tokens=config.model.max_new_tokens,
+                    temperature=config.model.temperature,
+                    top_k=config.model.top_k,
+                    do_sample=True
+                )
+                
+                # Decode generation
+                generated_text = tokenizer.decode(generated_ids[0], skip_special_tokens=True)
+                
+                # Extract the completion part - adapting to different model formats
+                if "<|assistant|>" in generated_text:
+                    # Extract between assistant token and end token
+                    completion = generated_text.split("<|assistant|>")[-1].split("<|end|>")[0].strip()
+                elif "[/INST]" in generated_text:
+                    # Llama format
+                    completion = generated_text.split("[/INST]")[-1].strip()
+                elif "assistant:" in generated_text.lower():
+                    # Generic assistant format
+                    completion = generated_text.split("assistant:", 1)[-1].strip()
+                else:
+                    # Fallback - just take everything after the user's last message
+                    user_content = messages[-1]["content"]
+                    if user_content in generated_text:
+                        completion = generated_text.split(user_content, 1)[-1].strip()
+                    else:
+                        completion = generated_text  # Last resort
+                
+                # Get ground truth
+                ground_truth = example["Program"]
+                
+                # Store result for this example (no evaluation metrics)
+                result = {
+                    "id": i,
+                    "prompt": chat_formatted_prompt,
+                    "completion": completion,
+                    "ground_truth": ground_truth
+                }
+                
+                results.append(result)
+            
+            if config.logging.use_wandb:
+                wandb.log({
+                    "progress/examples_processed": len(results),
+                    "progress/batch_number": batch_start//batch_size + 1
+                })
+                
+            # Free memory after each batch
+            torch.cuda.empty_cache()
+    
+    # After all batches are processed, save the results
+    if results:
+        # Save all predictions in a single file
+        with open(os.path.join(inf_dir, "predictions.json"), "w") as f:
+            json.dump(results, f, indent=2)
+        
+        print(f"Hub inference completed. Generated {len(results)} predictions.")
+    else:
+        print("Hub inference completed but no results were generated.")
+    
+    if config.logging.use_wandb:
+        if results:
+            # Log total examples and save predictions as an artifact
+            wandb.log({"total_examples": len(results)})
+            
+            predictions_artifact = wandb.Artifact(
+                name=f"predictions-{inference_type}-{hub_model_name}", 
+                type="predictions"
+            )
+            predictions_artifact.add_file(os.path.join(inf_dir, "predictions.json"))
+            wandb.log_artifact(predictions_artifact)
+        else:
+            wandb.log({"total_examples": 0})
+        
+        wandb.finish()
+    
+    # Clean up resources
+    del model
+    torch.cuda.empty_cache()
+    
+    return results, inf_dir
+
+# Step 9: Evaluation
+def evaluation(inf_dir: str):
+    """
+    Evaluate model predictions using the LLMCodeEvaluator class.
+    
+    Args:
+        inf_dir (str): Directory containing predictions.json
+        
+    Returns:
+        tuple: (metrics, summary)
+    """
+    from __eval import LLMCodeEvaluator
+    
+    print(f"Starting evaluation on predictions in {inf_dir}")
+    
+    # Initialize the evaluator
+    evaluator = LLMCodeEvaluator()
+    
+    try:
+        # Run the evaluation pipeline
+        metrics, summary = evaluator.evaluate_and_summarize(inf_dir)
+        
+        # Save the evaluation results
+        with open(os.path.join(inf_dir, "evaluation.json"), "w") as f:
+            json.dump(summary, f, indent=2)
+        
+        with open(os.path.join(inf_dir, "detailed_metrics.json"), "w") as f:
+            # Convert any non-serializable values to strings
+            serializable_metrics = []
+            for metric in metrics:
+                serializable_metric = {}
+                for k, v in metric.items():
+                    if isinstance(v, (str, int, float, bool, list, dict, type(None))):
+                        serializable_metric[k] = v
+                    else:
+                        serializable_metric[k] = str(v)
+                json.dump(serializable_metrics, f, indent=2)
+        
+        print(f"Evaluation complete. Results saved to {inf_dir}/evaluation.json")
+        return metrics, summary
+        
+    except Exception as e:
+        print(f"Error during evaluation: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return None, None
 
 # MAIN
 if __name__ == "__main__":
     try:
-        config, timestamp, gen_type, model_type_short, result_dir = load_config("config.yaml")
+        config, timestamp, gen_type, model_type_short, result_dir = load_config("config.yaml", fine_tune)
         set_random_seeds(config.training.random_seed)
-        model, tokenizer = load_model_and_tokenizer(config)
-        dataset = prepare_dataset(config, tokenizer, sample_fraction = 0.2)
-        # Training
-        model = train_model(model, tokenizer, dataset, result_dir, config, timestamp, gen_type, model_type_short)
+        if fine_tune:
+            # Prep
+            model, tokenizer = load_model_and_tokenizer(config)
+            dataset = prepare_dataset(config, tokenizer, sample_fraction = sample_fraction) 
+            # Training
+            model = train_model(model, tokenizer, dataset, result_dir, config, timestamp, gen_type, model_type_short)
+            # Inference after Finetuning
+            inference(model, tokenizer, config, result_dir, inference_type=f"test_{timestamp}", sample_fraction = sample_fraction)
+        else:
+            # Inference with Model from Hub
+            inference_from_hub(config, result_dir, inference_type=f"test_hub_{timestamp}", sample_fraction = sample_fraction)
+        metrics, summary = evaluation(inf_dir)
+        print("Pipeline completed successfully! 🎉")
+
     except Exception as e:
         print(f"An error occurred: {e}")
         import traceback
