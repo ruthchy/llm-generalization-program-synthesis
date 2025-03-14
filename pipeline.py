@@ -12,8 +12,9 @@ Steps:
     9. Evaluation                                       # not yet implemented
     
 Run script in conda thesis_env (can be gererated using the requirements.txt file)
+python pipeline.py --fine_tune False --sample_fraction 0.1
 
-python pipeline_v2.py 
+python pipeline.py 
     --fine_tune False       # False = only inf with a model from the hub (Step 1, 2, 7, 8.2, 9)
     --fine_tune True        # True = fine-tune the model and do inf (Step 1, 2, 3, 4, 5, 6, 7, 8.1, 9)
     --sample_fraction 1.0   # the entire dataset is used or by setting the number < 1 a random sample of the dataset is used
@@ -276,11 +277,16 @@ def load_model_and_tokenizer(config: Config):
 
 # Step 3: Prepare the Dataset
 def prepare_dataset(config: Config, tokenizer, sample_fraction = 1.0):
-    dataset = load_dataset(config.data.dataset_id)
+    # Only load train and validation splits
+    dataset = load_dataset(config.data.dataset_id, split=["train", "validation"])
+    dataset = DatasetDict({
+        "train": dataset[0],
+        "validation": dataset[1]
+    })
+    
     if sample_fraction < 1.0:
         dataset["train"] = dataset["train"].shuffle(seed=config.training.random_seed).select(range(int(len(dataset["train"]) * sample_fraction)))
         dataset["validation"] = dataset["validation"].shuffle(seed=config.training.random_seed).select(range(int(len(dataset["validation"]) * sample_fraction)))
-        dataset["test"] = dataset["test"].shuffle(seed=config.training.random_seed).select(range(int(len(dataset["test"]) * sample_fraction)))
 
     def format_prompt(example, split_type, idx):
         """Formats a single example with the template"""
@@ -292,20 +298,14 @@ def prepare_dataset(config: Config, tokenizer, sample_fraction = 1.0):
         formatted_prompt = prompt.format(**example)
         completion = example['Program']
         
-        # Create messages list based on split type and configuration
+        # Create messages list based on configuration
         messages = []
         
-        # For test dataset with system prompt only in inference
-        if split_type == "test":
-            if config.prompt.include_sys_prompt_inf:
-                messages.append({"role": "system", "content": config.prompt._system_prompt})
-            messages.append({"role": "user", "content": formatted_prompt})
         # For train/validation datasets
-        else:
-            if config.prompt.include_sys_prompt_fn:
-                messages.append({"role": "system", "content": config.prompt._system_prompt})
-            messages.append({"role": "user", "content": formatted_prompt})
-            messages.append({"role": "assistant", "content": completion})
+        if config.prompt.include_sys_prompt_fn:
+            messages.append({"role": "system", "content": config.prompt._system_prompt})
+        messages.append({"role": "user", "content": formatted_prompt})
+        messages.append({"role": "assistant", "content": completion})
         
         # For prompt_length calculation, we need to include everything that's part of the input
         # but not part of what the model should generate (i.e., not the assistant's response)
@@ -441,6 +441,8 @@ def prepare_compute_metrics(dataset: DatasetDict, tokenizer):
 
 # uses numpy arrays (on CPU)
     def compute_metrics(data, split='validation'):
+        from __eval import LLMCodeEvaluator
+
         # Get masks based on split
         if split == 'validation':
             # Use precomputed validation masks
@@ -804,6 +806,32 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
     return model
 
 # Step 7: Preparing Inference
+def clear_training_memory(dataset=None):
+    """
+    Clear training and validation data from memory to free resources for inference
+    
+    Args:
+        dataset: Optional dataset to explicitly delete
+    """
+    # Explicitly delete the dataset if provided
+    if dataset is not None:
+        print("Removing training and validation datasets from memory...")
+        if 'train' in dataset:
+            del dataset['train']
+        if 'validation' in dataset:
+            del dataset['validation']
+        del dataset
+    
+    # Clear Python memory
+    import gc
+    gc.collect()
+    
+    # Clear CUDA cache
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        
+    print("Cleared training data from memory")
+
 def init_wandb_for_inf(config: Config, model_id: str, inference_type: str):
     wandb.init(
         project="master-thesis--inference", 
@@ -1196,11 +1224,12 @@ if __name__ == "__main__":
             dataset = prepare_dataset(config, tokenizer, sample_fraction = sample_fraction) 
             # Training
             model = train_model(model, tokenizer, dataset, result_dir, config, timestamp, gen_type, model_type_short)
+            clear_training_memory(dataset) # Free up memory after training
             # Inference after Finetuning
-            inference(model, tokenizer, config, result_dir, inference_type=f"test_{timestamp}", sample_fraction = sample_fraction)
+            results, inf_dir = inference(model, tokenizer, config, result_dir, inference_type=f"test_{timestamp}", sample_fraction = sample_fraction)
         else:
             # Inference with Model from Hub
-            inference_from_hub(config, result_dir, inference_type=f"test_hub_{timestamp}", sample_fraction = sample_fraction)
+            results, inf_dir = inference_from_hub(config, result_dir, inference_type=f"test_hub_{timestamp}", sample_fraction = sample_fraction)
         metrics, summary = evaluation(inf_dir)
         print("Pipeline completed successfully! 🎉")
 
