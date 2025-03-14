@@ -1,0 +1,848 @@
+'''
+python test.py
+torchrun --nproc_per_node=2 test.py
+'''
+############################################################################################################
+# Housekeeping - single GPU unsloth setup
+import os
+os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+os.environ['UNSLOTH_RETURN_LOGITS'] = '1'  # new
+
+# Step 1: Load the YAML Configuration
+import yaml
+import torch
+import wandb
+import json
+import numpy as np
+import random
+from dataclasses import dataclass, field
+from typing import List, Dict, Any, Tuple, Optional
+from datetime import datetime
+from unsloth import FastLanguageModel, is_bfloat16_supported
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+from datasets import load_dataset, DatasetDict
+from transformers import TrainingArguments, Trainer, get_scheduler, EarlyStoppingCallback
+#from transformers import default_data_collator
+from torch.nn import CrossEntropyLoss
+from torch.optim import AdamW
+from Levenshtein import distance as levenshtein_distance
+
+@dataclass
+class LoraSettings:
+    rank: int
+    alpha: int
+    dropout: float
+    target_modules: List[str]
+
+@dataclass
+class TrainingConfig:
+    prompt_loss_weight: float
+    max_seq_length: int
+    learning_rate: float
+    lr_scheduler_type: str
+    train_epochs: int
+    per_device_train_batch_size: int
+    per_device_eval_batch_size: int
+    gradient_accumulation_steps: int
+    save_steps: int
+    eval_steps: int
+    logging_steps: int
+    random_seed: int
+    shuffle: bool
+    gradient_checkpointing: bool
+    warmup_steps: Optional[int] = None
+    warmup_ratio: Optional[float] = None
+
+@dataclass
+class ModelConfig:
+    model_id: str
+    topk_train: int
+    topk_prompt: int
+
+@dataclass
+class LoggingConfig:
+    use_wandb: bool
+
+@dataclass
+class DataConfig:
+    dataset_id: str
+    include_desc: bool
+    include_ascii: bool
+
+@dataclass
+class PromptConfig:
+    include_sys_prompt: bool = True
+    _system_prompt: str = """Your task is to draw simple black and white graphics with the custom library. DO NOT USE THE BUILT-IN TURTLE LIBRARY.
+You will use a custom turtle library, similar to the built-in library, which is sufficient for all tasks.
+
+Here are all the available functions in the custom turtle library:
+- forward(x): move forward x pixels
+- left(theta): rotate left by theta degrees
+- right(theta): rotate right by theta degrees
+- penup(): stop drawing
+- pendown(): start drawing
+- teleport(x, y, theta): move to position (x, y) with angle theta
+- heading(): get the current angle of the turtle
+- isdown(): check if the pen is down
+- embed(program, local vars): runs the code in program using the current context and teleports back to the original position. Allows you to nest programs. Implementationally, embed gets the turtle state (is down, x, y, heading), executes program, then returns to the original state."""
+    
+    @property
+    def system_prompt(self) -> Optional[str]:
+        return self._system_prompt if self.include_sys_prompt else None
+    
+    def get_prompt_template(self, include_desc: bool, include_ascii: bool) -> str:
+        """Generates the prompt template based on configuration flags"""
+        task_description = ""
+        if include_ascii and include_desc:
+            task_description = "Here is a gray scale image described as containing {Description}. The image is represented with integer values 0-9:\n{ASCII-Art}\nPlease write a Python program that generates this image using our custom turtle module."
+        elif include_ascii:
+            task_description = "Here is a gray scale image represented with integer values 0-9:\n{ASCII-Art}\nPlease write a Python program that generates this image using our custom turtle module."
+        elif include_desc:
+            task_description = "Here is a gray scale image described as containing {Description}\nPlease write a Python program that generates this image using our custom turtle module."
+        else:
+            raise ValueError("At least one of include_ascii or include_desc must be True")
+        
+        # Wrap the task description and system prompt with appropriate tokens
+        prompt = "[INST]"
+        if self.include_sys_prompt:
+            prompt += f"[SYS]{self.system_prompt}[/SYS]"
+        prompt += task_description + "[/INST]"
+        return prompt
+
+@dataclass
+class ScriptArguments:
+    prompt_config: PromptConfig = field(default_factory=PromptConfig)
+    completion_template: str = field(default="{Program}")
+
+@dataclass
+class Config:
+    """Main configuration class with type validation"""
+    def __init__(self, config_dict: dict):
+        self.lora = LoraSettings(
+            rank=int(config_dict["lora"]["rank"]),
+            alpha=int(config_dict["lora"]["alpha"]),
+            dropout=float(config_dict["lora"]["dropout"]),
+            target_modules=list(config_dict["lora"]["target_modules"])
+        )
+        self.training = TrainingConfig(
+            prompt_loss_weight=float(config_dict["training"]["prompt_loss_weight"]),
+            max_seq_length=int(config_dict["training"]["max_seq_length"]),
+            learning_rate=float(config_dict["training"]["learning_rate"]),
+                        lr_scheduler_type=str(config_dict["training"]["lr_scheduler_type"]),
+            train_epochs=int(config_dict["training"]["train_epochs"]),
+            per_device_train_batch_size=int(config_dict["training"]["per_device_train_batch_size"]),
+            per_device_eval_batch_size=int(config_dict["training"]["per_device_eval_batch_size"]),
+            gradient_accumulation_steps=int(config_dict["training"]["gradient_accumulation_steps"]),
+            save_steps=int(config_dict["training"]["save_steps"]),
+            eval_steps=int(config_dict["training"]["eval_steps"]),
+            logging_steps=int(config_dict["training"]["logging_steps"]),
+            random_seed=int(config_dict["training"]["random_seed"]),
+            shuffle=bool(config_dict["training"]["shuffle"]),
+            gradient_checkpointing=bool(config_dict["training"].get("gradient_checkpointing", False)),
+            warmup_steps=int(config_dict["training"]["warmup_steps"]) if config_dict["training"]["warmup_steps"] not in [None, 'None'] else None,
+            warmup_ratio=float(config_dict["training"]["warmup_ratio"]) if config_dict["training"]["warmup_ratio"] not in [None, 'None'] else None
+        )
+        self.model = ModelConfig(
+            model_id=str(config_dict["model"]["model_id"]),
+            topk_train=int(config_dict["model"]["topk_train"]),
+            topk_prompt=int(config_dict["model"]["topk_prompt"])
+        )
+        self.logging = LoggingConfig(
+            use_wandb=bool(config_dict.get("logging", {}).get("use_wandb", False))
+        )
+        self.data = DataConfig(
+            dataset_id=str(config_dict["data"]["dataset_id"]),
+            include_desc=bool(config_dict["data"]["include_desc"]),
+            include_ascii=bool(config_dict["data"]["include_ascii"])
+        )
+        self.prompt = PromptConfig(
+            include_sys_prompt=bool(config_dict["data"]["include_sys_prompt"])
+        )
+
+def load_config(model_name: str) -> Tuple[Config, str, str, str, str]:
+    """Load training configuration from yaml file and store a copy in results directory"""
+    source_config = "config.yaml"
+    
+    if os.path.exists(source_config):
+        with open(source_config, 'r') as f:
+            config_dict = yaml.safe_load(f)
+        # Validate and convert configuration with the Config class
+        config = Config(config_dict)
+            
+        # Generate timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+
+        # Determine generalization type
+        gen_type = ""
+        dataset_id = config.data.dataset_id
+        if "generalization" in dataset_id:
+            dataset_name = dataset_id.split('/')[-1]
+            parts = dataset_name.split('-')
+            for i, part in enumerate(parts):
+                if "generalization" in part and i > 0:
+                    gen_type = parts[i - 1]
+                    break
+
+        # Short model name
+        model_type = config.model.model_id.split('/')[-1]
+        model_type_short = model_type.split('-')[0]
+
+        # Result directory
+        result_dir = f"results/{gen_type}/{model_type_short}_{timestamp}"
+        os.makedirs(result_dir, exist_ok=True)
+
+        # Copy the config to results directory
+        with open(os.path.join(result_dir, 'config.yaml'), 'w') as f:
+            yaml.dump(config_dict, f)
+    else:
+        raise FileNotFoundError(
+            "No config.yaml file found in current directory. "
+            "Please create a config.yaml file with your training configuration."
+        )
+
+    # Check for conflicting parameters
+    if config.training.warmup_steps is not None and config.training.warmup_ratio is not None:
+        raise ValueError("Both 'warmup_steps' and 'warmup_ratio' are set. Please set only one of them.")
+
+    print(f"Loaded configuration from {source_config}\n{result_dir}")
+    return config, timestamp, gen_type, model_type_short, result_dir
+
+def set_random_seeds(seed: int):
+    """Set random seeds for reproducibility"""
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+
+    # For CUDA operations if available
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+    print(f"Random seed set to: {seed}")
+
+def load_model_and_tokenizer(config: Config):
+    model, tokenizer = FastLanguageModel.from_pretrained(
+            config.model.model_id,
+            load_in_4bit=True,
+        )
+
+    model = FastLanguageModel.get_peft_model(
+            model,
+            r=config.lora.rank,
+            lora_alpha=config.lora.alpha,
+            lora_dropout=config.lora.dropout,
+            target_modules=config.lora.target_modules,
+            bias="none",
+            use_gradient_checkpointing=True)
+   
+    return  model, tokenizer
+
+def prepare_dataset(config: Config, tokenizer, sample_fraction = 1.0):
+    dataset = load_dataset(config.data.dataset_id)
+    if sample_fraction < 1.0:
+        dataset["train"] = dataset["train"].shuffle(seed=config.training.random_seed).select(range(int(len(dataset["train"]) * sample_fraction)))
+        dataset["validation"] = dataset["validation"].shuffle(seed=config.training.random_seed).select(range(int(len(dataset["validation"]) * sample_fraction)))
+        dataset["test"] = dataset["test"].shuffle(seed=config.training.random_seed).select(range(int(len(dataset["test"]) * sample_fraction)))
+
+    def format_prompt(example, split_type, idx):
+        """Formats a single example with the template"""
+        prompt = config.prompt.get_prompt_template(
+            include_desc=config.data.include_desc,
+            include_ascii=config.data.include_ascii
+        )
+        
+        formatted_prompt = prompt.format(**example)
+        completion = example['Program']
+        
+        if split_type == "test":
+            full_text = f"{formatted_prompt}"
+        else:
+            full_text = f"{formatted_prompt}\n{completion}"
+        prompt_length = len(formatted_prompt) + 1  # +1 for newline
+        
+        return {
+            "text": full_text,
+            "prompt_length": prompt_length
+        }
+    def format_dataset(dataset: DatasetDict):
+        def map_format_prompt(example, idx, split_type):
+            return format_prompt(example, split_type, idx)
+        
+        formatted_splits = {}
+        for split in dataset.keys(): 
+            formatted_splits[split] = dataset[split].map(
+                lambda ex, idx: map_format_prompt(ex, idx, split),
+                with_indices=True,
+                desc=f"Formatting {split} prompts",
+                batched=False
+            )
+        return formatted_splits
+
+    formatted_dataset = format_dataset(dataset)
+
+    def tokenize_and_mask(examples):   
+        tokenized = tokenizer(
+            examples["text"],
+            truncation=True,
+            max_length=config.training.max_seq_length,
+            padding="max_length",
+            return_offsets_mapping=True,
+        )
+        
+        prompt_masks = []
+        completion_masks = []
+        
+        for offsets, length in zip(tokenized["offset_mapping"], examples["prompt_length"]):
+            prompt_mask = [1 if offset[1] <= length else 0 for offset in offsets]
+            completion_mask = [0 if offset[1] <= length else 1 for offset in offsets]
+            prompt_masks.append(prompt_mask)
+            completion_masks.append(completion_mask)
+        
+        tokenized["prompt_mask"] = prompt_masks
+        tokenized["completion_mask"] = completion_masks
+        tokenized["labels"] = tokenized["input_ids"].copy() # labels are grund truth
+        
+        del tokenized["offset_mapping"]
+        del examples["text"]  # Remove after tokenization
+        return tokenized
+    
+    tokenized_dataset = {}
+    for split in formatted_dataset.keys():
+        tokenized_dataset[split] = formatted_dataset[split].map(
+            tokenize_and_mask,
+            batched=True,
+            remove_columns=formatted_dataset[split].column_names, 
+            desc=f"Tokenizing {split} set",
+            load_from_cache_file=False
+        )
+    
+    return tokenized_dataset
+
+# Step 4: WandB 
+def init_wandb(config: Config, timestamp: str, gen_type: str, model_type_short: str):
+    """Initialize wandb with configuration"""
+    # Generate a unique experiment name
+    experiment_name = f"{gen_type}_{model_type_short}_{timestamp}"
+    
+    # Make config JSON serializable
+    def make_json_serializable(obj):
+        if hasattr(obj, '__dict__'):
+            return {k: make_json_serializable(v) for k, v in obj.__dict__.items()}
+        try:
+            json.dumps(obj)
+            return obj
+        except (TypeError, OverflowError):
+            return str(obj)
+    
+    config_dict = make_json_serializable(config)
+    
+    # Init wandb
+    wandb.init(
+        project="master-thesis",
+        name=experiment_name,
+        config=config_dict
+    )
+# Step 5: Training Preperation
+# Custom Metrics
+from torch.nn import CrossEntropyLoss
+from Levenshtein import distance as levenshtein_distance
+
+def prepare_compute_metrics(dataset: DatasetDict, tokenizer):
+    """Prepare custom metrics function for Trainer"""
+
+    val_prompt_mask = np.array([x["prompt_mask"] for x in dataset['validation']])
+    val_completion_mask = np.array([x["completion_mask"] for x in dataset['validation']])
+
+    # Store masks in a dictionary for each split
+    masks = {'validation': 
+        {
+        'prompt_mask': val_prompt_mask,
+        'completion_mask': val_completion_mask # uses numpy arrays (on CPU)
+        }
+    }
+
+# uses numpy arrays (on CPU)
+    def compute_metrics(data, split='validation'):
+        # Get masks based on split
+        if split == 'validation':
+            # Use precomputed validation masks
+            prompt_mask = masks[f'{split}']['prompt_mask']
+            completion_mask = masks[f'{split}']['completion_mask']
+        else:
+            batch_labels = data.label_ids
+            batch_size, seq_len = batch_labels.shape
+            if hasattr(data, 'inputs') and 'prompt_mask' in data.inputs and 'completion_mask' in data.inputs:
+                prompt_mask = data.inputs['prompt_mask'].detach().cpu().numpy() if isinstance(data.inputs['prompt_mask'], torch.Tensor) else data.inputs['prompt_mask']
+                completion_mask = data.inputs['completion_mask'].detach().cpu().numpy() if isinstance(data.inputs['completion_mask'], torch.Tensor) else data.inputs['completion_mask']
+        
+        # Process predictions (token_preds, token_losses)
+        token_preds, token_losses = data.predictions
+        
+        # Move tensors to CPU before NumPy operations
+        if isinstance(token_preds, torch.Tensor):
+            token_preds = token_preds.detach().cpu().numpy()
+        if isinstance(token_losses, torch.Tensor):
+            token_losses = token_losses.detach().cpu().numpy()
+            
+        # Ensure labels are on CPU
+        labels = data.label_ids
+        if isinstance(labels, torch.Tensor):
+            labels = labels.detach().cpu().numpy()
+            
+        # shift labels and masks
+        labels = labels[..., 1:]
+        shift_prompt_mask = prompt_mask[..., 1:]
+        shift_comp_mask = completion_mask[..., 1:]
+
+        # For training data, we need to ensure we're only using the batch data
+        if split == 'train':
+            # Make sure we're only using the amount of data in the current batch
+            batch_size = labels.shape[0]
+            shift_prompt_mask = shift_prompt_mask[:batch_size]
+            shift_comp_mask = shift_comp_mask[:batch_size]
+
+        # Check shapes before operations
+        if token_losses.reshape(-1).shape[0] != shift_prompt_mask.reshape(-1).shape[0]:
+            print(f"Shape mismatch in {split}: token_losses={token_losses.reshape(-1).shape}, prompt_mask={shift_prompt_mask.reshape(-1).shape}")
+            
+        else:
+            # Normal calculation if shapes match
+            prompt_loss = np.sum(token_losses.reshape(-1) * shift_prompt_mask.reshape(-1)) / (shift_prompt_mask.sum() or 1)
+            completion_loss = np.sum(token_losses.reshape(-1) * shift_comp_mask.reshape(-1)) / (shift_comp_mask.sum() or 1)
+
+        # Compute Levenshtein distance
+        try:
+            true_comp_tokens = [l[m == 1] for l, m in zip(labels, shift_comp_mask)]
+            pred_comp_tokens = [p[m == 1] for p, m in zip(token_preds, shift_comp_mask)]
+            
+            true_program = tokenizer.batch_decode(true_comp_tokens, skip_special_tokens=True)
+            pred_program = tokenizer.batch_decode(pred_comp_tokens, skip_special_tokens=True)
+            
+            distances = [levenshtein_distance(pred, true) for pred, true in zip(pred_program, true_program)]
+            avg_levenshtein_dist = np.mean(distances)
+            std_levenshtein_dist = np.std(distances)
+        except Exception as e:
+            print(f"Error computing Levenshtein distance: {str(e)}")
+            avg_levenshtein_dist = 0.0
+            std_levenshtein_dist = 0.0
+        
+        # Clean up to free memory, especially important for training batches
+        if split == 'train':
+            # Force cleanup of large arrays
+            del token_preds, token_losses, labels, shift_prompt_mask, shift_comp_mask
+            
+        # Return metrics with Python native types
+        return {
+            'comp_loss': float(completion_loss),
+            'prompt_loss': float(prompt_loss),
+            'avg_levenshtein_dist': float(avg_levenshtein_dist),
+            'std_levenshtein_dist': float(std_levenshtein_dist),
+        }
+        
+    return compute_metrics
+
+# uses PyTorch tensors (on GPU)
+def preprocess_logits_for_metrics(logits, labels):
+    # get predictions
+    token_preds = logits.argmax(-1)[..., :-1]
+
+    # compute per-token losses
+    loss_fct = CrossEntropyLoss(reduction="none")
+    shift_logits = logits[..., :-1, :].contiguous()
+    shift_labels = labels[..., 1:].contiguous()
+    token_losses = loss_fct(shift_logits.transpose(1, 2), shift_labels)
+
+    # pass predictions and losses to compute_metrics function (above)
+    predictions = (token_preds, token_losses)
+    return predictions
+
+# Custom Trainer
+import transformers
+from transformers import TrainerCallback, TrainerState, TrainerControl
+
+def train_model(model, tokenizer, dataset, result_dir: str, config: Config, timestamp: str, gen_type: str, model_type_short: str):
+    """Training loop with configurable prompt and completion weights"""
+    
+    # Only if set True in config logging to wandb will be enabled
+    if config.logging.use_wandb:
+        init_wandb(config, timestamp, gen_type, model_type_short)
+        report_to = "wandb"
+    else:
+        report_to = "none"
+    
+    class PLWTrainer(Trainer):
+        def __init__(self, *args, prompt_loss_weight=1.0, shuffle=False, **kwargs):
+            self.processor = kwargs.pop('tokenizer', None)
+            super().__init__(*args, **kwargs)
+            self.prompt_loss_weight = prompt_loss_weight
+            self.shuffle = shuffle
+            self.distributed_training = torch.distributed.is_initialized() # not used in single GPU setup
+
+        def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None): # num_items_in_batch(batch_size*gradient_accumulation_steps) not used
+            outputs = model(input_ids=inputs["input_ids"],
+                            attention_mask=inputs["attention_mask"])
+            logits = outputs.get("logits")
+            labels = inputs.pop("labels")
+
+            # Compute per-token weights
+            weights = self.prompt_loss_weight * inputs["prompt_mask"] + inputs["completion_mask"]
+
+            # Shift logits and labels for next-token prediction
+            shift_logits = logits[..., :-1, :].contiguous()
+            shift_labels = labels[..., 1:].contiguous()
+            shift_weights = weights[..., 1:].contiguous()
+
+            # Move tensors to correct device
+            shift_labels = shift_labels.to(shift_logits.device)
+            shift_weights = shift_weights.to(shift_logits.device)
+
+            # Compute per-token loss
+            loss_fct = CrossEntropyLoss(reduction="none")
+            token_losses = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
+
+            # Compute weighted average of losses
+            loss = (token_losses.float() @ shift_weights.view(-1).float()) / shift_weights.sum()
+
+            return (loss, outputs) if return_outputs else loss
+
+        def get_train_dataloader(self):
+            if self.train_dataset is None:
+                raise ValueError("Training requires a train_dataset.")
+
+            dataloader = torch.utils.data.DataLoader(
+                self.train_dataset,
+                batch_size=self.args.train_batch_size,
+                sampler=self._get_train_sampler(),
+                collate_fn=self.data_collator,
+                drop_last=self.args.dataloader_drop_last,
+                num_workers=self.args.dataloader_num_workers,
+                pin_memory=self.args.dataloader_pin_memory,
+            )
+
+            return dataloader
+
+        # this allows us to toggle on/off data shuffling, which can sometimes cause 'staircase' effects in training loss
+        def _get_train_sampler(self):
+            #if self.distributed_training: # not used in single GPU setup
+            #    return torch.utils.data.distributed.DistributedSampler(self.train_dataset, shuffle=self.shuffle) 
+            if self.shuffle:
+                return torch.utils.data.RandomSampler(self.train_dataset)
+            return torch.utils.data.SequentialSampler(self.train_dataset)
+
+
+    class MetricsLoggingCallback(TrainerCallback):
+        """Custom callback to compute metrics for both training and validation"""
+        
+        def __init__(self, trainer, eval_dataset, train_dataset, tokenizer, compute_metrics_fn, preprocess_fn, logging_steps):
+            self.trainer = trainer
+            self.eval_dataset = eval_dataset
+            self.train_dataset = train_dataset
+            self.tokenizer = tokenizer
+            self.compute_metrics_fn = compute_metrics_fn
+            self.preprocess_fn = preprocess_fn
+            self.logging_steps = logging_steps
+            self.is_currently_logging = False  # Flag to prevent recursive calls
+            
+        def on_log(self, args, state: TrainerState, control: TrainerControl, logs=None, **kwargs):
+            # Prevent recursive calls
+            if self.is_currently_logging:
+                return control
+            
+            # Skip if not on a logging step or if we're just starting
+            if state.global_step % self.logging_steps != 0 or state.global_step == 0:
+                return control
+                
+            # Set flag to prevent recursive calls
+            self.is_currently_logging = True
+            
+            try:
+                # Calculate which step these metrics belong to (the previous step)
+                metrics_step = state.global_step - 1
+                train_dataloader = self.trainer.get_train_dataloader()
+                try:
+                    batch = next(iter(train_dataloader))
+                except StopIteration:
+                    self.is_currently_logging = False
+                    return control  # No batches available
+                        
+                # Move batch to correct device
+                batch = self.trainer._prepare_inputs(batch)
+                
+                # Store a copy of the masks for later
+                prompt_mask = batch.pop("prompt_mask", None)
+                completion_mask = batch.pop("completion_mask", None)
+                    
+                # No gradient computation needed for metrics
+                with torch.no_grad():
+                    # Run model
+                    outputs = self.trainer.model(**batch)                            
+                    # Process logits
+                    if self.preprocess_fn is not None:
+                        predictions = self.preprocess_fn(outputs.logits, batch["labels"])
+                    else:
+                        predictions = outputs.logits.argmax(-1)
+                            
+                    # Create EvalPrediction object
+                    from transformers.trainer_utils import EvalPrediction
+                    eval_prediction = EvalPrediction(
+                        predictions=predictions,
+                        label_ids=batch["labels"]
+                        )
+                        
+                    # Add the masks back to the inputs dictionary
+                    batch["prompt_mask"] = prompt_mask
+                    batch["completion_mask"] = completion_mask
+                    
+                    # Store the full batch with masks in the inputs attribute
+                    eval_prediction.inputs = batch
+
+                    # Compute metrics for training data
+                    train_metrics = self.compute_metrics_fn(eval_prediction,split='train')
+                    
+                    # Add train/ prefix to all metrics
+                    train_metrics_prefixed = {f"train/{k}": v for k, v in train_metrics.items()}
+                        
+                # Log directly to wandb or other trackers without going through trainer.log to avoid recursion
+                if self.trainer.is_world_process_zero():
+                    if hasattr(args, "report_to") and "wandb" in args.report_to:
+                        wandb.log(train_metrics_prefixed, step=metrics_step)
+                    
+            except Exception as e:
+                print(f"Error in metrics callback: {e}")
+                import traceback
+                traceback.print_exc()
+            finally:
+                # Always reset the flag, even if an error occurred
+                self.is_currently_logging = False
+                
+                # Clean up to free memory
+                if 'batch' in locals():
+                    del batch
+                if 'outputs' in locals():
+                    del outputs
+                if 'predictions' in locals():
+                    del predictions
+                if 'eval_prediction' in locals():
+                    del eval_prediction
+                    
+                import gc
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                    
+            return control
+
+
+    # Training arguments based on config
+    training_args = TrainingArguments(
+        output_dir=f"{result_dir}/fn_model", 
+        num_train_epochs=config.training.train_epochs,
+        per_device_train_batch_size=config.training.per_device_train_batch_size,
+        per_device_eval_batch_size=config.training.per_device_train_batch_size,
+        gradient_accumulation_steps=config.training.gradient_accumulation_steps,
+        remove_unused_columns=False,
+        learning_rate=config.training.learning_rate,
+        #warmup_steps=config.training.warmup_steps,
+        warmup_ratio=config.training.warmup_ratio,
+        lr_scheduler_type=config.training.lr_scheduler_type,
+        logging_steps=config.training.logging_steps,
+        eval_steps=config.training.eval_steps,
+        save_steps=config.training.save_steps,
+        save_strategy="steps",
+        eval_strategy="steps",
+        fp16=not is_bfloat16_supported(),
+        bf16=is_bfloat16_supported(),
+        tf32=True,              # bc set in run_plw.py
+        seed=config.training.random_seed, 
+        report_to=report_to,    # dynamic wandb reporting
+        gradient_checkpointing=True,     # use gradient checkpointing to save memory
+        gradient_checkpointing_kwargs={"use_reentrant": True},
+        weight_decay=0.001,     # Set weight_decay to match DeepSpeed config 
+        max_grad_norm=0.3,      # bc set in run_plw.py
+        label_names=["labels"],
+        load_best_model_at_end=True,
+        metric_for_best_model="comp_loss",
+        greater_is_better=False,  # Whether a higher metric value is better
+        push_to_hub = True,
+        hub_model_id = f"ft-codeLlama-2-7b-len-gen-ascii-art"
+    )    
+
+    # Initialize trainer with configurable weights
+    trainer = PLWTrainer(
+        model=model,
+        args=training_args,
+        train_dataset=dataset["train"],
+        eval_dataset=dataset["validation"],
+        shuffle=config.training.shuffle,
+        prompt_loss_weight=config.training.prompt_loss_weight,
+        #processing_class=tokenizer,
+        compute_metrics=prepare_compute_metrics(dataset, tokenizer),
+        preprocess_logits_for_metrics=preprocess_logits_for_metrics,
+        #callbacks=[EarlyStoppingCallback(early_stopping_patience=5)]
+    )
+
+    trainer.optimizer = AdamW(trainer.model.parameters(), lr=training_args.learning_rate, weight_decay=training_args.weight_decay)
+    print("🚀 Optimizer:", trainer.optimizer)
+
+    trainer.lr_scheduler = get_scheduler(
+        name=training_args.lr_scheduler_type,
+        optimizer=trainer.optimizer,
+        num_warmup_steps=training_args.warmup_steps,
+        num_training_steps=training_args.num_train_epochs * len(trainer.get_train_dataloader())
+    )
+    print("🚀 Scheduler:", trainer.lr_scheduler)
+
+    # Add custom callback for logging metrics
+    trainer.add_callback(MetricsLoggingCallback(
+        trainer=trainer,
+        eval_dataset=dataset["validation"],
+        train_dataset=dataset["train"],
+        tokenizer=tokenizer,
+        compute_metrics_fn=prepare_compute_metrics(dataset, tokenizer),
+        preprocess_fn=preprocess_logits_for_metrics,
+        logging_steps=config.training.logging_steps
+    ))
+
+    # Train the model
+    trainer.train()
+    
+    # Logging is only disabled if it was enabled before
+    if config.logging.use_wandb:
+        wandb.finish()
+    
+    return model
+
+def inference(model, tokenizer, config: Config, result_dir: str, sample_fraction = 1.0):
+    print(f'Begin inference on test dataset')
+    inf_dir = os.path.join(result_dir, "inference")
+    os.makedirs(inf_dir, exist_ok=True)
+
+    model.eval()  # model in evaluation mode
+
+    try:
+        from unsloth import FastLanguageModel
+        model = FastLanguageModel.for_inference(model)
+        print("Using Unsloth's optimized inference")
+    except Exception as e:
+        print(f"Could not enable Unsloth's optimized inference: {e}")
+    
+    # Load the raw test dataset
+    raw_test_dataset = load_dataset(config.data.dataset_id)["test"]
+    if sample_fraction < 1.0:
+        raw_test_dataset = raw_test_dataset.shuffle(seed=config.training.random_seed).select(range(int(len(raw_test_dataset) * sample_fraction)))
+    
+    results = []
+    
+    # Get prompt template
+    prompt_template = config.prompt.get_prompt_template(
+        include_desc=config.data.include_desc,
+        include_ascii=config.data.include_ascii
+    )
+    
+    # Process in smaller batches to avoid memory issues
+    batch_size = config.training.per_device_eval_batch_size
+    num_examples = len(raw_test_dataset)
+    
+    with torch.no_grad():
+        for batch_start in range(0, num_examples, batch_size):
+            batch_end = min(batch_start + batch_size, num_examples)
+            batch_indices = list(range(batch_start, batch_end))
+            
+            print(f"Processing batch {batch_start//batch_size + 1}/{(num_examples-1)//batch_size + 1} " +
+                 f"(examples {batch_start}-{batch_end-1})")
+            
+            for i in batch_indices:
+                example = raw_test_dataset[i]
+                
+                # Format prompt
+                formatted_prompt = prompt_template.format(**example)
+                
+                # Generate with the model - FIXED: explicit attention mask
+                tokenized_input = tokenizer(formatted_prompt, return_tensors="pt", padding=True)
+                input_ids = tokenized_input.input_ids.cuda()
+                attention_mask = tokenized_input.attention_mask.cuda()
+                
+                generated_ids = model.generate(
+                    input_ids=input_ids,
+                    attention_mask=attention_mask,  # Explicitly providing the attention mask
+                    max_new_tokens=250,
+                    temperature=0.8,
+                    top_k=config.model.topk_prompt,
+                    do_sample=True
+                )
+                
+                # Decode generation
+                generated_text = tokenizer.decode(generated_ids[0], skip_special_tokens=True)
+                
+                # Extract the completion part (after the [/INST] tag)
+                completion = generated_text.split("[/INST]")[-1].strip()
+                
+                # Get ground truth
+                ground_truth = example["Program"]
+                
+                # Calculate Levenshtein distance
+                lev_distance = levenshtein_distance(completion, ground_truth)
+                
+                # Store results
+                results.append({
+                    "id": i,
+                    "prompt": formatted_prompt,
+                    "completion": completion,
+                    "ground_truth": ground_truth,
+                    "levenshtein_distance": lev_distance
+                })
+                
+                # Save individual results
+                example_file = os.path.join(inf_dir, f"example_{i}.json")
+                with open(example_file, "w") as f:
+                    json.dump(results[-1], f, indent=2)
+            
+            # Free memory after each batch
+            torch.cuda.empty_cache()
+            
+            # Save partial results after each batch
+            if results:  # Check if results list is not empty
+                partial_summary = {
+                    "processed_examples": len(results),
+                    "current_avg_levenshtein_distance": sum(r["levenshtein_distance"] for r in results) / len(results)
+                }
+                with open(os.path.join(inf_dir, "partial_summary.json"), "w") as f:
+                    json.dump(partial_summary, f, indent=2)
+    
+    # Calculate average Levenshtein distance
+    if results:  # Check if results list is not empty
+        avg_levenshtein = sum(r["levenshtein_distance"] for r in results) / len(results)
+        
+        # Save summary
+        summary = {
+            "total_examples": len(results),
+            "avg_levenshtein_distance": avg_levenshtein
+        }
+        
+        with open(os.path.join(inf_dir, "summary.json"), "w") as f:
+            json.dump(summary, f, indent=2)
+        
+        print(f"Inference completed. Average Levenshtein distance: {avg_levenshtein:.2f}")
+    else:
+        print("Inference completed but no results were generated.")
+    
+    return results
+
+# MAIN
+if __name__ == "__main__":
+    try:
+        config, timestamp, gen_type, model_type_short, result_dir = load_config("config.yaml")
+        set_random_seeds(config.training.random_seed)
+        model, tokenizer = load_model_and_tokenizer(config)
+        dataset = prepare_dataset(config, tokenizer, sample_fraction = 0.01)
+        #dataset = prepare_dataset(config, tokenizer)
+        # Training
+        model = train_model(model, tokenizer, dataset, result_dir, config, timestamp, gen_type, model_type_short)
+        # Inference after Finetuning
+        inference(model, tokenizer, config, result_dir, sample_fraction = 0.1)
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        import traceback
+        traceback.print_exc()
