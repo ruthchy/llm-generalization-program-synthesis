@@ -1,5 +1,5 @@
 '''
-First activate the desired conda env and then execute: conda env exports > environment.yml
+First activate the desired conda env and then execute: conda env export > environment.yml
 This will create a file called environment.yml in the current directory.
 Then run this script to extract the pip dependencies from the environment.yml file and write them to a requirements.txt file.
 '''

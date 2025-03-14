@@ -1,10 +1,15 @@
 accelerate==1.4.0
 bitsandbytes==0.45.2
+contourpy==1.3.1
 cut-cross-entropy==25.1.1
+cycler==0.12.1
 docstring-parser==0.16
+fonttools==4.56.0
 hf-transfer==0.1.9
 huggingface-hub==0.29.1
+kiwisolver==1.4.8
 markdown-it-py==3.0.0
+matplotlib==3.9.2
 mdurl==0.1.2
 peft==0.14.0
 pillow==11.1.0
@@ -12,6 +17,7 @@ protobuf==3.20.3
 psutil==7.0.0
 pyarrow==19.0.1
 pygments==2.19.1
+pyparsing==3.2.1
 pytz==2025.1
 rich==13.9.4
 sentencepiece==0.2.0
@@ -22,3 +28,4 @@ typeguard==4.4.2
 tyro==0.9.16
 unsloth==2025.2.12
 unsloth-zoo==2025.2.5
+zss==1.2.0
