@@ -12,8 +12,8 @@ wandb/latest-run
 wandb/**/
 
 # Explicit results ignores
-results/**/*
-output/**/*
+results/archive/**/*
+results/length/**/*
 
 # Ignore compiled files
 __pycache__/**/*
