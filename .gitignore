@@ -13,7 +13,7 @@ wandb/**/
 
 # Explicit results ignores
 results/archive/**/*
-results/length/**/*
+results/length/**/fn_model/**/* 
 
 # Ignore compiled files
 __pycache__/**/*
