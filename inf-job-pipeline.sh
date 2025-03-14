@@ -20,3 +20,5 @@ conda activate thesis_env
 
 # Run your Python script
 python pipeline.py \
+    --fine_tune False \
+    --sample_fraction 1.0 
