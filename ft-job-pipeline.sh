@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=myjob-pipeline-01.sh
+#SBATCH --job-name=ft-job-pipeline.sh
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=5
 #SBATCH --mem=10G
