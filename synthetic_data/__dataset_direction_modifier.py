@@ -24,9 +24,10 @@ class DatasetDirectionModifier:
                           target_dir: str = "right", 
                           field: str = "Program",
                           proportion: float = 0.5,
-                          splits: Optional[List[str]] = None) -> Union[Dataset, DatasetDict]:
+                          splits: Optional[List[str]] = None,
+                          return_overview: bool = True) -> Union[Dataset, DatasetDict, Tuple[Union[Dataset, DatasetDict], pd.DataFrame]]:
         """
-        Replace directional terms in the dataset.
+        Replace directional terms in the dataset and optionally return modification overview.
         
         Args:
             dataset: The dataset to modify (Dataset or DatasetDict)
@@ -35,10 +36,20 @@ class DatasetDirectionModifier:
             field: Field containing the text to modify (default: "Program")
             proportion: Proportion of examples to modify (default: 0.5)
             splits: List of splits to modify (default: all splits)
+            return_overview: Whether to return an overview of modifications (default: True)
             
         Returns:
-            Modified dataset with the same structure as input
+            If return_overview is False: Modified dataset with the same structure as input
+            If return_overview is True: Tuple of (modified dataset, overview DataFrame)
         """
+        # First, count occurrences in the original dataset
+        original_counts = self.count_directions(
+            dataset, 
+            directions=[source_dir, target_dir], 
+            field=field
+        )
+        
+        # Create modified dataset
         if isinstance(dataset, DatasetDict):
             # Handle DatasetDict case
             modified_ds = DatasetDict()
@@ -51,11 +62,54 @@ class DatasetDirectionModifier:
                     )
                 else:
                     modified_ds[split_name] = dataset[split_name]
-            
-            return modified_ds
         else:
             # Handle single Dataset case
-            return self._modify_split(dataset, source_dir, target_dir, field, proportion)
+            modified_ds = self._modify_split(dataset, source_dir, target_dir, field, proportion)
+        
+        # If overview not requested, just return the modified dataset
+        if not return_overview:
+            return modified_ds
+        
+        # Count occurrences in the modified dataset
+        modified_counts = self.count_directions(
+            modified_ds, 
+            directions=[source_dir, target_dir], 
+            field=field
+        )
+        
+        # Create a summary DataFrame
+        data = []
+        
+        if isinstance(dataset, DatasetDict):
+            for split_name in dataset.keys():
+                orig_source = original_counts[split_name][source_dir]
+                orig_target = original_counts[split_name][target_dir]
+                mod_source = modified_counts[split_name][source_dir]
+                mod_target = modified_counts[split_name][target_dir]
+                
+                data.append([split_name, orig_source, orig_target, mod_source, mod_target])
+        else:
+            # Single dataset case
+            orig_source = original_counts["dataset"][source_dir]
+            orig_target = original_counts["dataset"][target_dir]
+            mod_source = modified_counts["dataset"][source_dir]
+            mod_target = modified_counts["dataset"][target_dir]
+            
+            data.append(["dataset", orig_source, orig_target, mod_source, mod_target])
+        
+        # Create the DataFrame
+        column_names = [
+            "Split", 
+            f"Orig {source_dir}", 
+            f"Orig {target_dir}", 
+            f"Mod {source_dir}", 
+            f"Mod {target_dir}"
+        ]
+        
+        overview_df = pd.DataFrame(data, columns=column_names)
+        
+        # Return both the modified dataset and the overview
+        return modified_ds, overview_df
         
     def _modify_split(self, 
                      split: Dataset, 
@@ -117,23 +171,6 @@ class DatasetDirectionModifier:
             results["dataset"] = self._count_in_split(dataset, directions, field)
         
         return results
-    
-    #def _count_in_split(self, split: Dataset, directions: List[str], field: str) -> Dict[str, int]:
-        """Count occurrences of directions in a split."""
-        counts = {direction: 0 for direction in directions}
-        
-        for example in split:
-            for direction in directions:
-                if direction in example[field]:
-                    counts[direction] += 1
-
-        return counts
-    
-    #def _count_in_split(self, split: Dataset, directions: List[str], field: str) -> Dict[str, int]:
-        """Count occurrences of 'left' and 'right' efficiently using vectorized operations."""
-        texts = split[field]  # Extract column directly
-        counts = {direction: sum(text.count(direction) for text in texts) for direction in directions}
-        return counts
     
     def _count_in_split(self, split: Dataset, directions: List[str], field: str) -> Dict[str, int]:
         """Count examples containing each direction at least once in a split."""
