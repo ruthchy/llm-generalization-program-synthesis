@@ -529,7 +529,7 @@ def prepare_compute_metrics(dataset: DatasetDict, tokenizer):
             'comp_loss': float(completion_loss),
             'prompt_loss': float(prompt_loss),
             'avg_norm_levenshtein_dist': float(avg_norm_levenshtein_dist),
-            'avg_norm_levenshtein_dist': float(avg_norm_levenshtein_dist),
+            'std_norm_levenshtein_dist': float(std_norm_levenshtein_dist),
         }
         
     return compute_metrics
