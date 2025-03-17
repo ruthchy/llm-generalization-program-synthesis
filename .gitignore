@@ -21,3 +21,7 @@ __pycache__/**/*
 # Ignore Unsloth related files
 unsloth_compiled_cache/**/*
 _unsloth_temporary_saved_buffers/**/*
+
+# Ignore macOS system files
+.DS_Store
+**/.DS_Store
