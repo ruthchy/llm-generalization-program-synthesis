@@ -22,6 +22,10 @@ __pycache__/**/*
 unsloth_compiled_cache/**/*
 _unsloth_temporary_saved_buffers/**/*
 
+# Virtual environment files which I use on my local machine should not be tracked
+thesis_env/**/*
+requirements_venv.txt
+
 # Ignore macOS system files
 .DS_Store
 **/.DS_Store
