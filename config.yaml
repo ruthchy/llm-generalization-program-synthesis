@@ -2,7 +2,7 @@ logging:
   use_wandb: True
 
 data: 
-  dataset_id: "ruthchy/semantic-length-generalization-logo-data-desc-ascii_35" # "ruthchy/semantic-length-generalization-logo-image"
+  dataset_id: "ruthchy/syntactic-length-generalization-logo-data-desc-ascii_35" # "ruthchy/syntactic-length-generalization-logo-image"
   include_desc: False
   include_ascii: True
   include_sys_prompt_fn: False
