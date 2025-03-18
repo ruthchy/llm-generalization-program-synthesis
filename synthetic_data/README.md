@@ -15,11 +15,13 @@ This repository contains scripts and notebooks to generate a synthetic length ge
   - `_4_logo_graphic_generator_v2.py`
   - `_5_ascii_processor.py`
   - `_6_semantic_length.py`
+  - `_6_syntactic_length.py`
 
   These scripts are used in conjunction with `main.ipynb` to generate the dataset.
 
 - **Additional Scripts**
   - `pyturtle_adapt_ascii.py`: This script uses `__parser_pyturtle_pc.py` to add an Image column to the synthetic dataset or this `__adapt_ascii_processor.py` to apply an adaptive ASCII transformation to the Image column.
+  - `__dataset_direction_modifier.py`: this script contains a method which can be used to modify XX% of the Programs contained in a the datasets to use the direction right() instead of left() (vice versa). 
 
 - **Forkstate Scripts**
   - `forkstate_test.ipynb`
