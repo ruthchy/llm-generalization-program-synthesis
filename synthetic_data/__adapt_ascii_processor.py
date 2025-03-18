@@ -1,20 +1,37 @@
 import os
 import numpy as np
+import signal
 from PIL import Image
 from datasets import DatasetDict
 
+class TimeoutError(Exception):
+    """Raised when a timeout occurs during user input."""
+    pass
+
+def timeout_handler(signum, frame):
+    """Handler for SIGALRM signal."""
+    raise TimeoutError("No block size was selected within the time limit")
+
 class AdaptiveASCIIProcessor:
-    def __init__(self, levels=10, black_threshold=150):
+    def __init__(self, levels=10, black_threshold=150, block_size=None, timeout=120, drop_images=False):
         """
         Initialize the Adaptive ASCII Processor with default parameters.
         Args:
             levels: Number of quantization levels for ASCII representation.
+            black_threshold: Threshold for determining black pixels (0-255).
+            block_size: Optional predefined block size. If None, will be determined interactively.
+            timeout: Timeout in seconds for user input when selecting block size.
+            drop_images: Whether to drop the Image column after processing to save memory.
         """
         self.levels = levels
-        self.black_threshold = black_threshold # 128
+        self.black_threshold = black_threshold
+        self.predefined_block_size = block_size
         self.block_size = None
+        self.timeout = timeout
+        self.drop_images = drop_images
 
     def return_divisors(self, n):
+        """Find all divisors of n."""
         divisors = []
         for i in range(1, n + 1):
             if n % i == 0:
@@ -23,11 +40,13 @@ class AdaptiveASCIIProcessor:
 
     def determine_block_size(self, images):
         """
-        Determine a common block size for all images if they share the same dimensions.
+        Determine block size for ASCII conversion, with optional timeout for user input.
         Args:
             images: List of PIL images.
         Returns:
             Selected block size.
+        Raises:
+            TimeoutError: If no block size is selected within timeout period.
         """
         unique_sizes = set((img.height, img.width) for img in images)
 
@@ -46,16 +65,43 @@ class AdaptiveASCIIProcessor:
         common_divisors.sort()
         print(f"Common divisors for image size {height}x{width}: {common_divisors}")
 
-        while True:
-            try:
-                block_size = int(input("Enter a block size from the list above: "))
-                if block_size in common_divisors:
-                    self.block_size = block_size
-                    break
-                else:
-                    print("Invalid block size. Please select from the list above.")
-            except ValueError:
-                print("Invalid input. Please enter a valid integer.")
+        # If a block size was provided during initialization, check if it's valid
+        if self.predefined_block_size is not None:
+            if self.predefined_block_size in common_divisors:
+                self.block_size = self.predefined_block_size
+                print(f"Using predefined block size: {self.block_size}")
+                return self.block_size
+            else:
+                print(f"Warning: Predefined block size {self.predefined_block_size} is not a common divisor. Please select from the list.")
+        
+        # Set up timeout handler
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(self.timeout)  # Set alarm for timeout seconds
+        
+        try:
+            while True:
+                try:
+                    block_size = int(input(f"Enter a block size from the list (you have {self.timeout} seconds): "))
+                    if block_size in common_divisors:
+                        self.block_size = block_size
+                        break
+                    else:
+                        print("Invalid block size. Please select from the list above.")
+                except ValueError:
+                    print("Invalid input. Please enter a valid integer.")
+        except TimeoutError as e:
+            print(f"Timeout: {str(e)}")
+            # Use a reasonable default - middle of the list or power of 10
+            default_options = [d for d in common_divisors if d in (10, 20, 25, 50, 100)]
+            if default_options:
+                self.block_size = default_options[0]
+            else:
+                # Choose a divisor in the middle of the list
+                self.block_size = common_divisors[len(common_divisors) // 2]
+            print(f"Automatically selected block size: {self.block_size}")
+        finally:
+            # Cancel the alarm
+            signal.alarm(0)
 
         print(f"Selected block size: {self.block_size}")
         return self.block_size
@@ -129,27 +175,48 @@ class AdaptiveASCIIProcessor:
         ascii_art = self.ascii_matrix_to_string(ascii_matrix)
         example["ASCII-Art"] = ascii_art
         
+        # Optionally drop the image to save memory
+        if self.drop_images and "Image" in example:
+            del example["Image"]
+        
         return example
 
     def process_dataset(self, ds):
         """
         Process an HF dataset and apply the ASCII conversion efficiently.
         Ensures block size is determined only once if all images share dimensions.
+        
+        Args:
+            ds: HuggingFace dataset or DatasetDict to process
+            
+        Returns:
+            Processed dataset with ASCII-Art field added and optionally Image field removed
         """
         # Extract images
         if isinstance(ds, DatasetDict):
-            all_images = [img for split in ds.keys() for img in ds[split]["Image"]]
+            # Take just a few images to determine block size (for performance)
+            sample_images = []
+            for split in ds.keys():
+                if len(ds[split]) > 0:
+                    sample_images.append(ds[split][0]["Image"])
+                    if len(sample_images) >= 5:  # 5 samples should be enough to check dimension consistency
+                        break
+            # If we still need more images, sample from the largest split
+            if not sample_images:
+                raise ValueError("No images found in dataset")
         else:
-            all_images = ds["Image"]
+            if len(ds) == 0:
+                raise ValueError("Empty dataset provided")
+            sample_images = [ds[0]["Image"]]  # Just use the first image to determine block size
 
         # Determine block size once
-        self.determine_block_size(all_images)
+        self.determine_block_size(sample_images)
 
         # Apply processing
         if isinstance(ds, DatasetDict):
+            modified_ds = DatasetDict()
             for split in ds.keys():
-                ds[split] = ds[split].map(lambda example: self.store_ascii_input(example))
+                modified_ds[split] = ds[split].map(lambda example: self.store_ascii_input(example))
+            return modified_ds
         else:
-            ds = ds.map(lambda example: self.store_ascii_input(example))
-
-        return ds
+            return ds.map(lambda example: self.store_ascii_input(example))
