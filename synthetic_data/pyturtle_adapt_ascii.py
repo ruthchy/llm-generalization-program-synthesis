@@ -28,7 +28,7 @@ if apply_ascii_transformation:
     ds = load_dataset(dataset_name)
     # select the first rows of the train dataset 
     ds = ds["train"].select(range(10))
-    ascii_processor = AdaptiveASCIIProcessor(levels=10, black_threshold=150) # levels represents the range from 0 to 9; 0=no black pixels vs 9=all black pixels the threshold determines when a pixel is considered black
+    ascii_processor = AdaptiveASCIIProcessor(levels=10, black_threshold=220, block_size=32, crop_to_size=512, drop_images=True) # levels represents the range from 0 to 9; 0=no black pixels vs 9=all black pixels the threshold determines when a pixel is considered black; if a block_size can be given but is optional if it isn't the user has 2 mintues to choose a block size from the list of common divisors; crop_to_size this is an optional parameter to cropt the image around the center; last argument specifies if the image column is kept or dropped
 
     ds = ascii_processor.process_dataset(ds)
 

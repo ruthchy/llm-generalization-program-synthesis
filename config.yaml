@@ -2,11 +2,18 @@ logging:
   use_wandb: True
 
 data: 
-  dataset_id: "ruthchy/semantic-length-generalization-logo-data-desc-ascii_35"
+  dataset_id: "ruthchy/semantic-length-generalization-logo-data-desc-ascii_35" # "ruthchy/semantic-length-generalization-logo-image"
   include_desc: False
   include_ascii: True
   include_sys_prompt_fn: False
   include_sys_prompt_inf: True
+  # modifications yes or no
+  mix_directions: True        # whether 50% of the Programs contain right or left as direction instead of all containing left
+  image_to_ascii: True       # whether the ascii art is generated from the image or not (only needed if image dataset is used)
+  ascii_parameters:
+    black_threshold: 200
+    block_size: 32
+    crop_to_size: 512 # optional: to crop image around the center (as done in PBE)
 
 model:
   model_id: "codellama/CodeLlama-7b-Instruct-hf"
