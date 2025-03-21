@@ -1,45 +1,54 @@
 # Synthetic Length Generalization Dataset
 
-This repository contains scripts and notebooks to generate a synthetic length generalization dataset. The main notebook, `main.ipynb`, orchestrates the generation process using various Python scripts.
+This repository contains scripts to generate synthetic datasets for different generalization criteria. These datasets are used to evaluate model capabilities for length and mix-match generalization tasks.
 
 ## Structure
 
-- **Main Notebook**
-  - `main.ipynb`: This notebook is used to generate the synthetic length generalization dataset using all the Python scripts starting with `_number_name.py`.
+- **Main Generation Scripts**
+  - `main_length_gen.py`: Generates and splits datasets based on length generalization criteria (syntactic or semantic). Creates data with Description, Program, and ASCII-Art columns.
+  - `main_mix_match_gen.py`: Generates and splits datasets based on mix-match generalization criteria. Creates data with Description, Program, and Image columns.
 
-- **Python Scripts**
-  - `_1_logo_pseudo_code_generator.py`
-  - `_2_sampler.py`
-  - `_3_executable_logo_primitives.py`
-  - `_4_logo_graphic_generator_v1.py`
-  - `_4_logo_graphic_generator_v2.py`
-  - `_5_ascii_processor.py`
-  - `_6_semantic_length.py`
-  - `_6_syntactic_length.py`
+- **Core Components**
+  - `_1_logo_pseudo_code_generator.py`: Generates LOGO pseudocode for various shapes and patterns.
+  - `_2_sampler.py`: Samples LOGO programs from the generator.
+  - `_3_executable_logo_primitives.py`: Contains executable LOGO primitives.
+  - `_4_logo_graphic_generator_v1.py`: First version of the graphic generator.
+  - `_4_logo_graphic_generator_v2.py`: Second version of the graphic generator.
+  - `_5_ascii_processor.py`: Processes images into ASCII art representations.
+  - `_6_semantic_length.py`: Calculates semantic length (execution time) of programs.
+  - `_6_syntactic_length.py`: Calculates syntactic length of programs.
 
-  These scripts are used in conjunction with `main.ipynb` to generate the dataset.
+- **Utility Scripts**
+  - `pyturtle_adapt_ascii.py`: Transforms datasets with ASCII-Art columns to include Image columns instead.
+  - `__parser_pyturtle_pc.py`: Parser for working with PyTurtle for image generation.
+  - `__adapt_ascii_processor.py`: Applies adaptive ASCII transformation.
+  - `__dataset_direction_modifier.py`: Modifies a percentage of programs to use right() instead of left() (or vice versa).
 
-- **Additional Scripts**
-  - `pyturtle_adapt_ascii.py`: This script uses `__parser_pyturtle_pc.py` to add an Image column to the synthetic dataset or this `__adapt_ascii_processor.py` to apply an adaptive ASCII transformation to the Image column.
-  - `__dataset_direction_modifier.py`: this script contains a method which can be used to modify XX% of the Programs contained in a the datasets to use the direction right() instead of left() (vice versa). 
-
-- **Forkstate Scripts**
-  - `forkstate_test.ipynb`
-  - `synthetic_data_forkstate_test.ipynb`
-
-  These scripts are not yet integrated into the any workflow. They might serve as a starting point to replace the `embed()` function from the ReGAL paper with `forkstate()` form the PBE paper.
+- **Archived**
+  - `main.ipynb`: The original notebook for dataset generation (now archived).
+  - `forkstate_test.ipynb` and `synthetic_data_forkstate_test.ipynb`: Experimental notebooks for the forkstate approach.
 
 ## Usage
 
-1. **Generate Dataset**
-   - Run `main.ipynb` to generate the synthetic length generalization dataset.
 
-2. **Add Image Column or Apply ASCII Transformation**
-   - Use `pyturtle_adapt_ascii.py` to add an Image column to the dataset or apply an adaptive ASCII transformation.
+```bash
+# Generate a dataset split by syntactic length
+python synthetic_data/main_length_gen.py \
+    --generate-synthetic \
+    --target-size 10000 \
+    --generate-graphics \
+    --interpreter-version 1 \
+    --process-ascii \
+    --blocks 35 \
+    --split-by syntactic \
+    --save-hf
 
-3. **Explore Forkstate Integration**
-   - Investigate the `forkstate_test.ipynb` and `synthetic_data_forkstate_test.ipynb` notebooks for potential integration of the `forkstate()` function.
+# Using existing synthetic data and splitting by semantic length
+python synthetic_data/main_length_gen.py \
+    --synthetic-path synthetic_data/data/my_synthetic_data.jsonl \  # optional: if not set default synthetic data (synthetic_data_20250120143151.jsonl) is used 
+    --process-ascii \
+    --split-by semantic \
+    --save-hf
 
-## Requirements
-
-- activate the conda ReGAL_env
+# Generate the dataset by mix and match generalization criterion
+python synthetic_data/main_mix_match_gen.py
