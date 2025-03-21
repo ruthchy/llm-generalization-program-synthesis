@@ -2,6 +2,7 @@ import time
 import sys
 import os
 import numpy as np
+import matplotlib.pyplot as plt
 from contextlib import contextmanager
 
 class ExecutionTimeLength:
@@ -23,7 +24,7 @@ class ExecutionTimeLength:
         
         # Get repository root directory
         current_dir = os.getcwd()
-        
+
         # Add dependencies path to sys.path if not already there
         dependencies_path = os.path.join(current_dir, 'external/dependencies')
         if dependencies_path not in sys.path:
@@ -73,7 +74,7 @@ class ExecutionTimeLength:
         
         for run in range(self.num_runs):
             # Create PyTurtle instance
-            turtle = PyTurtle(draw_figure=False)  # Disable drawing to speed up execution
+            turtle = PyTurtle()  # Disable drawing to speed up execution
             
             # Create execution scope with all necessary variables
             exec_scope = {
@@ -88,7 +89,6 @@ class ExecutionTimeLength:
                 "penup": turtle.penup,
                 "pendown": turtle.pendown,
                 "heading": turtle.heading,
-                "isdown": turtle.isdown,
                 "embed": turtle.embed
             }
             
@@ -109,9 +109,11 @@ class ExecutionTimeLength:
                 return float('inf')
             finally:
                 # Clean up
+                plt.close(turtle.fig)  # Close the figure to free up memory
                 if 'turtle' in locals():
                     del turtle
-        
+
+
         # Return the average execution time if we have valid measurements
         if execution_times:
             # Remove outliers using interquartile range

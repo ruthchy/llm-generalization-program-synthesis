@@ -1,7 +1,10 @@
 # Version 2 - preserves the relative size of the generated logo shapes in respect to the other shapes in the dataset
 import os
 import matplotlib.pyplot as plt
-from _3_executable_logo_primitives import ReGALLOGOPrimitives
+try:
+    from _3_executable_logo_primitives import ReGALLOGOPrimitives
+except ImportError:
+    from synthetic_data._3_executable_logo_primitives import ReGALLOGOPrimitives
 
 # Interpreter class
 class PseudoProgramInterpreter:
