@@ -51,20 +51,27 @@ train_df, val_df, test_df = generate_mix_match_dataset(
 import pandas as pd
 import random
 import re
+import os
 from _1_logo_pseudo_code_generator import generateLOGOPseudoCode
 from _2_sampler import LOGOProgramSampler
 from __parser_pyturtle_pc import ProgramParser
-generator = generateLOGOPseudoCode()
-sampler = LOGOProgramSampler(generator)
-shape_distribution = sampler.count_possible_shapes()
 
-print("Shape Distribution Analysis:")
-print("===========================")
-for category, data in shape_distribution.items():
-    if category != "Total":
-        print(f"{category}: {data['count']} shapes ({data['percent']})")
-    else:
-        print(f"\nTotal possible shapes: {data}\n")
+# Set a fixed seed for reproducibility
+random.seed(42)
+
+def analyze_shape_distribution():
+    """Display an analysis of the possible shape distribution"""
+    generator = generateLOGOPseudoCode()
+    sampler = LOGOProgramSampler(generator)
+    shape_distribution = sampler.count_possible_shapes()
+
+    print("Shape Distribution Analysis:")
+    print("===========================")
+    for category, data in shape_distribution.items():
+        if category != "Total":
+            print(f"{category}: {data['count']} shapes ({data['percent']})")
+        else:
+            print(f"\nTotal possible shapes: {data}\n")
 
 def is_snowflake_with_sequence_arm(description):
     """Check if the program is a snowflake with a sequence as its arms"""
@@ -245,9 +252,12 @@ def generate_mix_match_dataset(train_size=8000, val_size=1000, test_size=1000, b
         print(f"\nNote: Used all available snowflakes with single shape arms ({len(train_single_snowflakes)}/180)")
         print(f"Filled the rest with sequences to reach target size")
     
-    return pd.DataFrame(train_data), pd.DataFrame(val_data), pd.DataFrame(test_data)
+    return pd.DataFrame(train_data)[["Description", "Program"]], pd.DataFrame(val_data)[["Description", "Program"]], pd.DataFrame(test_data)[["Description", "Program"]]
 
 def main():
+    # Optional shape distribution analysis
+    analyze_shape_distribution()
+
     # Generate the datasets
     train_size = 8000
     val_size = 1000
@@ -302,17 +312,19 @@ def main():
     })
     
     # Create an instance of the parser
-    parser = ProgramParser(save_dir="logo_graphic/mix_match", save_image=True, eval_mode=False)
-        
-    # Generate images for all splits
-    dataset_with_images = parser.wrapper_parse_and_generate_image(dataset_dict)
+    parser = ProgramParser(save_dir="logo_graphic/mix_match_gen", save_image=True, eval_mode=False)
+
+    push_to_hub = True
+    hub_name = "ruthchy/mix-match-gen-logo-data" 
+
+    ds = parser.wrapper_parse_and_generate_image(
+        dataset_dict, 
+        push_to_hub=push_to_hub, 
+        hub_name=hub_name
+    )
     
     print("All images generated successfully!")
-    
-    # Push to Hugging Face Hub if needed
-    push_to_hub = False  # Set to True to push to hub
     if push_to_hub:
-        dataset_with_images.push_to_hub("ruthchy/mix-match-generalization-logo-data")
         print("Dataset pushed to Hugging Face Hub")
 
 if __name__ == "__main__":
