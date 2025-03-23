@@ -31,11 +31,13 @@ import argparse
 parser = argparse.ArgumentParser(description='Run fine-tuning and/or inference pipeline')
 parser.add_argument('--fine_tune', type=lambda x: x.lower() == 'true', default=False, help='Whether to fine-tune the model (True) or run inference only (False)')
 parser.add_argument('--sample_fraction', type=float, default=1.0, help='Fraction of dataset to use (for debugging)')
+parser.add_argument('--config', type=str, default="config.yaml", help='Path to config file')
 args = parser.parse_args()
         
 fine_tune = args.fine_tune
 sample_fraction = args.sample_fraction
-print(f"Running with fine_tune={fine_tune}, sample_fraction={sample_fraction}")
+config_file = args.config
+print(f"Running with fine_tune={fine_tune}, sample_fraction={sample_fraction}, config={config_file}")
 
 # Step 1: Load the YAML Configuration
 import yaml
@@ -205,7 +207,7 @@ def load_config(source_config: str, fine_tune: bool) -> Tuple[Config, str, str, 
             config_dict = yaml.safe_load(f)
         # Validate and convert configuration with the Config class
         config = Config(config_dict)
-            
+        
         # Generate timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M")
 
@@ -875,7 +877,7 @@ def init_wandb_for_inf(config: Config, model_id: str, inference_type: str):
             "include_sys_prompt": config.prompt.include_sys_prompt_inf,
             "include_ascii": config.data.include_ascii,
             "include_desc": config.data.include_desc,
-            "temperature": 0.8,  # Add generation params
+            "temperature": config.model.temperature,
             "max_new_tokens": 250,
             "inference_type": inference_type
         }
@@ -1009,6 +1011,11 @@ def inference(model, tokenizer, config: Config, result_dir: str, inference_type:
                 
                 results.append(result)
             
+            if results:
+                with open(os.path.join(inf_dir, "predictions.json"), "w") as f:
+                    json.dump(results, f, indent=2)
+                print(f"Saved {len(results)} predictions after batch {batch_start//batch_size + 1}")
+            
             if config.logging.use_wandb:
                 wandb.log({
                     "progress/examples_processed": len(results),
@@ -1061,7 +1068,8 @@ def inference_from_hub(config: Config, result_dir: str, inference_type: str, sam
         inference_type: Type of inference being performed
         sample_fraction: Fraction of test dataset to use
     """
-    
+    print(f"DEBUG - Temperature from config: {config.model.temperature}, type: {type(config.model.temperature)}")
+
     # Initialize WandB for inference
     if config.logging.use_wandb:
         hub_model_name = config.model.model_id.split("/")[-1]
@@ -1210,6 +1218,11 @@ def inference_from_hub(config: Config, result_dir: str, inference_type: str, sam
                 
                 results.append(result)
             
+            if results:
+                with open(os.path.join(inf_dir, "predictions.json"), "w") as f:
+                    json.dump(results, f, indent=2)
+                print(f"Saved {len(results)} predictions after batch {batch_start//batch_size + 1}")
+            
             if config.logging.use_wandb:
                 wandb.log({
                     "progress/examples_processed": len(results),
@@ -1301,7 +1314,7 @@ def evaluation(inf_dir: str):
 # MAIN
 if __name__ == "__main__":
     try:
-        config, timestamp, gen_type, model_type_short, result_dir = load_config("config.yaml", fine_tune)
+        config, timestamp, gen_type, model_type_short, result_dir = load_config(config_file, fine_tune)
         set_random_seeds(config.training.random_seed)
         if fine_tune:
             # Prep

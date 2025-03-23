@@ -7,18 +7,19 @@
 #SBATCH --mail-user=priscilla.ruth.chyrva@students.uni-mannheim.de
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --gres=gpu:1
-#SBATCH --time=03:00:00
+#SBATCH --time=12:00:00
 #SBATCH --chdir=/ceph/pratz/GitHub_repos/master-thesis
 #SBATCH --partition=gpu-vram-48gb
 
 # Load necessary modules (if any)
-module load cuda/12.1
+module load cuda/12.8 #12.1
 
 # Activate conda environment
 source ~/miniconda3/etc/profile.d/conda.sh
 conda activate thesis_env
 
 # Run your Python script
-python pipeline.py \
+python pipeline_v3.py \
     --fine_tune False \
-    --sample_fraction 1.0 
+    --sample_fraction 1.0 \
+    --config "config_v3_fn.yaml"
