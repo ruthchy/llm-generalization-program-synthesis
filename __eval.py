@@ -436,14 +436,14 @@ class LLMCodeEvaluator:
         from Levenshtein import distance as levenshtein_distance
         
         # Basic Levenshtein distance
-        lev_dist = levenshtein_distance(completion, ground_truth)
+        lev_distance = levenshtein_distance(completion, ground_truth)
         
         # Normalized Levenshtein similarity (0 to 1 where 1 is identical)
         max_len = max(len(completion), len(ground_truth))
         if max_len == 0:
             normalized_lev_distance = 1.0  # Both strings are empty
         else:
-            normalized_lev_distance = 1.0 - (lev_dist / max_len)
+            normalized_lev_distance = 1.0 - (lev_distance / max_len)
         
         return {
             "levenshtein_distance": lev_distance,
