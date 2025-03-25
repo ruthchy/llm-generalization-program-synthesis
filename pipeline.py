@@ -231,7 +231,7 @@ def load_config(source_config: str, fine_tune: bool) -> Tuple[Config, str, str, 
             result_dir = f"results/{gen_type}/{model_type_short}_{timestamp}"
         else: # inference loading model from hub
             if model_type_short.startswith(f"{gen_type}_"):
-                model_type_short = model_type_short[len("{gen_type}_"):]
+                model_type_short = model_type_short[len(f"{gen_type}_"):]
             result_dir = f"results/{gen_type}/{model_type_short}/inference/{timestamp}"
         os.makedirs(result_dir, exist_ok=True)
 
