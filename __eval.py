@@ -10,6 +10,7 @@ import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
 from Levenshtein import distance as levenshtein_distance
+from crystalbleu import corpus_bleu
 
 class LLMCodeEvaluator:
     """
@@ -99,6 +100,7 @@ class LLMCodeEvaluator:
                 "pixel_similarity": pixel_similarity,
                 **self.check_lev_similarity(completion_clean, ground_truth),
                 **self.check_basic_similarity(completion_clean, ground_truth),
+                **self.check_crystalbleu_similarity(completion_clean, ground_truth),
             }
             
             # Add AST similarity if both codes are syntactically valid
@@ -141,7 +143,8 @@ class LLMCodeEvaluator:
             "similarity": {
                 "exact_matches": sum(1 for m in metrics if m["exact_match"]),
                 "avg_normalized_lev_distance": sum(m["normalized_lev_distance"] for m in metrics) / len(metrics),
-                "avg_line_similarity": sum(m["line_similarity"] for m in metrics) / len(metrics)
+                "avg_line_similarity": sum(m["line_similarity"] for m in metrics) / len(metrics),
+                "avg_crystalbleu_score": sum(m["crystalbleu_score"] for m in metrics if m["crystalbleu_score"] is not None) / len(metrics)
             },
             "execution": {
                 "executable_count": sum(1 for m in metrics if m["executable"])
@@ -217,6 +220,10 @@ class LLMCodeEvaluator:
         # Exact matches
         exact_matches = sum(1 for m in metrics if m["exact_match"])
         print(f"Exact matches: {pct(exact_matches, total)}")
+
+        # CrystalBLEU similarity
+        avg_crystalbleu_score = sum(m["crystalbleu_score"] for m in metrics if m["crystalbleu_score"] is not None) / total
+        print(f"Average CrystalBLEU similarity: {avg_crystalbleu_score:.4f}")
 
         print("\n--- EXECUTION RESULTS ---")
         # Execution stats
@@ -311,6 +318,10 @@ class LLMCodeEvaluator:
             }
         }
         
+        # Initialize both counters
+        details["valid_embed_blocks_count"] = 0
+        details["total_embed_blocks_count"] = 0
+        
         # First check the entire code's syntax
         try:
             ast.parse(completion)
@@ -323,55 +334,61 @@ class LLMCodeEvaluator:
         # Check for any usage of embed function (basic pattern detection)
         if "embed(" in completion:
             details["embed_usage"]["any_embed_call"] = True
-        else:
-            details["all_valid"] = details["outer_valid"]
-            return details["all_valid"], "No embed() calls found", details
-        
-        # Extract code blocks inside embed() function calls - standard pattern with triple quotes
-        correct_embed_pattern = r'embed\(\s*("""|\'\'\')(.*?)("""|\'\'\')\s*,\s*locals\(\)\s*\)'
-        
-        # Find all correct embed calls
-        correct_embed_matches = re.findall(correct_embed_pattern, completion, re.DOTALL)
-        if correct_embed_matches:
-            details["embed_usage"]["correctly_formed"] = True
+            details["total_embed_blocks_count"] = len(re.findall(r'embed\(', completion))
             
-            # Check each embedded code block in standard format
-            all_embed_valid = True
-            for i, match in enumerate(correct_embed_matches):
-                embed_code = match[1]  # The code inside triple quotes
+            # Find correctly formed embed calls
+            correct_embed_pattern = r'embed\(\s*("""|\'\'\')(.*?)("""|\'\'\')\s*,\s*locals\(\)\s*\)'
+            correct_embed_matches = re.findall(correct_embed_pattern, completion, re.DOTALL)
+            if correct_embed_matches:
+                details["embed_usage"]["correctly_formed"] = True
+                details["valid_embed_blocks_count"] = len(correct_embed_matches)
                 
-                # Validate this embedded code block
-                try:
-                    ast.parse(embed_code)
-                    embed_status = {"valid": True, "message": "Valid"}
-                except SyntaxError as e:
-                    embed_status = {"valid": False, "message": f"Syntax error: {str(e)}"}
-                    all_embed_valid = False
-                except Exception as e:
-                    embed_status = {"valid": False, "message": f"Other error: {str(e)}"}
-                    all_embed_valid = False
-                
-                # Store results for this embed block
-                embed_status["code"] = embed_code
-                details["embed_blocks"].append(embed_status)
-        
-        # Now look for alternative embed patterns
-        # This captures the content of all embed() calls
-        alternative_pattern = r'embed\(\s*(.*?)\s*\)'
-        
-        try:
-            all_embed_calls = re.findall(alternative_pattern, completion, re.DOTALL)
+                # Check each embedded code block in standard format
+                all_embed_valid = True
+                for i, match in enumerate(correct_embed_matches):
+                    embed_code = match[1]  # The code inside triple quotes
+                    
+                    # Validate this embedded code block
+                    try:
+                        ast.parse(embed_code)
+                        embed_status = {"valid": True, "message": "Valid"}
+                    except SyntaxError as e:
+                        embed_status = {"valid": False, "message": f"Syntax error: {str(e)}"}
+                        all_embed_valid = False
+                    except Exception as e:
+                        embed_status = {"valid": False, "message": f"Other error: {str(e)}"}
+                        all_embed_valid = False
+                    
+                    # Store results for this embed block
+                    embed_status["code"] = embed_code
+                    details["embed_blocks"].append(embed_status)
             
-            # Filter out correctly formed patterns to find alternative ones
-            for call_content in all_embed_calls:
-                # Check if this is NOT a correctly formed embed call
-                if not re.match(r'\s*("""|\'\'\').*?("""|\'\'\')\s*,\s*locals\(\)\s*$', call_content, re.DOTALL):
-                    # This is an alternative pattern
-                    details["embed_usage"]["alternative_patterns"].append(call_content.strip())
-        except Exception:
-            # If regex fails, just ignore
-            pass
-        
+            # Now look for alternative embed patterns
+            # This captures the content of all embed() calls
+            alternative_pattern = r'(embed\(\s*.*?\s*\))'
+            
+            try:
+                all_embed_calls = re.findall(alternative_pattern, completion, re.DOTALL)
+                
+                # Filter out correctly formed patterns to find alternative ones
+                for full_call in all_embed_calls:
+                    # Check if this is NOT a correctly formed embed call
+                    if not re.match(r'embed\(\s*("""|\'\'\').*?("""|\'\'\')\s*,\s*locals\(\)\s*\)', full_call, re.DOTALL):
+                        # This is an alternative pattern
+                        # Format as needed
+                        formatted_pattern = ""
+                        if len(full_call) > 30:  # If pattern is long, truncate it
+                            start_content = full_call[:15].strip()  # First 15 chars including "embed("
+                            end_content = full_call[-15:].strip()   # Last 15 chars
+                            formatted_pattern = f"{start_content}...{end_content}"  # Without extra quotes
+                        else:
+                            formatted_pattern = full_call  # Without extra quotes
+                        
+                        details["embed_usage"]["alternative_patterns"].append(formatted_pattern)
+            except Exception:
+                # If regex fails, just ignore
+                pass
+
         # Determine overall validity
         details["all_valid"] = details["outer_valid"] and all(block.get("valid", True) for block in details["embed_blocks"])
         
@@ -519,6 +536,39 @@ class LLMCodeEvaluator:
                 "completion_node_count": -1,
                 "ground_truth_node_count": -1
             }  
+
+    def check_crystalbleu_similarity(self, completion, ground_truth):
+        """
+        Calculate CrystalBLEU similarity between completion and ground truth code.
+        
+        Args:
+            completion (str): Completion code
+            ground_truth (str): Ground truth code
+            
+        Returns:
+            dict: CrystalBLEU similarity metric
+        """
+        try:            
+            # Calculate CrystalBLEU score 
+            bleu_score = corpus_bleu([[ground_truth]], [completion])
+            
+            return {
+                "crystalbleu_score": bleu_score,
+            }
+        except ImportError as e:
+            print(f"Import error in check_crystalbleu_similarity: {e}")
+            return {
+                "crystalbleu_score": None,
+                "crystalbleu_error": "crystalbleu package not installed"
+            }
+        except Exception as e:
+            print(f"Exception in check_crystalbleu_similarity: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
+            return {
+                "crystalbleu_score": 0.0,
+                "crystalbleu_error": str(e)
+            }
 
     def code_execution_pyturtle(self, program):
         """
