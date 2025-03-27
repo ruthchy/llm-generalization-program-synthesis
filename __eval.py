@@ -11,6 +11,13 @@ from PIL import Image
 import matplotlib.pyplot as plt
 from Levenshtein import distance as levenshtein_distance
 from crystalbleu import corpus_bleu
+try: 
+    import dreamsim
+    import torch
+    from torchvision.transforms import ToTensor
+except ImportError:
+    print("dreamsim package not found. Please install it using 'pip install dreamsim'")
+            
 
 class LLMCodeEvaluator:
     """
@@ -32,6 +39,13 @@ class LLMCodeEvaluator:
         self.dependencies_path = os.path.join(self.repo_root, 'external/dependencies')
         if self.dependencies_path not in sys.path:
             sys.path.append(self.dependencies_path)
+        
+        # Check for GPU availability - making sure it uses the GPU
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        #print(f"Using device: {self.device}")
+
+        # Initialize DreamSim model
+        self.dsim_model, self.dsim_preprocess = dreamsim.dreamsim(pretrained=True, device=self.device)
 
     def load_predictions(self, inf_dir):
         """
@@ -73,12 +87,14 @@ class LLMCodeEvaluator:
             # Image comparison for executed code
             ssim_score = None
             pixel_similarity = None
+            dreamsim_score = None
             if is_executable:
                 gt_executable, _, gt_image = self.code_execution_pyturtle(ground_truth)
                 if gt_executable:
                     image_comparison = self.compare_images(image, gt_image) 
                     ssim_score = image_comparison.get('ssim_score')
                     pixel_similarity = image_comparison.get('pixel_similarity')
+                    dreamsim_score = image_comparison.get('dreamsim_score')
             
             # Extract embed usage
             embed_usage = details_dict.get("embed_usage", {})
@@ -98,6 +114,7 @@ class LLMCodeEvaluator:
                 "execution_message": execution_message,
                 "ssim_score": ssim_score,
                 "pixel_similarity": pixel_similarity,
+                "dreamsim_score": dreamsim_score,
                 **self.check_lev_similarity(completion_clean, ground_truth),
                 **self.check_basic_similarity(completion_clean, ground_truth),
                 **self.check_crystalbleu_similarity(completion_clean, ground_truth),
@@ -162,11 +179,37 @@ class LLMCodeEvaluator:
         if executable_with_ssim:
             summary["execution"]["avg_ssim"] = sum(m["ssim_score"] for m in executable_with_ssim) / len(executable_with_ssim)
             summary["execution"]["ssim_available_count"] = len(executable_with_ssim)
+            # Add the new perfect SSIM count
+            summary["execution"]["perfect_ssim_count"] = sum(1 for m in executable_with_ssim if m["ssim_score"] == 1.0)
         
         executable_with_pixel_sim = [m for m in metrics if m["executable"] and m.get("pixel_similarity") is not None]
         if executable_with_pixel_sim:
             summary["execution"]["avg_pixel_similarity"] = sum(m["pixel_similarity"] for m in executable_with_pixel_sim) / len(executable_with_pixel_sim)
             summary["execution"]["pixel_similarity_available_count"] = len(executable_with_pixel_sim)
+            # Add the new perfect pixel similarity count
+            summary["execution"]["perfect_pixel_count"] = sum(1 for m in executable_with_pixel_sim if m["pixel_similarity"] == 1.0)
+        
+        executable_with_dreamsim = [m for m in metrics if m["executable"] and m.get("dreamsim_score") is not None]
+        if executable_with_dreamsim:
+            summary["execution"]["avg_dreamsim"] = sum(m["dreamsim_score"] for m in executable_with_dreamsim) / len(executable_with_dreamsim)
+            summary["execution"]["dreamsim_available_count"] = len(executable_with_dreamsim)
+            # Add the new zero dreamsim count (assuming 0 is the "perfect" value)
+            summary["execution"]["zero_dreamsim_count"] = sum(1 for m in executable_with_dreamsim if m["dreamsim_score"] == 0.0)
+        
+        # Add metric for perfect agreement across all three metrics
+        executable_with_all_metrics = [m for m in metrics if m["executable"] and 
+                                       m.get("ssim_score") is not None and 
+                                       m.get("pixel_similarity") is not None and 
+                                       m.get("dreamsim_score") is not None]
+        if executable_with_all_metrics:
+            # Count cases where all three metrics show "perfect" values
+            perfect_agreement_count = sum(1 for m in executable_with_all_metrics 
+                                          if m["ssim_score"] == 1.0 and 
+                                          m["pixel_similarity"] == 1.0 and 
+                                          m["dreamsim_score"] == 0.0)
+            
+            summary["execution"]["perfect_agreement_count"] = perfect_agreement_count
+            summary["execution"]["all_metrics_available_count"] = len(executable_with_all_metrics)
         
         return summary
     
@@ -248,6 +291,14 @@ class LLMCodeEvaluator:
                 print(f"Average pixel similarity: {avg_pixel:.4f} (from {len(valid_pixel)}/{len(executable_metrics)} executable samples)")
             else:
                 print("No valid pixel similarity scores available")
+            
+            # DreamSim stats
+            valid_dreamsim = [m for m in executable_metrics if m.get("dreamsim_score") is not None]
+            if valid_dreamsim:
+                avg_dreamsim = sum(m["dreamsim_score"] for m in valid_dreamsim) / len(valid_dreamsim)
+                print(f"Average DreamSim similarity: {avg_dreamsim:.4f} (from {len(valid_dreamsim)}/{len(executable_metrics)} executable samples)")
+            else:
+                print("No valid DreamSim scores available")
         else:
             print("No executable code samples to calculate similarity measures")
 
@@ -668,10 +719,18 @@ class LLMCodeEvaluator:
             pixel_similarity = self._calculate_pixel_similarity(image_pred, image_gr)
         except ImportError:
             pass  # Pixel similarity couldn't be calculated
-            
+
+        # Calculate DreamSim
+        dreamsim_score = None
+        try:
+            dreamsim_score = self._calculate_dreamsim(image_pred, image_gr)
+        except Exception:
+            pass  # DreamSim couldn't be calculated
+        
         return {
             "ssim_score": ssim_score,
-            "pixel_similarity": pixel_similarity
+            "pixel_similarity": pixel_similarity,
+            "dreamsim_score": dreamsim_score,
         }
     
     @staticmethod
@@ -732,6 +791,42 @@ class LLMCodeEvaluator:
         pixel_similarity = 1.0 - diff_ratio
         return pixel_similarity
     
+    def _calculate_dreamsim(self, image1, image2):
+        """
+        Calculate DreamSim similarity between two images.
+        
+        Args:
+            image1 (PIL.Image): First image
+            image2 (PIL.Image): Second image
+            
+        Returns:
+            float: DreamSim similarity score
+        """
+        try:
+            # Resize image2 if dimensions don't match
+            if image1.size != image2.size:
+                from PIL import Image
+                image2 = image2.resize(image1.size, Image.LANCZOS)
+
+            # Preprocess images - move to the correct device
+            tensor1 = self.dsim_preprocess(image1).to(self.device)
+            tensor2 = self.dsim_preprocess(image2).to(self.device)
+
+            # Compute DreamSim score
+            with torch.no_grad():
+                # Get all return values but only use the first one
+                # This handles the "too many values to unpack" error
+                result = self.dsim_model(tensor1, tensor2)
+                dreamsim_score = result.item()
+                
+                return dreamsim_score
+
+        except Exception as e:
+            print(f"Error calculating DreamSim: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
     @staticmethod
     def clean_result_path(result_path):
         """
