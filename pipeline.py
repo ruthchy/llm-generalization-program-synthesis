@@ -1300,8 +1300,11 @@ def evaluation(inf_dir: str):
                         serializable_metric[k] = v
                     else:
                         serializable_metric[k] = str(v)
-                json.dump(serializable_metrics, f, indent=2)
-        
+                serializable_metrics.append(serializable_metric)
+            
+            # Write the entire list once, outside the loop
+            json.dump(serializable_metrics, f, indent=2) 
+            
         print(f"Evaluation complete. Results saved to {inf_dir}/evaluation.json")
         return metrics, summary
         
