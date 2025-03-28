@@ -26,6 +26,9 @@ _unsloth_temporary_saved_buffers/**/*
 thesis_env/**/*
 requirements_venv.txt
 
+# Ignore model files (Models in this folder are used for DreamSIM)
+models/**/*
+
 # Ignore macOS system files
 .DS_Store
 **/.DS_Store
