@@ -88,13 +88,19 @@ class LLMCodeEvaluator:
             ssim_score = None
             pixel_similarity = None
             dreamsim_score = None
+            pixel_precision = None
+            pixel_recall = None
+            pixel_f1 = None
             if is_executable:
                 gt_executable, _, gt_image = self.code_execution_pyturtle(ground_truth)
                 if gt_executable:
-                    image_comparison = self.compare_images(image, gt_image) 
+                    image_comparison = self.compare_images(image, gt_image)
                     ssim_score = image_comparison.get('ssim_score')
                     pixel_similarity = image_comparison.get('pixel_similarity')
                     dreamsim_score = image_comparison.get('dreamsim_score')
+                    pixel_precision = image_comparison.get('pixel_precision')
+                    pixel_recall = image_comparison.get('pixel_recall')
+                    pixel_f1 = image_comparison.get('pixel_f1')
             
             # Extract embed usage
             embed_usage = details_dict.get("embed_usage", {})
@@ -115,6 +121,9 @@ class LLMCodeEvaluator:
                 "ssim_score": ssim_score,
                 "pixel_similarity": pixel_similarity,
                 "dreamsim_score": dreamsim_score,
+                "pixel_precision": pixel_precision,
+                "pixel_recall": pixel_recall,
+                "pixel_f1": pixel_f1,
                 **self.check_lev_similarity(completion_clean, ground_truth),
                 **self.check_basic_similarity(completion_clean, ground_truth),
                 **self.check_crystalbleu_similarity(completion_clean, ground_truth),
@@ -211,6 +220,13 @@ class LLMCodeEvaluator:
             summary["execution"]["perfect_agreement_count"] = perfect_agreement_count
             summary["execution"]["all_metrics_available_count"] = len(executable_with_all_metrics)
         
+        executable_with_precision_recall = [m for m in metrics if m["executable"] and "pixel_precision" in m]
+        if executable_with_precision_recall:
+            summary["execution"]["avg_pixel_precision"] = sum(m["pixel_precision"] for m in executable_with_precision_recall) / len(executable_with_precision_recall)
+            summary["execution"]["avg_pixel_recall"] = sum(m["pixel_recall"] for m in executable_with_precision_recall) / len(executable_with_precision_recall)
+            summary["execution"]["avg_pixel_f1"] = sum(m["pixel_f1"] for m in executable_with_precision_recall) / len(executable_with_precision_recall)
+            summary["execution"]["precision_recall_available_count"] = len(executable_with_precision_recall)
+        
         return summary
     
     def print_summary(self, metrics):
@@ -299,6 +315,18 @@ class LLMCodeEvaluator:
                 print(f"Average DreamSim similarity: {avg_dreamsim:.4f} (from {len(valid_dreamsim)}/{len(executable_metrics)} executable samples)")
             else:
                 print("No valid DreamSim scores available")
+            
+            # Precision-Recall stats
+            valid_pr = [m for m in executable_metrics if "pixel_precision" in m]
+            if valid_pr:
+                avg_precision = sum(m["pixel_precision"] for m in valid_pr) / len(valid_pr)
+                avg_recall = sum(m["pixel_recall"] for m in valid_pr) / len(valid_pr)
+                avg_f1 = sum(m["pixel_f1"] for m in valid_pr) / len(valid_pr)
+                print(f"Average pixel precision: {avg_precision:.4f} (from {len(valid_pr)}/{len(executable_metrics)} executable samples)")
+                print(f"Average pixel recall: {avg_recall:.4f} (from {len(valid_pr)}/{len(executable_metrics)} executable samples)")
+                print(f"Average pixel F1 score: {avg_f1:.4f} (from {len(valid_pr)}/{len(executable_metrics)} executable samples)")
+            else:
+                print("No valid precision-recall scores available")
         else:
             print("No executable code samples to calculate similarity measures")
 
@@ -697,7 +725,7 @@ class LLMCodeEvaluator:
 
     def compare_images(self, image_pred, image_gr):
         """
-        Compare two images using SSIM and pixel-wise comparison.
+        Compare two images using SSIM, pixel-wise comparison, and precision/recall.
         
         Args:
             image_pred (PIL.Image): Predicted image
@@ -720,6 +748,13 @@ class LLMCodeEvaluator:
         except ImportError:
             pass  # Pixel similarity couldn't be calculated
 
+        # Calculate precision and recall for black pixels
+        pixel_precision_recall = {}
+        try:
+            pixel_precision_recall = self._calculate_pixel_precision_recall(image_pred, image_gr)
+        except Exception as e:
+            print(f"Error calculating pixel precision/recall: {e}")
+        
         # Calculate DreamSim
         dreamsim_score = None
         try:
@@ -727,11 +762,18 @@ class LLMCodeEvaluator:
         except Exception:
             pass  # DreamSim couldn't be calculated
         
-        return {
+        # Create the result dictionary
+        result = {
             "ssim_score": ssim_score,
             "pixel_similarity": pixel_similarity,
             "dreamsim_score": dreamsim_score,
         }
+        
+        # Add precision/recall metrics if available
+        if pixel_precision_recall:
+            result.update(pixel_precision_recall)
+        
+        return result
     
     @staticmethod
     def _calculate_ssim(image1, image2):
@@ -826,6 +868,67 @@ class LLMCodeEvaluator:
             import traceback
             traceback.print_exc()
             return None
+
+    def _calculate_pixel_precision_recall(self, image_pred, image_gr):
+        """
+        Calculate precision and recall for black pixels between two images.
+        
+        Args:
+            image_pred (PIL.Image): Predicted image
+            image_gr (PIL.Image): Ground truth image
+            
+        Returns:
+            dict: Precision and recall metrics
+        """
+        import numpy as np
+        from PIL import Image
+        
+        # Resize if dimensions don't match
+        if image_pred.size != image_gr.size:
+            image_gr = image_gr.resize(image_pred.size, Image.LANCZOS)
+        
+        # Convert to grayscale
+        img_pred_gs = np.array(image_pred.convert('L'))  # Predicted image as grayscale
+        img_gr_gs = np.array(image_gr.convert('L'))      # Ground truth image as grayscale
+        
+        # Apply threshold to convert to binary (black/white)
+        threshold = 200  # Adjust threshold if needed
+        img_pred_bw = img_pred_gs < threshold
+        img_gr_bw = img_gr_gs < threshold
+        # Count black and white pixels
+        pred_black_pixels = np.sum(img_pred_bw)
+        pred_white_pixels = img_pred_bw.size - pred_black_pixels
+        gr_black_pixels = np.sum(img_gr_bw)
+        gr_white_pixels = img_gr_bw.size - gr_black_pixels
+        
+        print(f"Predicted image: {pred_black_pixels} black pixels, {pred_white_pixels} white pixels")
+        print(f"Ground truth image: {gr_black_pixels} black pixels, {gr_white_pixels} white pixels")
+        
+        # Calculate true positives, false positives, false negatives
+        true_positives = np.sum(img_pred_bw & img_gr_bw)
+        false_positives = np.sum(img_pred_bw & ~img_gr_bw)
+        false_negatives = np.sum(~img_pred_bw & img_gr_bw)
+        
+        print(f"True positives (black pixels correctly predicted): {true_positives}")
+        print(f"False positives (black pixels incorrectly predicted): {false_positives}")
+        print(f"False negatives (missed black pixels): {false_negatives}")
+        
+        # Calculate precision and recall
+        precision = true_positives / (true_positives + false_positives) if (true_positives + false_positives) > 0 else 0.0
+        recall = true_positives / (true_positives + false_negatives) if (true_positives + false_negatives) > 0 else 0.0
+        
+        print(f"Precision: {precision}")
+        print(f"Recall: {recall}")
+        
+        # Calculate F1 score
+        f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
+        print(f"F1 Score: {f1_score}")
+        
+        return {
+            "pixel_precision": precision,
+            "pixel_recall": recall,
+            "pixel_f1": f1_score
+        }
 
     @staticmethod
     def clean_result_path(result_path):
