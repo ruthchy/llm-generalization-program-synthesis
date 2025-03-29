@@ -85,22 +85,22 @@ class LLMCodeEvaluator:
             is_executable, execution_message, image = self.code_execution_pyturtle(completion_clean)
             
             # Image comparison for executed code
-            ssim_score = None
-            pixel_similarity = None
-            dreamsim_score = None
-            pixel_precision = None
-            pixel_recall = None
-            pixel_f1 = None
+            ssim_score = np.nan
+            pixel_similarity = np.nan
+            dreamsim_score = np.nan
+            pixel_precision = np.nan
+            pixel_recall = np.nan
+            pixel_f1 = np.nan
             if is_executable:
                 gt_executable, _, gt_image = self.code_execution_pyturtle(ground_truth)
                 if gt_executable:
                     image_comparison = self.compare_images(image, gt_image)
-                    ssim_score = image_comparison.get('ssim_score')
-                    pixel_similarity = image_comparison.get('pixel_similarity')
-                    dreamsim_score = image_comparison.get('dreamsim_score')
-                    pixel_precision = image_comparison.get('pixel_precision')
-                    pixel_recall = image_comparison.get('pixel_recall')
-                    pixel_f1 = image_comparison.get('pixel_f1')
+                    ssim_score = image_comparison.get('ssim_score', np.nan)
+                    pixel_similarity = image_comparison.get('pixel_similarity', np.nan)
+                    dreamsim_score = image_comparison.get('dreamsim_score', np.nan)
+                    pixel_precision = image_comparison.get('pixel_precision', np.nan)
+                    pixel_recall = image_comparison.get('pixel_recall', np.nan)
+                    pixel_f1 = image_comparison.get('pixel_f1', np.nan)
             
             # Extract embed usage
             embed_usage = details_dict.get("embed_usage", {})
@@ -222,10 +222,22 @@ class LLMCodeEvaluator:
         
         executable_with_precision_recall = [m for m in metrics if m["executable"] and "pixel_precision" in m]
         if executable_with_precision_recall:
-            summary["execution"]["avg_pixel_precision"] = sum(m["pixel_precision"] for m in executable_with_precision_recall) / len(executable_with_precision_recall)
-            summary["execution"]["avg_pixel_recall"] = sum(m["pixel_recall"] for m in executable_with_precision_recall) / len(executable_with_precision_recall)
-            summary["execution"]["avg_pixel_f1"] = sum(m["pixel_f1"] for m in executable_with_precision_recall) / len(executable_with_precision_recall)
+            # Extract values, allowing for NaN handling
+            pixel_precisions = [m["pixel_precision"] for m in executable_with_precision_recall]
+            pixel_recalls = [m["pixel_recall"] for m in executable_with_precision_recall]
+            pixel_f1s = [m["pixel_f1"] for m in executable_with_precision_recall]
+
+            # Use np.nanmean to compute averages, ignoring NaN values
+            summary["execution"]["avg_pixel_precision"] = np.nanmean(pixel_precisions)
+            summary["execution"]["avg_pixel_recall"] = np.nanmean(pixel_recalls)
+            summary["execution"]["avg_pixel_f1"] = np.nanmean(pixel_f1s)
             summary["execution"]["precision_recall_available_count"] = len(executable_with_precision_recall)
+        else:
+            # Handle the case where no valid metrics are available
+            summary["execution"]["avg_pixel_precision"] = np.nan
+            summary["execution"]["avg_pixel_recall"] = np.nan
+            summary["execution"]["avg_pixel_f1"] = np.nan
+            summary["execution"]["precision_recall_available_count"] = 0
         
         return summary
     
