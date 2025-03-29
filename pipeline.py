@@ -12,11 +12,10 @@ Steps:
     9. Evaluation                                       # not yet implemented
     
 Run script in conda thesis_env (can be gererated using the requirements.txt file)
-python pipeline.py --fine_tune False --sample_fraction 0.1
+python pipeline.py  --fine_tune  --sample_fraction 0.1  --config config.yaml
 
 python pipeline.py 
-    --fine_tune False       # False = only inf with a model from the hub (Step 1, 2, 7, 8.2, 9)
-    --fine_tune True        # True = fine-tune the model and do inf (Step 1, 2, 3, 4, 5, 6, 7, 8.1, 9)
+    --fine_tune       # if the flag is set the model will be fine-tune the model and then do inf and eval if it loads a model and starts with inf followed by eval 
     --sample_fraction 1.0   # the entire dataset is used or by setting the number < 1 a random sample of the dataset is used
 '''
 ############################################################################################################
@@ -29,7 +28,7 @@ os.environ['UNSLOTH_RETURN_LOGITS'] = '1'  # new
 # Decide the mode in which the script should run fine-tuning and/or inference; in testing or production mode
 import argparse
 parser = argparse.ArgumentParser(description='Run fine-tuning and/or inference pipeline')
-parser.add_argument('--fine_tune', type=lambda x: x.lower() == 'true', default=False, help='Whether to fine-tune the model (True) or run inference only (False)')
+parser.add_argument('--fine_tune', action='store_true', help='Whether to fine-tune the model')
 parser.add_argument('--sample_fraction', type=float, default=1.0, help='Fraction of dataset to use (for debugging)')
 parser.add_argument('--config', type=str, default="config.yaml", help='Path to config file')
 args = parser.parse_args()
@@ -181,7 +180,7 @@ class Config:
             topk_train=int(config_dict["model"]["topk_train"]),
             topk_prompt=int(config_dict["model"]["topk_prompt"]),
             top_k=int(config_dict["model"]["top_k"]),
-            temperature=int(config_dict["model"]["temperature"]),
+            temperature=float(config_dict["model"]["temperature"]),
             max_new_tokens=int(config_dict["model"]["max_new_tokens"])
         )
         self.logging = LoggingConfig(
@@ -214,13 +213,14 @@ def load_config(source_config: str, fine_tune: bool) -> Tuple[Config, str, str, 
         # Determine generalization type
         gen_type = ""
         dataset_id = config.data.dataset_id
-        if "generalization" in dataset_id:
-            dataset_name = dataset_id.split('/')[-1]
+
+        if "-gen-" in dataset_id:
+            dataset_name = dataset_id.split('/')[-1]  # Get last part after "/"
             parts = dataset_name.split('-')
-            for i, part in enumerate(parts):
-                if "generalization" in part and i > 0:
-                    gen_type = parts[i - 1]
-                    break
+            if "gen" in parts:
+                gen_index = parts.index("gen")
+                if gen_index > 0:  # Ensure there's a valid preceding part
+                    gen_type = parts[gen_index - 1]
 
         # Short model name
         model_type = config.model.model_id.split('/')[-1]
@@ -459,9 +459,11 @@ def init_wandb(config: Config, timestamp: str, gen_type: str, model_type_short: 
 # Custom Metrics
 from torch.nn import CrossEntropyLoss
 from Levenshtein import distance as levenshtein_distance
+from __eval import LLMCodeEvaluator
 
 def prepare_compute_metrics(dataset: DatasetDict, tokenizer):
     """Prepare custom metrics function for Trainer"""
+    evaluator = LLMCodeEvaluator()
 
     val_prompt_mask = np.array([x["prompt_mask"] for x in dataset['validation']])
     val_completion_mask = np.array([x["completion_mask"] for x in dataset['validation']])
@@ -476,8 +478,6 @@ def prepare_compute_metrics(dataset: DatasetDict, tokenizer):
 
 # uses numpy arrays (on CPU)
     def compute_metrics(data, split='validation'):
-        from __eval import LLMCodeEvaluator
-
         # Get masks based on split
         if split == 'validation':
             # Use precomputed validation masks
@@ -525,7 +525,7 @@ def prepare_compute_metrics(dataset: DatasetDict, tokenizer):
             prompt_loss = np.sum(token_losses.reshape(-1) * shift_prompt_mask.reshape(-1)) / (shift_prompt_mask.sum() or 1)
             completion_loss = np.sum(token_losses.reshape(-1) * shift_comp_mask.reshape(-1)) / (shift_comp_mask.sum() or 1)
 
-        # Compute Levenshtein distance
+        # Program comparison: Levenshtein distance, CrystalBLEU score and Image Comparison
         try:
             true_comp_tokens = [l[m == 1] for l, m in zip(labels, shift_comp_mask)]
             pred_comp_tokens = [p[m == 1] for p, m in zip(token_preds, shift_comp_mask)]
@@ -534,26 +534,95 @@ def prepare_compute_metrics(dataset: DatasetDict, tokenizer):
             pred_program = tokenizer.batch_decode(pred_comp_tokens, skip_special_tokens=True)
 
             # Clean code before Levenshtein calculation (remove py comments)
-            clean_true_program = [LLMCodeEvaluator.clean_python_code(code) for code in true_program]
-            clean_pred_program = [LLMCodeEvaluator.clean_python_code(code) for code in pred_program]
+            clean_true_program = [evaluator.clean_python_code(code) for code in true_program]
+            clean_pred_program = [evaluator.clean_python_code(code) for code in pred_program]
 
             # Calculate normalized Levenshtein distances using cleaned code (1.0 = perfect match, 0.0 = no match)
-            normalized_distances = []
-            for pred, true in zip(clean_pred_program, clean_true_program):
-                max_len = max(len(pred), len(true))
-                if max_len == 0:  # Handle edge case of empty strings
-                    normalized_distances.append(1.0)
+            try:
+                normalized_distances = []
+                exact_prog_match_count = 0
+                for pred, true in zip(clean_pred_program, clean_true_program):
+                    max_len = max(len(pred), len(true))
+                    if max_len == 0:  # Handle edge case of empty strings
+                        normalized_distances.append(1.0)
+                    else:
+                        lev_dist = levenshtein_distance(pred, true)
+                        norm_lev_dist = 1.0 - (lev_dist / max_len)
+                        normalized_distances.append(norm_lev_dist)
+                        if norm_lev_dist == 1.0:
+                            exact_prog_match_count += 1
+                
+                avg_norm_levenshtein_dist = np.mean(normalized_distances)
+                std_norm_levenshtein_dist = np.std(normalized_distances)
+            except Exception as e:
+                print(f"Error computing normalized Levenshtein distance: {str(e)}")
+                avg_norm_levenshtein_dist = 0.0
+                std_norm_levenshtein_dist = 0.0
+                exact_prog_match_count = 0
+            # CrystalBLEU score
+            try:
+                crystalbleu_scores = []
+                for pred, true in zip(clean_true_program, clean_pred_program):
+                    crystalbleu_result = evaluator.check_crystalbleu_similarity(true, pred)
+                    crystalbleu_scores.append(crystalbleu_result["crystalbleu_score"])
+                
+                avg_crystalbleu = np.mean([score for score in crystalbleu_scores if score is not None])
+            except Exception as e:
+                print(f"Error computing CrystalBLEU score: {str(e)}")
+                bleu_score = 0.0
+            # image comparison
+            try:
+                image_metrics = []
+                exact_image_match_count = 0
+                for pred, true in zip(true_program, pred_program):
+                    is_executable, _, pred_image = evaluator.code_execution_pyturtle(pred)
+                    _, _, true_image = evaluator.code_execution_pyturtle(true)
+                    if is_executable and pred_image and true_image:
+                        comp_image = evaluator.compare_images(pred_image, true_image)
+                        image_metrics.append(comp_image)
+                        if comp_image["pixel_f1"] == 1.0:
+                            exact_image_match_count += 1
+                    else:
+                        # Append NaN for cases where images cannot be generated
+                        image_metrics.append({
+                            "ssim_score": np.nan,
+                            "dreamsim_score": np.nan,
+                            "pixel_precision": np.nan,
+                            "pixel_recall": np.nan,
+                            "pixel_f1": np.nan
+                        })
+                if image_metrics:
+                    avg_ssim = np.nanmean([m["ssim_score"] for m in image_metrics])
+                    avg_dreamsim = np.nanmean([m["dreamsim_score"] for m in image_metrics])
+                    avg_precision = np.nanmean([m["pixel_precision"] for m in image_metrics])
+                    avg_recall = np.nanmean([m["pixel_recall"] for m in image_metrics])
+                    avg_f1 = np.nanmean([m["pixel_f1"] for m in image_metrics])
                 else:
-                    lev_dist = levenshtein_distance(pred, true)
-                    normalized_distances.append(1.0 - (lev_dist / max_len))
-            
-            avg_norm_levenshtein_dist = np.mean(normalized_distances)
-            std_norm_levenshtein_dist = np.std(normalized_distances)
+                    avg_ssim = np.nan
+                    avg_dreamsim = np.nan
+                    avg_precision = np.nan
+                    avg_recall = np.nan
+                    avg_f1 = np.nan
+            except Exception as e:
+                print(f"Error computing Image metrics: {str(e)}")
+                avg_ssim = np.nan
+                avg_dreamsim = np.nan
+                avg_precision = np.nan
+                avg_recall = np.nan
+                avg_f1 = np.nan
         except Exception as e:
-            print(f"Error computing normalized Levenshtein distance: {str(e)}")
+            print(f"Error in program and image comparison: {str(e)}")
             avg_norm_levenshtein_dist = 0.0
             std_norm_levenshtein_dist = 0.0
-        
+            avg_crystalbleu = 0.0
+            exact_prog_match_count = 0
+            avg_ssim = np.nan
+            avg_dreamsim = np.nan
+            avg_precision = np.nan
+            avg_recall = np.nan
+            avg_f1 = np.nan
+            exact_image_match_count = 0
+
         # Clean up to free memory, especially important for training batches
         if split == 'train':
             # Force cleanup of large arrays
@@ -563,8 +632,18 @@ def prepare_compute_metrics(dataset: DatasetDict, tokenizer):
         return {
             'comp_loss': float(completion_loss),
             'prompt_loss': float(prompt_loss),
+            # Program Comparison
             'avg_norm_levenshtein_dist': float(avg_norm_levenshtein_dist),
             'std_norm_levenshtein_dist': float(std_norm_levenshtein_dist),
+            'avg_crystalbleu': float(avg_crystalbleu),
+            'exact_prog_match': int(exact_prog_match_count),
+            # Image Comparison
+            'avg_ssim': float(avg_ssim),
+            'avg_dreamsim': float(avg_dreamsim),
+            'avg_precision': float(avg_precision),
+            'avg_recall': float(avg_recall),
+            'avg_f1': float(avg_f1),
+            'exact_image_match': int(exact_image_match_count),
         }
         
     return compute_metrics
@@ -904,9 +983,9 @@ def inference(model, tokenizer, config: Config, result_dir: str, inference_type:
         print(f"Could not enable Unsloth's optimized inference: {e}")
     
     # Load the raw test dataset
-    raw_test_dataset = load_dataset(config.data.dataset_id)["test"]
+    dataset = load_dataset(config.data.dataset_id)["test"]
     if sample_fraction < 1.0:
-        raw_test_dataset = raw_test_dataset.shuffle(seed=config.training.random_seed).select(range(int(len(raw_test_dataset) * sample_fraction)))
+        dataset = dataset.shuffle(seed=config.training.random_seed).select(range(int(len(dataset) * sample_fraction)))
 
     # Apply modifications
     if config.data.mix_directions:
@@ -944,7 +1023,7 @@ def inference(model, tokenizer, config: Config, result_dir: str, inference_type:
     
     # Process in smaller batches to avoid memory issues
     batch_size = config.training.per_device_eval_batch_size
-    num_examples = len(raw_test_dataset)
+    num_examples = len(dataset)
     
     with torch.no_grad():
         for batch_start in range(0, num_examples, batch_size):
@@ -955,7 +1034,7 @@ def inference(model, tokenizer, config: Config, result_dir: str, inference_type:
                  f"(examples {batch_start}-{batch_end-1})")
             
             for i in batch_indices:
-                example = raw_test_dataset[i]
+                example = dataset[i]
                 
                 # Format prompt
                 formatted_prompt = prompt_template.format(**example)
@@ -1101,9 +1180,9 @@ def inference_from_hub(config: Config, result_dir: str, inference_type: str, sam
         print(f"Loaded model {config.model.model_id} using standard HF Transformers")
     
     # Load the raw test dataset
-    raw_test_dataset = load_dataset(config.data.dataset_id)["test"]
+    dataset = load_dataset(config.data.dataset_id)["test"]
     if sample_fraction < 1.0:
-        raw_test_dataset = raw_test_dataset.shuffle(seed=config.training.random_seed).select(range(int(len(raw_test_dataset) * sample_fraction)))
+        dataset = dataset.shuffle(seed=config.training.random_seed).select(range(int(len(dataset) * sample_fraction)))
     
     # Apply modifications
     if config.data.mix_directions:
@@ -1141,7 +1220,7 @@ def inference_from_hub(config: Config, result_dir: str, inference_type: str, sam
     
     # Process in smaller batches to avoid memory issues
     batch_size = config.training.per_device_eval_batch_size
-    num_examples = len(raw_test_dataset)
+    num_examples = len(dataset)
     
     with torch.no_grad():
         for batch_start in range(0, num_examples, batch_size):
@@ -1152,7 +1231,7 @@ def inference_from_hub(config: Config, result_dir: str, inference_type: str, sam
                  f"(examples {batch_start}-{batch_end-1})")
             
             for i in batch_indices:
-                example = raw_test_dataset[i]
+                example = dataset[i]
                 
                 # Format prompt
                 formatted_prompt = prompt_template.format(**example)
