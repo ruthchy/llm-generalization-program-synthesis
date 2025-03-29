@@ -2,13 +2,13 @@ logging:
   use_wandb: True
 
 data: 
-  dataset_id: "ruthchy/syntactic-length-generalization-logo-data-desc-ascii_35" # "ruthchy/syntactic-length-generalization-logo-image"
+  dataset_id: "ruthchy/length-gen-logo-image" # "ruthchy/length-gen-logo-ascii_35" # "ruthchy/mix-match-gen-logo-image"
   include_desc: False
   include_ascii: True
   include_sys_prompt_fn: False
   include_sys_prompt_inf: True
   # modifications yes or no
-  mix_directions: True        # whether 50% of the Programs contain right or left as direction instead of all containing left
+  mix_directions: False        # whether 50% of the Programs contain right or left as direction instead of all containing left
   image_to_ascii: True       # whether the ascii art is generated from the image or not (only needed if image dataset is used)
   ascii_parameters:
     black_threshold: 200
@@ -16,7 +16,7 @@ data:
     crop_to_size: 512 # optional: to crop image around the center (as done in PBE)
 
 model:
-  model_id: "codellama/CodeLlama-7b-Instruct-hf"
+  model_id: "xu3kev/deepseekcoder-7b-logo-pbe"
   #model_id: "deepseek-ai/deepseek-coder-6.7b-base" 
   # already finetuned on logo data => inference only models
   #model_id: "xu3kev/deepseekcoder-7b-logo-pbe" 

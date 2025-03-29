@@ -284,19 +284,7 @@ def load_model_and_tokenizer(config: Config):
     return  model, tokenizer
 
 # Step 3: Prepare the Dataset
-def prepare_dataset(config: Config, tokenizer, sample_fraction = 1.0):
-    # Only load train and validation splits
-    dataset = load_dataset(config.data.dataset_id, split=["train", "validation"])
-    dataset = DatasetDict({
-        "train": dataset[0],
-        "validation": dataset[1]
-    })
-    
-    if sample_fraction < 1.0:
-        dataset["train"] = dataset["train"].shuffle(seed=config.training.random_seed).select(range(int(len(dataset["train"]) * sample_fraction)))
-        dataset["validation"] = dataset["validation"].shuffle(seed=config.training.random_seed).select(range(int(len(dataset["validation"]) * sample_fraction)))
-
-    # Apply modifications
+def apply_modifications(dataset, config: Config):
     if config.data.mix_directions:
         from synthetic_data.__dataset_direction_modifier import DatasetDirectionModifier
         modifier = DatasetDirectionModifier(random_seed=config.training.random_seed)
@@ -313,7 +301,7 @@ def prepare_dataset(config: Config, tokenizer, sample_fraction = 1.0):
         print(summary_df)
     if config.data.image_to_ascii:
         from synthetic_data.__adapt_ascii_processor import AdaptiveASCIIProcessor
-        black_threshold = config.data.ascii_parameters.get("black_threshold", 150)
+        black_threshold = config.data.ascii_parameters.get("black_threshold", 128)
         block_size = config.data.ascii_parameters.get("block_size", None)
         crop_to_size = config.data.ascii_parameters.get("crop_to_size", None)
         ascii_processor = AdaptiveASCIIProcessor(levels=10,
@@ -321,7 +309,22 @@ def prepare_dataset(config: Config, tokenizer, sample_fraction = 1.0):
                                                  block_size=block_size,
                                                  crop_to_size=crop_to_size,drop_images=True)
         dataset = ascii_processor.process_dataset(dataset)
+    return dataset
 
+def prepare_dataset(config: Config, tokenizer, sample_fraction = 1.0):
+    # Only load train and validation splits
+    dataset = load_dataset(config.data.dataset_id, split=["train", "validation"])
+    dataset = DatasetDict({
+        "train": dataset[0],
+        "validation": dataset[1]
+    })
+    
+    if sample_fraction < 1.0:
+        dataset["train"] = dataset["train"].shuffle(seed=config.training.random_seed).select(range(int(len(dataset["train"]) * sample_fraction)))
+        dataset["validation"] = dataset["validation"].shuffle(seed=config.training.random_seed).select(range(int(len(dataset["validation"]) * sample_fraction)))
+
+    # Apply modifications
+    dataset = apply_modifications(dataset, config)
 
     def format_prompt(example, split_type, idx):
         """Formats a single example with the template"""
@@ -988,30 +991,7 @@ def inference(model, tokenizer, config: Config, result_dir: str, inference_type:
         dataset = dataset.shuffle(seed=config.training.random_seed).select(range(int(len(dataset) * sample_fraction)))
 
     # Apply modifications
-    if config.data.mix_directions:
-        from synthetic_data.__dataset_direction_modifier import DatasetDirectionModifier
-        modifier = DatasetDirectionModifier(random_seed=config.training.random_seed)
-        dataset, summary_df = modifier.replace_direction(
-            dataset=dataset,
-            source_dir="left", 
-            target_dir="right",
-            field="Program",
-            proportion=0.5,
-            return_overview=True
-        )
-        # Check if applied correctly
-        print("Direction modification summary:")
-        print(summary_df)
-    if config.data.image_to_ascii:
-        from synthetic_data.__adapt_ascii_processor import AdaptiveASCIIProcessor
-        black_threshold = config.data.ascii_parameters.get("black_threshold", 150)
-        block_size = config.data.ascii_parameters.get("block_size", None)
-        crop_to_size = config.data.ascii_parameters.get("crop_to_size", None)
-        ascii_processor = AdaptiveASCIIProcessor(levels=10,
-                                                 black_threshold=black_threshold,
-                                                 block_size=block_size,
-                                                 crop_to_size=crop_to_size,drop_images=True)
-        dataset = ascii_processor.process_dataset(dataset)
+    dataset = apply_modifications(dataset, config)
 
     results = []
     
@@ -1185,30 +1165,7 @@ def inference_from_hub(config: Config, result_dir: str, inference_type: str, sam
         dataset = dataset.shuffle(seed=config.training.random_seed).select(range(int(len(dataset) * sample_fraction)))
     
     # Apply modifications
-    if config.data.mix_directions:
-        from synthetic_data.__dataset_direction_modifier import DatasetDirectionModifier
-        modifier = DatasetDirectionModifier(random_seed=config.training.random_seed)
-        dataset, summary_df = modifier.replace_direction(
-            dataset=dataset,
-            source_dir="left", 
-            target_dir="right",
-            field="Program",
-            proportion=0.5,
-            return_overview=True
-        )
-        # Check if applied correctly
-        print("Direction modification summary:")
-        print(summary_df)
-    if config.data.image_to_ascii:
-        from synthetic_data.__adapt_ascii_processor import AdaptiveASCIIProcessor
-        black_threshold = config.data.ascii_parameters.get("black_threshold", 150)
-        block_size = config.data.ascii_parameters.get("block_size", None)
-        crop_to_size = config.data.ascii_parameters.get("crop_to_size", None)
-        ascii_processor = AdaptiveASCIIProcessor(levels=10,
-                                                 black_threshold=black_threshold,
-                                                 block_size=block_size,
-                                                 crop_to_size=crop_to_size,drop_images=True)
-        dataset = ascii_processor.process_dataset(dataset)
+    dataset = apply_modifications(dataset, config)
 
     results = []
     
