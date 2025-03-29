@@ -1,9 +1,15 @@
 data:
-  dataset_id: ruthchy/semantic-length-generalization-logo-data-desc-ascii_35
+  ascii_parameters:
+    black_threshold: 200
+    block_size: 32
+    crop_to_size: 512
+  dataset_id: ruthchy/syntactic-length-generalization-logo-data-desc-ascii_35
+  image_to_ascii: false
   include_ascii: true
   include_desc: false
   include_sys_prompt_fn: false
   include_sys_prompt_inf: true
+  mix_directions: false
 logging:
   use_wandb: true
 lora:
