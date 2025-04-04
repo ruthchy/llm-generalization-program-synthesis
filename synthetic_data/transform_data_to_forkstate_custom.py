@@ -1,9 +1,6 @@
 import re
 from datasets import load_dataset
 
-# 1. Load your dataset
-ds = load_dataset("ruthchy/semantic-length-generalization-logo-data-desc-ascii_35")
-
 # 2. Define the same regex pattern
 pattern = re.compile(
     r'^(?P<indent>\s*)embed\("""(?P<code>.*?)""",\s*locals\(\)\)',
@@ -34,22 +31,19 @@ def embed_to_fork_state(match):
     # Return a `with fork_state():` block
     return f"{indent}with fork_state():\n{transformed_code}"
 
-def transform_completion(example):
-    """Transform the program field in each example"""
-    if 'Program' in example:
-        program = example['Program']
-    elif 'completion' in example:
-        program = example['completion']
-    else:
-        return example
-        
-    new_program = pattern.sub(embed_to_fork_state, program)
-    example['Program'] = new_program
+def transform(example):
+    if "Program" in example:
+        old_prog = example["Program"]
+        new_prog = pattern.sub(embed_to_fork_state, old_prog)
+        example["Program"] = new_prog  
     return example
 
-# Optional: Push to HF (commented out)
-ds_transformed = ds.map(transform_completion)
-print(ds["train"]["Program"][8:10])
-print("\n")
-print(ds_transformed["train"]["Program"][8:10])
-# ds_transformed.push_to_hub("ruthchy/semantic-length-generalization-logo-data-desc-ascii_35_fork")
+if __name__ == "__main__":
+    # 1. Load your dataset
+    ds = load_dataset("ruthchy/length-gen-logo-image")
+
+    # 3. Apply the transformation to the dataset
+    ds_fork = ds.map(transform)
+
+    # 4. Push the transformed dataset to Hugging Face under a new name
+    ds_fork.push_to_hub("ruthchy/length-gen-logo-image-prog-fork")
