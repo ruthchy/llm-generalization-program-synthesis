@@ -61,88 +61,95 @@ class LLMCodeEvaluator:
             predictions = json.load(f)
         return predictions
     
-    def evaluate_completions(self, predictions):
+    def evaluate_completions(self, predictions, n_completions=1):
         """
         Evaluate a set of code completions.
-        
+
         Args:
-            predictions (list): List of prediction dictionaries with completions and ground truths
-            
+            predictions (list): List of prediction dictionaries with completions and ground truths.
+            n_completions (int): Number of completions per prediction.
+
         Returns:
-            list: Metrics for each completion
+            list: Metrics for each completion.
         """
         metrics = []
-        for idx, prediction in enumerate(predictions):
-            completion = prediction["completion"]
+        for prediction in predictions:
+            example_id = prediction["id"]
             ground_truth = prediction["ground_truth"]
 
-            completion_clean = self.clean_python_code(completion)
-            
-            # Check syntax
-            is_valid_syntax, format_message, details_dict = self.check_formatting(completion_clean)
-            
-            # Check execution
-            is_executable, execution_message, image = self.code_execution_pyturtle(completion_clean)
-            
-            # Image comparison for executed code
-            ssim_score = np.nan
-            pixel_similarity = np.nan
-            dreamsim_score = np.nan
-            pixel_precision = np.nan
-            pixel_recall = np.nan
-            pixel_f1 = np.nan
-            if is_executable:
-                gt_executable, _, gt_image = self.code_execution_pyturtle(ground_truth)
-                if gt_executable:
-                    image_comparison = self.compare_images(image, gt_image)
-                    ssim_score = image_comparison.get('ssim_score', np.nan)
-                    pixel_similarity = image_comparison.get('pixel_similarity', np.nan)
-                    dreamsim_score = image_comparison.get('dreamsim_score', np.nan)
-                    pixel_precision = image_comparison.get('pixel_precision', np.nan)
-                    pixel_recall = image_comparison.get('pixel_recall', np.nan)
-                    pixel_f1 = image_comparison.get('pixel_f1', np.nan)
-            
-            # Extract embed usage
-            embed_usage = details_dict.get("embed_usage", {})
-            
-            # Compile all metrics
-            result = {
-                "id": idx,
-                "syntactically_valid": is_valid_syntax,
-                "outer_valid": details_dict["outer_valid"],
-                "any_embed_call": embed_usage.get("any_embed_call", False),
-                "correctly_formed_embed": embed_usage.get("correctly_formed", False),
-                "alternative_embed_patterns": embed_usage.get("alternative_patterns", []),
-                "embed_blocks_count": len(details_dict.get("embed_blocks", [])),
-                "embed_blocks_all_valid": all(block.get("valid", False) for block in details_dict.get("embed_blocks", [])),
-                "format_message": format_message,
-                "executable": is_executable,
-                "execution_message": execution_message,
-                "ssim_score": ssim_score,
-                "pixel_similarity": pixel_similarity,
-                "dreamsim_score": dreamsim_score,
-                "pixel_precision": pixel_precision,
-                "pixel_recall": pixel_recall,
-                "pixel_f1": pixel_f1,
-                **self.check_lev_similarity(completion_clean, ground_truth),
-                **self.check_basic_similarity(completion_clean, ground_truth),
-                **self.check_crystalbleu_similarity(completion_clean, ground_truth),
-            }
-            
-            # Add AST similarity if both codes are syntactically valid
-            try:
-                import ast
-                try:
-                    ast.parse(completion_clean)
-                    ast.parse(ground_truth)
-                    result.update(self.check_ast_similarity(completion_clean, ground_truth))
-                except SyntaxError:
-                    result["ast_error"] = "Syntax error prevents AST comparison"
-            except ImportError:
-                result["ast_error"] = "AST comparison requires zss package"
-            
-            metrics.append(result)
-        
+            # Iterate over all completions (completion_1, completion_2, ..., completion_n)
+            for idx in range(1, n_completions + 1):
+                completion_key = f"completion_{idx}"
+                #print(f"\nEvaluating {completion_key} for example {example_id}\n") # debugging
+                if completion_key in prediction:
+                    completion = prediction[completion_key]
+                    completion_clean = self.clean_python_code(completion)
+
+                    # Check syntax
+                    is_valid_syntax, format_message, details_dict = self.check_formatting(completion_clean)
+
+                    # Check execution
+                    is_executable, execution_message, image = self.code_execution_pyturtle(completion_clean)
+
+                    # Image comparison for executed code
+                    ssim_score = np.nan
+                    pixel_similarity = np.nan
+                    dreamsim_score = np.nan
+                    pixel_precision = np.nan
+                    pixel_recall = np.nan
+                    pixel_f1 = np.nan
+                    if is_executable:
+                        gt_executable, _, gt_image = self.code_execution_pyturtle(ground_truth)
+                        if gt_executable:
+                            image_comparison = self.compare_images(image, gt_image)
+                            ssim_score = image_comparison.get('ssim_score', np.nan)
+                            pixel_similarity = image_comparison.get('pixel_similarity', np.nan)
+                            dreamsim_score = image_comparison.get('dreamsim_score', np.nan)
+                            pixel_precision = image_comparison.get('pixel_precision', np.nan)
+                            pixel_recall = image_comparison.get('pixel_recall', np.nan)
+                            pixel_f1 = image_comparison.get('pixel_f1', np.nan)
+
+                    # Extract embed usage
+                    embed_usage = details_dict.get("embed_usage", {})
+
+                    # Compile all metrics
+                    result = {
+                        "id": f"{example_id}_{idx}",  # Append _n to the ID
+                        "syntactically_valid": is_valid_syntax,
+                        "outer_valid": details_dict["outer_valid"],
+                        "any_embed_call": embed_usage.get("any_embed_call", False),
+                        "correctly_formed_embed": embed_usage.get("correctly_formed", False),
+                        "alternative_embed_patterns": embed_usage.get("alternative_patterns", []),
+                        "embed_blocks_count": len(details_dict.get("embed_blocks", [])),
+                        "embed_blocks_all_valid": all(block.get("valid", False) for block in details_dict.get("embed_blocks", [])),
+                        "format_message": format_message,
+                        "executable": is_executable,
+                        "execution_message": execution_message,
+                        "ssim_score": ssim_score,
+                        "pixel_similarity": pixel_similarity,
+                        "dreamsim_score": dreamsim_score,
+                        "pixel_precision": pixel_precision,
+                        "pixel_recall": pixel_recall,
+                        "pixel_f1": pixel_f1,
+                        **self.check_lev_similarity(completion_clean, ground_truth),
+                        **self.check_basic_similarity(completion_clean, ground_truth),
+                        **self.check_crystalbleu_similarity(completion_clean, ground_truth),
+                    }
+
+                    # Add AST similarity if both codes are syntactically valid
+                    try:
+                        import ast
+                        try:
+                            ast.parse(completion_clean)
+                            ast.parse(ground_truth)
+                            result.update(self.check_ast_similarity(completion_clean, ground_truth))
+                        except SyntaxError:
+                            result["ast_error"] = "Syntax error prevents AST comparison"
+                    except ImportError:
+                        result["ast_error"] = "AST comparison requires zss package"
+
+                    metrics.append(result)
+
         return metrics
     
     def generate_summary(self, metrics):
@@ -342,7 +349,7 @@ class LLMCodeEvaluator:
         else:
             print("No executable code samples to calculate similarity measures")
 
-    def evaluate_and_summarize(self, inf_dir):
+    def evaluate_and_summarize(self, inf_dir, n_completions=1):
         """
         Complete evaluation pipeline: load predictions, evaluate, and summarize.
         
@@ -355,9 +362,9 @@ class LLMCodeEvaluator:
         predictions = self.load_predictions(inf_dir)
         print(f"Loaded {len(predictions)} predictions from {inf_dir}")
         
-        metrics = self.evaluate_completions(predictions)
+        metrics = self.evaluate_completions(predictions, n_completions=n_completions)
         print(f"Evaluated {len(metrics)} completions")
-        
+            
         summary = self.generate_summary(metrics)
         self.print_summary(metrics)
         

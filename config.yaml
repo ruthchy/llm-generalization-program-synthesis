@@ -3,10 +3,11 @@ logging:
 
 data: 
   dataset_id: "ruthchy/length-gen-logo-image" # "ruthchy/length-gen-logo-ascii_35" # "ruthchy/mix-match-gen-logo-image"
+  use_forkstate: True # replace forkestate instead of embed() function 
   include_desc: False
   include_ascii: True
   include_sys_prompt_fn: False
-  include_sys_prompt_inf: True
+  include_sys_prompt_inf: False
   # modifications yes or no
   mix_directions: False        # whether 50% of the Programs contain right or left as direction instead of all containing left
   image_to_ascii: True       # whether the ascii art is generated from the image or not (only needed if image dataset is used)
@@ -19,7 +20,7 @@ model:
   model_id: "xu3kev/deepseekcoder-7b-logo-pbe"
   #model_id: "deepseek-ai/deepseek-coder-6.7b-base" 
   # already finetuned on logo data => inference only models
-  #model_id: "xu3kev/deepseekcoder-7b-logo-pbe" 
+  #model_id: "codellama/CodeLlama-7b-Instruct-hf" 
   #model_id: "ruthchy/fine-tune-CodeLlama-7b-Instruct-sem-len-generalization-logo-ascii-35-completions-only-20250206"
   #model_id: "ruthchy/fCodeLlama-7b-Inst-Length-Gen-Logo-Ascii_35" #plw 0.1 run_plw script # plw 0.1 pipline.py
   #model_id: "ruthchy/fine-tune-codeLlama-2-7b-len-gen-ascii-art"
@@ -28,11 +29,12 @@ model:
   top_k: 50 # Tobi set in his pipline.py
   temperature: 1.0 # PBE used 1.0 as temp
   max_new_tokens: 250
+  num_return_sequences: 3
 
 training:
   prompt_loss_weight: 0.1
   # pre-processing
-  max_seq_length: 2048
+  max_seq_length: 4096  # You can try 2048 (sufficient for zero-shot prompt inc. sys-prompt), 4096, and 8192 (for few-shot prompt max-seq-length > 2048)
   # training
   learning_rate: 2e-4 # 2e-4, 1e-4, 5e-5, 2e-5 recommended 2e-04=2e-4 in PBE paper (smaller lr slows learning down potentially higher accuracy)
   warmup_steps: None # 20 # 20, 100, 500, 1000 recommended 20 in PBE paper

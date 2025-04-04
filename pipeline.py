@@ -90,6 +90,7 @@ class ModelConfig:
     model_id: str
     topk_train: int
     topk_prompt: int
+    num_return_sequences: int
     top_k: int
     temperature: float
     max_new_tokens: int
@@ -101,6 +102,7 @@ class LoggingConfig:
 @dataclass
 class DataConfig:
     dataset_id: str
+    use_forkstate: bool
     include_desc: bool
     include_ascii: bool
     mix_directions: bool
@@ -181,6 +183,7 @@ class Config:
             model_id=str(config_dict["model"]["model_id"]),
             topk_train=int(config_dict["model"]["topk_train"]),
             topk_prompt=int(config_dict["model"]["topk_prompt"]),
+            num_return_sequences=int(config_dict["model"]["num_return_sequences"]),
             top_k=int(config_dict["model"]["top_k"]),
             temperature=float(config_dict["model"]["temperature"]),
             max_new_tokens=int(config_dict["model"]["max_new_tokens"])
@@ -190,6 +193,7 @@ class Config:
         )
         self.data = DataConfig(
             dataset_id=str(config_dict["data"]["dataset_id"]),
+            use_forkstate=bool(config_dict["data"]["use_forkstate"]),
             include_desc=bool(config_dict["data"]["include_desc"]),
             include_ascii=bool(config_dict["data"]["include_ascii"]),
             mix_directions=bool(config_dict["data"]["mix_directions"]),
@@ -283,10 +287,18 @@ def load_model_and_tokenizer(config: Config):
             bias="none",
             use_gradient_checkpointing=True)
    
+    print(f"Model's max position embeddings: {model.config.max_position_embeddings}")
     return  model, tokenizer
 
 # Step 3: Prepare the Dataset
 def apply_modifications(dataset, config: Config):
+    if config.data.use_forkstate:
+        # Import the transformation logic from transform_data_to_forkstate.py
+        from synthetic_data.transform_data_to_forkstate_custom import pattern, embed_to_fork_state, transform
+
+        # Apply the transformation to the dataset
+        dataset = dataset.map(transform, desc="Transforming Program column with fork_state")
+
     if config.data.mix_directions:
         from synthetic_data.__dataset_direction_modifier import DatasetDirectionModifier
         modifier = DatasetDirectionModifier(random_seed=config.training.random_seed)
@@ -952,10 +964,25 @@ def clear_training_memory(dataset=None):
     print("Cleared training data from memory")
 
 def init_wandb_for_inf(config: Config, model_id: str, inference_type: str):
+    tags = [model_id, inference_type, "inference"]
+    # Add "zero-shot" or "few-shot" based on topk_prompt
+    if config.model.topk_prompt == 0:
+        tags.append("zero-shot")
+    elif config.model.topk_prompt > 0:
+        tags.append("few-shot")
+    # Add "with-forkstate" if use_forkstate is True
+    if config.data.use_forkstate:
+        tags.append("with-forkstate")
+    else:
+        tags.append("with-embed()")
+    # Add the search budget if used (num_return_sequences > 0)
+    if config.model.num_return_sequences > 0:
+        tags.append(f"{config.model.num_return_sequences}_samples")
+
     wandb.init(
         project="master-thesis--inference", 
         name=f"{model_id}-{inference_type}",
-        tags=[model_id, inference_type, "inference"],
+        tags=tags,
         config={
             "model_id": config.model.model_id,
             "include_sys_prompt": config.prompt.include_sys_prompt_inf,
@@ -1045,6 +1072,7 @@ def inference(model, tokenizer, config: Config, result_dir: str, inference_type:
                     max_new_tokens=config.model.max_new_tokens,
                     temperature=config.model.temperature,
                     top_k=config.model.top_k,
+                    num_return_sequences=config.model.num_return_sequences,
                     do_sample=True
                 )
                 
@@ -1066,10 +1094,13 @@ def inference(model, tokenizer, config: Config, result_dir: str, inference_type:
                 result = {
                     "id": i,
                     "prompt": chat_formatted_prompt,
-                    "completion": completion,
+                    #"completion": completion,
                     "ground_truth": ground_truth,
                 }
                 
+                for idx, completion in enumerate(completions, start=1):
+                    result[f"completion_{idx}"] = completion
+
                 results.append(result)
             
             if results:
@@ -1185,6 +1216,8 @@ def inference_from_hub(config: Config, result_dir: str, inference_type: str, sam
     # Process in smaller batches to avoid memory issues
     batch_size = config.training.per_device_eval_batch_size
     num_examples = len(dataset)
+
+    example_id = 0  # Initialize a global counter for unique IDs
     
     with torch.no_grad():
         for batch_start in range(0, num_examples, batch_size):
@@ -1235,54 +1268,66 @@ def inference_from_hub(config: Config, result_dir: str, inference_type: str, sam
                     add_generation_prompt=True
                 )
                 #print(f"Chat formatted prompt: {chat_formatted_prompt}") # Debug
-                
+
                 # Generate with the model
                 tokenized_input = tokenizer(chat_formatted_prompt, return_tensors="pt", padding=True)
                 input_ids = tokenized_input.input_ids.to(model.device)
                 attention_mask = tokenized_input.attention_mask.to(model.device)
-                
+
                 generated_ids = model.generate(
                     input_ids=input_ids,
                     attention_mask=attention_mask,
                     max_new_tokens=config.model.max_new_tokens,
                     temperature=config.model.temperature,
                     top_k=config.model.top_k,
+                    num_return_sequences=config.model.num_return_sequences,
                     do_sample=True
                 )
-                
+
                 # Decode generation
-                generated_text = tokenizer.decode(generated_ids[0], skip_special_tokens=True)
-                
-                # Extract the completion part - adapting to different model formats
-                if "<|assistant|>" in generated_text:
-                    # Extract between assistant token and end token
-                    completion = generated_text.split("<|assistant|>")[-1].split("<|end|>")[0].strip()
-                elif "[/INST]" in generated_text:
-                    # Llama format
-                    completion = generated_text.split("[/INST]")[-1].strip()
-                elif "assistant:" in generated_text.lower():
-                    # Generic assistant format
-                    completion = generated_text.split("assistant:", 1)[-1].strip()
-                else:
-                    # Fallback - just take everything after the user's last message
-                    user_content = messages[-1]["content"]
-                    if user_content in generated_text:
-                        completion = generated_text.split(user_content, 1)[-1].strip()
-                    else:
-                        completion = generated_text  # Last resort
-                
-                # Get ground truth
-                ground_truth = example["Program"]
-                
-                # Store result for this example (no evaluation metrics)
-                result = {
-                    "id": i,
-                    "prompt": chat_formatted_prompt,
-                    "completion": completion,
-                    "ground_truth": ground_truth
-                }
-                
-                results.append(result)
+                decoded_outputs = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
+
+                # Group outputs per input
+                grouped_outputs = [
+                    decoded_outputs[i:i + config.model.num_return_sequences]
+                    for i in range(0, len(decoded_outputs), config.model.num_return_sequences)
+                ]
+
+                for example_idx, completions in enumerate(grouped_outputs):
+                    cleaned_completions = []
+
+                    for i, comp in enumerate(completions):
+                        # Extract the completion part - adapting to different model formats
+                        if "<|assistant|>" in comp:
+                            completion = comp.split("<|assistant|>")[-1].split("<|end|>")[0].strip()
+                        elif "[/INST]" in comp:
+                            completion = comp.split("[/INST]")[-1].strip()
+                        elif "assistant:" in comp.lower():
+                            completion = comp.split("assistant:", 1)[-1].strip()
+                        else:
+                            user_content = messages[-1]["content"]
+                            if user_content in comp:
+                                completion = comp.split(user_content, 1)[-1].strip()
+                            else:
+                                completion = comp.strip()  # Fallback
+
+                        cleaned_completions.append(completion)
+
+                    # Get ground truth
+                    ground_truth = example["Program"]
+
+                    # Store results
+                    result = {
+                        "id": example_id,  # Use the global counter
+                        "prompt": chat_formatted_prompt,
+                        "ground_truth": ground_truth
+                    }
+
+                    for idx, comp in enumerate(cleaned_completions, start=1):
+                        result[f"completion_{idx}"] = comp
+
+                    results.append(result)
+                    example_id += 1  # Increment the global counter
             
             if results:
                 with open(os.path.join(inf_dir, "predictions.json"), "w") as f:
@@ -1331,7 +1376,7 @@ def inference_from_hub(config: Config, result_dir: str, inference_type: str, sam
     return results, inf_dir
 
 # Step 9: Evaluation
-def evaluation(inf_dir: str):
+def evaluation(inf_dir: str, n_completions: int):
     """
     Evaluate model predictions using the LLMCodeEvaluator class.
     
@@ -1350,7 +1395,7 @@ def evaluation(inf_dir: str):
     
     try:
         # Run the evaluation pipeline
-        metrics, summary = evaluator.evaluate_and_summarize(inf_dir)
+        metrics, summary = evaluator.evaluate_and_summarize(inf_dir, n_completions=n_completions)
         
         # Save the evaluation results
         with open(os.path.join(inf_dir, "evaluation.json"), "w") as f:
@@ -1397,7 +1442,7 @@ if __name__ == "__main__":
         else:
             # Inference with Model from Hub
             results, inf_dir = inference_from_hub(config, result_dir, inference_type=f"test_hub_{timestamp}", sample_fraction = sample_fraction)
-        metrics, summary = evaluation(inf_dir)
+        metrics, summary = evaluation(inf_dir, n_completions=config.model.num_return_sequences)
         print("Pipeline completed successfully! 🎉")
 
     except Exception as e:
