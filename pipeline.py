@@ -7,12 +7,14 @@ Steps:
     5. Training Preperation
     6. Training the model with custom PLW-Trainer
     7. Preparing Inference
-    8.1 Inference using the recently fine-tuned model
-    8.2 Inference using model from hub
-    9. Evaluation                                       # not yet implemented
-    
+    8.1 Inference using the recently fine-tuned model with zero-shot prompting only
+    8.2 Inference using model from hub with zero-shot (topk_prompt == 0) or few-shot prompting (topk_prompt > 0)
+    9. Evaluation
+
+Note: If zero-shot or few-shot prompting is used, deppends on the value of topk_prompt in the config.yaml file. But only the def inference_from_hub() function can handle topk_prompt > 0.
+
 Run script in conda thesis_env (can be gererated using the requirements.txt file)
-python pipeline.py  --fine_tune  --sample_fraction 0.1  --config config.yaml
+python pipeline_v5.py  --fine_tune  --sample_fraction 0.1  --config config_v5.yaml
 
 python pipeline.py 
     --fine_tune       # if the flag is set the model will be fine-tune the model and then do inf and eval if it loads a model and starts with inf followed by eval 
@@ -1127,8 +1129,6 @@ def inference_from_hub(config: Config, result_dir: str, inference_type: str, sam
         inference_type: Type of inference being performed
         sample_fraction: Fraction of test dataset to use
     """
-    print(f"DEBUG - Temperature from config: {config.model.temperature}, type: {type(config.model.temperature)}")
-
     # Initialize WandB for inference
     if config.logging.use_wandb:
         hub_model_name = config.model.model_id.split("/")[-1]
@@ -1144,6 +1144,7 @@ def inference_from_hub(config: Config, result_dir: str, inference_type: str, sam
         from unsloth import FastLanguageModel
         model, tokenizer = FastLanguageModel.from_pretrained(
             config.model.model_id,
+            max_seq_length=config.training.max_seq_length,  # allows longer token seq. needed for few-shot prompting (as the default set by unsloth)
             load_in_4bit=True,
         )
         model = FastLanguageModel.for_inference(model)
@@ -1166,6 +1167,12 @@ def inference_from_hub(config: Config, result_dir: str, inference_type: str, sam
     
     # Apply modifications
     dataset = apply_modifications(dataset, config)
+
+    if config.model.top_k > 0:  # few-shot inference
+        dataset_ex = load_dataset(config.data.dataset_id)["train"]
+        dataset_ex = apply_modifications(dataset_ex, config)
+    else:                       # zero-shot inference
+        dataset_ex = None
 
     results = []
     
@@ -1197,6 +1204,28 @@ def inference_from_hub(config: Config, result_dir: str, inference_type: str, sam
                 messages = []
                 if config.prompt.include_sys_prompt_inf:
                     messages.append({"role": "system", "content": config.prompt._system_prompt})
+                
+                # Randomly select few-shot examples without replacement
+                used_examples = set() # tracking of already sampled examples
+                if dataset_ex and config.model.topk_prompt > 0:
+                    dataset_shuffled = dataset_ex.shuffle(seed=config.training.random_seed)
+                    available_indices = list(range(len(dataset_shuffled)))
+                    sampled_examples = []
+                    for _ in range(config.model.topk_prompt):
+                        remaining_indices = [idx for idx in available_indices if idx not in used_examples]
+                        if remaining_indices:
+                            selected_idx = random.choice(remaining_indices)
+                            sampled_examples.append(dataset_shuffled[selected_idx])
+                            used_examples.add(selected_idx)
+                        else:
+                            print("Not enough examples in the train Dataset to ensure that no example has been used priviously")
+                            break
+                    for ex in sampled_examples:
+                        train_prompt = prompt_template.format(**ex)
+                        train_completion = ex["Program"]
+                        messages.append({"role": "user", "content": train_prompt})
+                        messages.append({"role": "assistant", "content": train_completion})
+                
                 messages.append({"role": "user", "content": formatted_prompt})
                 
                 # Apply chat template for consistent formatting
@@ -1205,6 +1234,7 @@ def inference_from_hub(config: Config, result_dir: str, inference_type: str, sam
                     tokenize=False,
                     add_generation_prompt=True
                 )
+                #print(f"Chat formatted prompt: {chat_formatted_prompt}") # Debug
                 
                 # Generate with the model
                 tokenized_input = tokenizer(chat_formatted_prompt, return_tensors="pt", padding=True)
