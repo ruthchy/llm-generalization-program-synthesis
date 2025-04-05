@@ -14,10 +14,18 @@ Steps:
 Note: If zero-shot or few-shot prompting is used, deppends on the value of topk_prompt in the config.yaml file. But only the def inference_from_hub() function can handle topk_prompt > 0.
 
 Run script in conda thesis_env (can be gererated using the requirements.txt file)
-python pipeline_v5.py  --fine_tune  --sample_fraction 0.1  --config config_v5.yaml
+To fine-tune the model, conduct inference and evaluate the results, run the following command:
+    python pipeline.py  --fine_tune  --sample_fraction 1.0  --config config.yaml
+To run inference with a model from the hub, use:
+    python pipeline.py  --inference_hub_model  --sample_fraction 1.0  --config config.yaml
+To only run the evaluation on already generated inference results, use:
+    python pipeline.py  --eval_inf_dir <directory>  --config <directory>/config.yaml
 
 python pipeline.py 
-    --fine_tune       # if the flag is set the model will be fine-tune the model and then do inf and eval if it loads a model and starts with inf followed by eval 
+    --fine_tune       # if the flag is set the model will be fine-tune the model and then do inf and eval if it loads a model and starts with inf followed by eval
+    --inference_hub_model  # if the flag is set the model will load a model from the hub and do inference and eval
+    --eval_inf_dir <directory>  # non of the above flags is set and the directory to already generated inference results is given to evaluate
+    --config <directory>config.yaml  # Path to config file
     --sample_fraction 1.0   # the entire dataset is used or by setting the number < 1 a random sample of the dataset is used
 '''
 ############################################################################################################
@@ -31,14 +39,28 @@ os.environ['UNSLOTH_RETURN_LOGITS'] = '1'  # new
 import argparse
 parser = argparse.ArgumentParser(description='Run fine-tuning and/or inference pipeline')
 parser.add_argument('--fine_tune', action='store_true', help='Whether to fine-tune the model')
+parser.add_argument('--inference_hub_model', action='store_true', help='Whether to run inference with a model from the hub')
+parser.add_argument('--eval_inf_dir', type=str, help='Whether to only run the evaluation on inference results. Provide the directory where the predictions.json file is located')
 parser.add_argument('--sample_fraction', type=float, default=1.0, help='Fraction of dataset to use (for debugging)')
 parser.add_argument('--config', type=str, default="config.yaml", help='Path to config file')
 args = parser.parse_args()
         
 fine_tune = args.fine_tune
+inference_hub_model = args.inference_hub_model
+inf_dir = args.eval_inf_dir
 sample_fraction = args.sample_fraction
 config_file = args.config
-print(f"Running with fine_tune={fine_tune}, sample_fraction={sample_fraction}, config={config_file}")
+
+# Ensure mutual exclusivity of fine_tune, inference_hub_model, and eval_inf_dir
+if sum([fine_tune, inference_hub_model, bool(inf_dir)]) != 1:
+    raise ValueError("You must specify exactly one of the following: --fine_tune, --inference_hub_model, or --eval_inf_dir.")
+
+if fine_tune:
+    print(f"Fine-tuning model with sample_fraction={sample_fraction} and {config_file}")
+elif inference_hub_model:
+    print(f"Running inference with model from hub with sample_fraction={sample_fraction} and {config_file}")
+else:
+    print(f"Running the evaluation on inference results in {inf_dir} and {config_file}")
 
 # Step 1: Load the YAML Configuration
 import yaml
@@ -1439,9 +1461,10 @@ if __name__ == "__main__":
             clear_training_memory(dataset) # Free up memory after training
             # Inference after Finetuning
             results, inf_dir = inference(model, tokenizer, config, result_dir, inference_type=f"test_{timestamp}", sample_fraction = sample_fraction)
-        else:
+        elif inference_hub_model:
             # Inference with Model from Hub
             results, inf_dir = inference_from_hub(config, result_dir, inference_type=f"test_hub_{timestamp}", sample_fraction = sample_fraction)
+        # Evaluation
         metrics, summary = evaluation(inf_dir, n_completions=config.model.num_return_sequences)
         print("Pipeline completed successfully! 🎉")
 

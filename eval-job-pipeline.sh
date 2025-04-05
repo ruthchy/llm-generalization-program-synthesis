@@ -1,9 +1,9 @@
 #!/bin/bash
 
-#SBATCH --job-name=ft-job-pipeline.sh
+#SBATCH --job-name=inf-job-pipeline.sh
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=5
-#SBATCH --mem=10G
+#SBATCH --mem=30G
 #SBATCH --mail-user=priscilla.ruth.chyrva@students.uni-mannheim.de
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --gres=gpu:1
@@ -12,7 +12,7 @@
 #SBATCH --partition=gpu-vram-48gb
 
 # Load necessary modules (if any)
-module load cuda/12.8
+module load cuda/12.8 #12.1
 
 # Activate conda environment
 source ~/miniconda3/etc/profile.d/conda.sh
@@ -20,6 +20,5 @@ conda activate thesis_env
 
 # Run your Python script
 python pipeline.py \
-    --fine_tune \
-    --sample_fraction 1.0 \
-    --config "config.yaml"
+    --eval_inf_dir "" \     # Directory, where the prediction.json is saved
+    --config "config.yaml"  # Path to the config file wich was used when generating the prediction.json

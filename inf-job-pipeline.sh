@@ -19,7 +19,7 @@ source ~/miniconda3/etc/profile.d/conda.sh
 conda activate thesis_env
 
 # Run your Python script
-python pipeline_v3.py \
-    --fine_tune False \
+python pipeline.py \
+    --inference_hub_model \
     --sample_fraction 1.0 \
-    --config "config_v3_fn.yaml"
+    --config "config.yaml"
