@@ -22,7 +22,7 @@ This repository contains scripts to generate synthetic datasets for different ge
   - `__parser_pyturtle_pc.py`: Parser for working with PyTurtle for image generation.
   - `__adapt_ascii_processor.py`: Applies adaptive ASCII transformation.
   - `__dataset_direction_modifier.py`: Modifies a percentage of programs to use right() instead of left() (or vice versa).
-  - `transform_data_to_forkstate_custom.py`: Can be used to transfrom the Program column in datasets to contain *with forke-state:* instead of the *embed(…, locals()) function*. (It is slightly altered version of the script: `external/dependencies/finetuning/transform_data_to_forkstate.py`)
+  - `transform_data_to_forkstate_custom.py`: Can be used to transfrom the Program column in datasets to contain *with forke-state:* instead of the *embed(…, locals()) function* and vice versa. (It is slightly altered version of the script: `external/dependencies/finetuning/transform_data_to_forkstate.py`)
 
 - **Archived**
   - `main.ipynb`: The original notebook for dataset generation (now archived).
