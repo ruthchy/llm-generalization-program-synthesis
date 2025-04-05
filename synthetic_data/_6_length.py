@@ -1,10 +1,10 @@
 import re
 
-class SyntacticLength:
+class Length:
     def __init__(self):
         pass
 
-    def calc_syntactic_length(self, program):
+    def calc_length(self, program):
         output = []
         stack = [] # Stack to manage nested counts
         

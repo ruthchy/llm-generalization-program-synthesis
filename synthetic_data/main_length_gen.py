@@ -14,8 +14,8 @@ The script performs the following steps:
 5. Process ASCII (optional): (for 10000 samples under 15 min)
     --process-ascii: Flag to process ASCII data for both datasets.
     --blocks: Number of blocks for ASCII processing (default is 35).
-6. Split data by syntactic or semantic length (optional):
-    --split-by: "syntactic" or "semantic" to specify the type of split.
+6. Split data by length or execution time length (optional):
+    --split-by: "length" or "execution_time" to specify the type of split.
 7. Save data to Hugging Face Hub (optional):
     --save-hf: Flag to save data to Hugging Face Hub.
 
@@ -33,14 +33,14 @@ Usage:
             --interpreter-version 1 \
         --process-ascii \
             --blocks 35 \
-        --split-by syntactic \
+        --split-by length \
         --save-hf
 
     # Or use existing synthetic data:
     python synthetic_data/main_length_gen.py \
         --synthetic-path synthetic_data/data/my_synthetic_data.jsonl \
         --process-ascii \
-        --split-by semantic \
+        --split-by execution_time \
         --save-hf
 '''
 import argparse
@@ -53,8 +53,8 @@ from _3_executable_logo_primitives import ReGALLOGOPrimitives
 from _4_logo_graphic_generator_v1 import PseudoProgramInterpreter as PseudoProgramInterpreter_v1
 from _4_logo_graphic_generator_v2 import PseudoProgramInterpreter as PseudoProgramInterpreter_v2
 from _5_ascii_processor import ASCIIProcessor
-from _6_syntactic_length import SyntacticLength
-from _6_semantic_length import ExecutionTimeLength
+from _6_length import Length
+from archive._6_execution_time_length import ExecutionTimeLength
 from datasets import Dataset, DatasetDict
 
 # Global variable for blocks
@@ -148,28 +148,28 @@ def process_ascii(data, output_dir):
 
 def split_data_by_length(df_all_syn, split_by):
     """
-    Split data based on specified length metric (syntactic or semantic).
+    Split data based on specified length metric (length or execution_time).
     
     Args:
         df_all_syn (DataFrame): Combined dataset to split
-        split_by (str): "syntactic" or "semantic" to specify the type of split
+        split_by (str): "length" or "execution_time" to specify the type of split
         
     Returns:
         tuple: (train_data, validation_data, test_data) DataFrames
     """
     # Apply appropriate length calculation based on split type
-    if split_by == "syntactic":
-        print("Calculating syntactic lengths...")
-        syn_length = SyntacticLength()
-        df_all_syn['Length'] = df_all_syn['Program'].apply(syn_length.calc_syntactic_length)
+    if split_by == "length":
+        print("Calculating length lengths...")
+        syn_length = Length()
+        df_all_syn['Length'] = df_all_syn['Program'].apply(syn_length.calc_length)
         length_column = 'Length'
-    elif split_by == "semantic":
-        print("Calculating semantic lengths...")
+    elif split_by == "execution_time":
+        print("Calculating execution time lengths...")
         sem_length = ExecutionTimeLength(timeout=5, num_runs=1)
         df_all_syn['Length'] = df_all_syn['Program'].apply(sem_length.calc_execution_time)
         length_column = 'Length'
     else:
-        raise ValueError(f"Invalid split_by value: {split_by}. Must be 'syntactic' or 'semantic'.")
+        raise ValueError(f"Invalid split_by value: {split_by}. Must be 'length' or 'execution_time'.")
     
     # Sort by the calculated length
     df_all_syn = df_all_syn.sort_values(by=length_column).reset_index(drop=True)
@@ -291,7 +291,7 @@ if __name__ == "__main__":
     parser.add_argument("--interpreter-version", type=int, default=1, help="Interpreter version (1 or 2).")
     parser.add_argument("--process-ascii", action="store_true", help="Process ASCII data for both datasets.")
     parser.add_argument("--blocks", type=int, default=BLOCKS, help="Number of blocks for ASCII processing.")
-    parser.add_argument("--split-by", choices=["syntactic", "semantic"], help="Split data by syntactic or semantic length.")
+    parser.add_argument("--split-by", choices=["length", "execution_time"], help="Split data by length or execution_time length.")
     parser.add_argument("--save-hf", action="store_true", help="Save data to Hugging Face Hub.")
     args = parser.parse_args()
     BLOCKS = args.blocks  # Update global BLOCKS variable if specified

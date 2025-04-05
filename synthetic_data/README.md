@@ -5,7 +5,7 @@ This repository contains scripts to generate synthetic datasets for different ge
 ## Structure
 
 - **Main Generation Scripts**
-  - `main_length_gen.py`: Generates and splits datasets based on length generalization criteria (syntactic or semantic). Creates data with Description, Program, and ASCII-Art columns.
+  - `main_length_gen.py`: Generates and splits datasets based on length generalization criteria (length or execution time (later is archived)). Creates data with Description, Program, and ASCII-Art columns.
   - `main_mix_match_gen.py`: Generates and splits datasets based on mix-match generalization criteria. Creates data with Description, Program, and Image columns.
 
 - **Core Components**
@@ -15,17 +15,18 @@ This repository contains scripts to generate synthetic datasets for different ge
   - `_4_logo_graphic_generator_v1.py`: First version of the graphic generator.
   - `_4_logo_graphic_generator_v2.py`: Second version of the graphic generator.
   - `_5_ascii_processor.py`: Processes images into ASCII art representations.
-  - `_6_semantic_length.py`: Calculates semantic length (execution time) of programs.
-  - `_6_syntactic_length.py`: Calculates syntactic length of programs.
+  - `_6_length.py`: Calculates syntactic length of programs.
 
 - **Utility Scripts**
   - `pyturtle_adapt_ascii.py`: Transforms datasets with ASCII-Art columns to include Image columns instead.
   - `__parser_pyturtle_pc.py`: Parser for working with PyTurtle for image generation.
   - `__adapt_ascii_processor.py`: Applies adaptive ASCII transformation.
   - `__dataset_direction_modifier.py`: Modifies a percentage of programs to use right() instead of left() (or vice versa).
+  - `transform_data_to_forkstate_custom.py`: Can be used to transfrom the Program column in datasets to contain *with forke-state:* instead of the *embed(…, locals()) function*. (It is slightly altered version of the script: `external/dependencies/finetuning/transform_data_to_forkstate.py`)
 
 - **Archived**
   - `main.ipynb`: The original notebook for dataset generation (now archived).
+  - `_6_execution_time_length.py`: Calculates execution time of programs as a sort of length measure.
   - `forkstate_test.ipynb` and `synthetic_data_forkstate_test.ipynb`: Experimental notebooks for the forkstate approach.
 
 ## Usage
