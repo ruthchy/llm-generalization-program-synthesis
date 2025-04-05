@@ -319,8 +319,18 @@ def load_model_and_tokenizer(config: Config):
 # Step 3: Prepare the Dataset
 def apply_modifications(dataset, config: Config):
     if config.data.use_forkstate:
-        # Import the transformation logic from transform_data_to_forkstate.py
-        from synthetic_data.transform_data_to_forkstate_custom import pattern, embed_to_fork_state, transform
+        # Import the transformation logic
+        from synthetic_data.transform_data_to_forkstate_custom import transform_program
+
+        def transform(example):
+            if "Program" in example:
+                # Transform the Program column to use fork_state
+                example["Program"] = transform_program(
+                    example["Program"],
+                    embed_to_fork=True,  # True: embed() => with fork_state()
+                    fork_to_embed=False
+                )
+            return example
 
         # Apply the transformation to the dataset
         dataset = dataset.map(transform, desc="Transforming Program column with fork_state")
@@ -1225,7 +1235,7 @@ def inference_from_hub(config: Config, result_dir: str, inference_type: str, sam
     # Apply modifications
     dataset = apply_modifications(dataset, config)
 
-    if config.model.top_k > 0:  # few-shot inference
+    if config.model.topk_prompt > 0:  # few-shot inference
         dataset_ex = load_dataset(config.data.dataset_id)["train"]
         dataset_ex = apply_modifications(dataset_ex, config)
     else:                       # zero-shot inference
@@ -1402,7 +1412,7 @@ def inference_from_hub(config: Config, result_dir: str, inference_type: str, sam
     return results, inf_dir
 
 # Step 9: Evaluation
-def evaluation(inf_dir: str, n_completions: int):
+def evaluation(inf_dir: str, n_completions: int, fork_state: bool = False):
     """
     Evaluate model predictions using the LLMCodeEvaluator class.
     
@@ -1421,7 +1431,7 @@ def evaluation(inf_dir: str, n_completions: int):
     
     try:
         # Run the evaluation pipeline
-        metrics, summary = evaluator.evaluate_and_summarize(inf_dir, n_completions=n_completions)
+        metrics, summary = evaluator.evaluate_and_summarize(inf_dir, n_completions=n_completions, fork_state=fork_state)
         
         # Save the evaluation results
         with open(os.path.join(inf_dir, "evaluation.json"), "w") as f:
@@ -1469,7 +1479,7 @@ if __name__ == "__main__":
             # Inference with Model from Hub
             results, inf_dir = inference_from_hub(config, result_dir, inference_type=f"test_hub_{timestamp}", sample_fraction = sample_fraction)
         # Evaluation
-        metrics, summary = evaluation(inf_dir, n_completions=config.model.num_return_sequences)
+        metrics, summary = evaluation(inf_dir, n_completions=config.model.num_return_sequences, fork_state=config.data.use_forkstate)
         print("Pipeline completed successfully! 🎉")
 
     except Exception as e:

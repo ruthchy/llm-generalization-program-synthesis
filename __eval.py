@@ -11,6 +11,7 @@ from PIL import Image
 import matplotlib.pyplot as plt
 from Levenshtein import distance as levenshtein_distance
 from crystalbleu import corpus_bleu
+from synthetic_data.transform_data_to_forkstate_custom import transform_program
 try: 
     import dreamsim
     import torch
@@ -61,7 +62,7 @@ class LLMCodeEvaluator:
             predictions = json.load(f)
         return predictions
     
-    def evaluate_completions(self, predictions, n_completions=1):
+    def evaluate_completions(self, predictions, n_completions=1, fork_state=False):
         """
         Evaluate a set of code completions.
 
@@ -76,6 +77,8 @@ class LLMCodeEvaluator:
         for prediction in predictions:
             example_id = prediction["id"]
             ground_truth = prediction["ground_truth"]
+            if fork_state:
+                ground_truth = transform_program(ground_truth, embed_to_fork=False, fork_to_embed=True)
 
             # Iterate over all completions (completion_1, completion_2, ..., completion_n)
             for idx in range(1, n_completions + 1):
@@ -83,6 +86,8 @@ class LLMCodeEvaluator:
                 #print(f"\nEvaluating {completion_key} for example {example_id}\n") # debugging
                 if completion_key in prediction:
                     completion = prediction[completion_key]
+                    if fork_state:
+                        completion = transform_program(completion, embed_to_fork=False, fork_to_embed=True)
                     completion_clean = self.clean_python_code(completion)
 
                     # Check syntax
@@ -349,7 +354,7 @@ class LLMCodeEvaluator:
         else:
             print("No executable code samples to calculate similarity measures")
 
-    def evaluate_and_summarize(self, inf_dir, n_completions=1):
+    def evaluate_and_summarize(self, inf_dir, n_completions=1, fork_state=False):
         """
         Complete evaluation pipeline: load predictions, evaluate, and summarize.
         
@@ -362,7 +367,7 @@ class LLMCodeEvaluator:
         predictions = self.load_predictions(inf_dir)
         print(f"Loaded {len(predictions)} predictions from {inf_dir}")
         
-        metrics = self.evaluate_completions(predictions, n_completions=n_completions)
+        metrics = self.evaluate_completions(predictions, n_completions=n_completions, fork_state=fork_state)
         print(f"Evaluated {len(metrics)} completions")
             
         summary = self.generate_summary(metrics)
