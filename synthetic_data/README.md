@@ -33,7 +33,7 @@ This repository contains scripts to generate synthetic datasets for different ge
 
 
 ```bash
-# Generate a dataset split by syntactic length
+# Generate a dataset split by length
 python synthetic_data/main_length_gen.py \
     --generate-synthetic \
     --target-size 10000 \
@@ -41,14 +41,14 @@ python synthetic_data/main_length_gen.py \
     --interpreter-version 1 \
     --process-ascii \
     --blocks 35 \
-    --split-by syntactic \
+    --split-by length \
     --save-hf
 
-# Using existing synthetic data and splitting by semantic length
+# Using existing synthetic data and splitting by execution time length
 python synthetic_data/main_length_gen.py \
     --synthetic-path synthetic_data/data/my_synthetic_data.jsonl \  # optional: if not set default synthetic data (synthetic_data_20250120143151.jsonl) is used 
     --process-ascii \
-    --split-by semantic \
+    --split-by execution_time \
     --save-hf
 
 # Generate the dataset by mix and match generalization criterion
