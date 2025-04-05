@@ -7,11 +7,15 @@ Steps:
     5. Training Preperation
     6. Training the model with custom PLW-Trainer
     7. Preparing Inference
-    8.1 Inference using the recently fine-tuned model with zero-shot prompting only
-    8.2 Inference using model from hub with zero-shot (topk_prompt == 0) or few-shot prompting (topk_prompt > 0)
+    8.1 Inference using the recently fine-tuned model with zero-shot prompting and one answer per-prompt (num_return_sequences == 0) only
+    8.2 Inference using model from hub with zero-shot (topk_prompt == 0) or few-shot prompting (topk_prompt > 0) and with a search budget > 1 (num_return_sequences > 1)
     9. Evaluation
 
-Note: If zero-shot or few-shot prompting is used, deppends on the value of topk_prompt in the config.yaml file. But only the def inference_from_hub() function can handle topk_prompt > 0.
+Note: 
+- The function inference_from_hub() is used to run inference with a model from the hub. Beside this it has two functionalities which are not implemented in the inference(): 
+    - It can handle both zero-shot and few-shot prompting, depending on the value of topk_prompt in the config.yaml file.
+    - Also, it can handle if the num_return_sequences > 1, meaning the llm generates n completions to each given prompt.
+
 
 Run script in conda thesis_env (can be gererated using the requirements.txt file)
 To fine-tune the model, conduct inference and evaluate the results, run the following command:
