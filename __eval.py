@@ -73,6 +73,8 @@ class LLMCodeEvaluator:
         Returns:
             list: Metrics for each completion.
         """
+        print(f"[DEBUG] evaluate_completions() called with n_completions={n_completions}, fork_state={fork_state}")
+
         metrics = []
         for prediction in predictions:
             example_id = prediction["id"]
@@ -81,11 +83,15 @@ class LLMCodeEvaluator:
                 ground_truth = transform_program(ground_truth, embed_to_fork=False, fork_to_embed=True)
 
             # Iterate over all completions (completion_1, completion_2, ..., completion_n)
+            print(f"[DEBUG] Evaluating example_id={example_id} with available completions: {list(prediction.keys())}")
+
             for idx in range(1, n_completions + 1):
                 completion_key = f"completion_{idx}"
                 #print(f"\nEvaluating {completion_key} for example {example_id}\n") # debugging
                 if completion_key in prediction:
                     completion = prediction[completion_key]
+                    print(f"[DEBUG] Evaluating {completion_key} for example_id={example_id}")
+
                     if fork_state:
                         completion = transform_program(completion, embed_to_fork=False, fork_to_embed=True)
                     completion_clean = self.clean_python_code(completion)
@@ -153,20 +159,15 @@ class LLMCodeEvaluator:
                     except ImportError:
                         result["ast_error"] = "AST comparison requires zss package"
 
+                    print(f"[DEBUG] Appending metrics for {completion_key} of example_id={example_id}")
                     metrics.append(result)
-
+                else:
+                    print(f"[DEBUG] {completion_key} not found for example_id={example_id}")
+                    
+        print(f"[DEBUG] Total metrics compiled: {len(metrics)}")
         return metrics
     
     def generate_summary(self, metrics):
-        """
-        Generate summary statistics from metrics.
-        
-        Args:
-            metrics (list): List of metrics for each completion
-            
-        Returns:
-            dict: Summary statistics
-        """
         summary = {
             "total_samples": len(metrics),
             "valid_code": {
@@ -188,69 +189,65 @@ class LLMCodeEvaluator:
                 "executable_count": sum(1 for m in metrics if m["executable"])
             }
         }
-        
+
         # Add AST similarity data
         ast_metrics = [m for m in metrics if "normalized_ast_similarity" in m]
         if ast_metrics:
             summary["similarity"]["avg_ast_similarity"] = sum(m["normalized_ast_similarity"] for m in ast_metrics) / len(ast_metrics)
             summary["similarity"]["ast_available_count"] = len(ast_metrics)
-        
+
         # Add image comparison data
-        executable_with_ssim = [m for m in metrics if m["executable"] and m.get("ssim_score") is not None]
-        if executable_with_ssim:
-            summary["execution"]["avg_ssim"] = sum(m["ssim_score"] for m in executable_with_ssim) / len(executable_with_ssim)
-            summary["execution"]["ssim_available_count"] = len(executable_with_ssim)
-            # Add the new perfect SSIM count
-            summary["execution"]["perfect_ssim_count"] = sum(1 for m in executable_with_ssim if m["ssim_score"] == 1.0)
-        
-        executable_with_pixel_sim = [m for m in metrics if m["executable"] and m.get("pixel_similarity") is not None]
-        if executable_with_pixel_sim:
-            summary["execution"]["avg_pixel_similarity"] = sum(m["pixel_similarity"] for m in executable_with_pixel_sim) / len(executable_with_pixel_sim)
-            summary["execution"]["pixel_similarity_available_count"] = len(executable_with_pixel_sim)
-            # Add the new perfect pixel similarity count
-            summary["execution"]["perfect_pixel_count"] = sum(1 for m in executable_with_pixel_sim if m["pixel_similarity"] == 1.0)
-        
-        executable_with_dreamsim = [m for m in metrics if m["executable"] and m.get("dreamsim_score") is not None]
-        if executable_with_dreamsim:
-            summary["execution"]["avg_dreamsim"] = sum(m["dreamsim_score"] for m in executable_with_dreamsim) / len(executable_with_dreamsim)
-            summary["execution"]["dreamsim_available_count"] = len(executable_with_dreamsim)
-            # Add the new zero dreamsim count (assuming 0 is the "perfect" value)
-            summary["execution"]["zero_dreamsim_count"] = sum(1 for m in executable_with_dreamsim if m["dreamsim_score"] == 0.0)
-        
+        executable_metrics = [m for m in metrics if m["executable"]]
+
+        if executable_metrics:
+            # SSIM
+            ssim_scores = [m["ssim_score"] for m in executable_metrics if m.get("ssim_score") is not None]
+            summary["execution"]["avg_ssim"] = np.nanmean(ssim_scores) if ssim_scores else np.nan
+            summary["execution"]["ssim_available_count"] = len(ssim_scores)
+            summary["execution"]["perfect_ssim_count"] = sum(1 for m in executable_metrics if m.get("ssim_score") == 1.0)
+
+            # Pixel Similarity
+            pixel_similarities = [m["pixel_similarity"] for m in executable_metrics if m.get("pixel_similarity") is not None]
+            summary["execution"]["avg_pixel_similarity"] = np.nanmean(pixel_similarities) if pixel_similarities else np.nan
+            summary["execution"]["pixel_similarity_available_count"] = len(pixel_similarities)
+            summary["execution"]["perfect_pixel_count"] = sum(1 for m in executable_metrics if m.get("pixel_similarity") == 1.0)
+
+            # DreamSim
+            dreamsim_scores = [m["dreamsim_score"] for m in executable_metrics if m.get("dreamsim_score") is not None]
+            summary["execution"]["avg_dreamsim"] = np.nanmean(dreamsim_scores) if dreamsim_scores else np.nan
+            summary["execution"]["dreamsim_available_count"] = len(dreamsim_scores)
+            summary["execution"]["zero_dreamsim_count"] = sum(1 for m in executable_metrics if m.get("dreamsim_score") == 0.0)
+
         # Add metric for perfect agreement across all three metrics
-        executable_with_all_metrics = [m for m in metrics if m["executable"] and 
+        executable_with_all_metrics = [m for m in executable_metrics if 
                                        m.get("ssim_score") is not None and 
                                        m.get("pixel_similarity") is not None and 
                                        m.get("dreamsim_score") is not None]
         if executable_with_all_metrics:
-            # Count cases where all three metrics show "perfect" values
             perfect_agreement_count = sum(1 for m in executable_with_all_metrics 
                                           if m["ssim_score"] == 1.0 and 
                                           m["pixel_similarity"] == 1.0 and 
                                           m["dreamsim_score"] == 0.0)
-            
             summary["execution"]["perfect_agreement_count"] = perfect_agreement_count
             summary["execution"]["all_metrics_available_count"] = len(executable_with_all_metrics)
-        
-        executable_with_precision_recall = [m for m in metrics if m["executable"] and "pixel_precision" in m]
+
+        # Precision-Recall
+        executable_with_precision_recall = [m for m in executable_metrics if "pixel_precision" in m]
         if executable_with_precision_recall:
-            # Extract values, allowing for NaN handling
             pixel_precisions = [m["pixel_precision"] for m in executable_with_precision_recall]
             pixel_recalls = [m["pixel_recall"] for m in executable_with_precision_recall]
             pixel_f1s = [m["pixel_f1"] for m in executable_with_precision_recall]
 
-            # Use np.nanmean to compute averages, ignoring NaN values
             summary["execution"]["avg_pixel_precision"] = np.nanmean(pixel_precisions)
             summary["execution"]["avg_pixel_recall"] = np.nanmean(pixel_recalls)
             summary["execution"]["avg_pixel_f1"] = np.nanmean(pixel_f1s)
             summary["execution"]["precision_recall_available_count"] = len(executable_with_precision_recall)
         else:
-            # Handle the case where no valid metrics are available
             summary["execution"]["avg_pixel_precision"] = np.nan
             summary["execution"]["avg_pixel_recall"] = np.nan
             summary["execution"]["avg_pixel_f1"] = np.nan
             summary["execution"]["precision_recall_available_count"] = 0
-        
+
         return summary
     
     def print_summary(self, metrics):
@@ -364,12 +361,14 @@ class LLMCodeEvaluator:
         Returns:
             tuple: (metrics, summary)
         """
+        print(f"[DEBUG] evaluate_and_summarize() called with n_completions={n_completions}, fork_state={fork_state}")
+
         predictions = self.load_predictions(inf_dir)
-        print(f"Loaded {len(predictions)} predictions from {inf_dir}")
-        
+        print(f"[DEBUG] Loaded {len(predictions)} predictions from {inf_dir}")
+
         metrics = self.evaluate_completions(predictions, n_completions=n_completions, fork_state=fork_state)
-        print(f"Evaluated {len(metrics)} completions")
-            
+        print(f"[DEBUG] Evaluated {len(metrics)} completions")
+    
         summary = self.generate_summary(metrics)
         self.print_summary(metrics)
         
