@@ -7,6 +7,7 @@ import subprocess
 import os
 import re
 import numpy as np
+import gc
 from PIL import Image
 import matplotlib.pyplot as plt
 from Levenshtein import distance as levenshtein_distance
@@ -62,21 +63,30 @@ class LLMCodeEvaluator:
             predictions = json.load(f)
         return predictions
     
-    def evaluate_completions(self, predictions, n_completions=1, fork_state=False):
+    def evaluate_completions(self, predictions, n_completions=1, fork_state=False, inf_dir=None):
         """
-        Evaluate a set of code completions.
+        Evaluate a set of code completions and store metrics incrementally to a JSONL file.
 
         Args:
             predictions (list): List of prediction dictionaries with completions and ground truths.
             n_completions (int): Number of completions per prediction.
+            fork_state (bool): Whether to transform programs to fork_state format.
+            inf_dir (str): Directory to save detailed_metrics.jsonl incrementally.
 
         Returns:
-            list: Metrics for each completion.
+            None
         """
         print(f"[DEBUG] evaluate_completions() called with n_completions={n_completions}, fork_state={fork_state}")
 
-        metrics = []
-        for prediction in predictions:
+        detailed_metrics_path = os.path.join(inf_dir, "detailed_metrics.jsonl")
+        checkpoint_path = os.path.join(inf_dir, "checkpoint.txt")
+        batch_size = 5  # Number of examples to process before clearing memory
+
+        # Load the last processed index from the checkpoint
+        start_index = self.load_checkpoint(checkpoint_path)
+        print(f"[DEBUG] Resuming evaluation from index {start_index}")
+
+        for i, prediction in enumerate(predictions[start_index:], start=start_index):
             example_id = prediction["id"]
             ground_truth = prediction["ground_truth"]
             if fork_state:
@@ -87,7 +97,6 @@ class LLMCodeEvaluator:
 
             for idx in range(1, n_completions + 1):
                 completion_key = f"completion_{idx}"
-                #print(f"\nEvaluating {completion_key} for example {example_id}\n") # debugging
                 if completion_key in prediction:
                     completion = prediction[completion_key]
                     print(f"[DEBUG] Evaluating {completion_key} for example_id={example_id}")
@@ -96,10 +105,8 @@ class LLMCodeEvaluator:
                         completion = transform_program(completion, embed_to_fork=False, fork_to_embed=True)
                     completion_clean = self.clean_python_code(completion)
 
-                    # Check syntax
+                    # Evaluate the completion (your existing logic here)
                     is_valid_syntax, format_message, details_dict = self.check_formatting(completion_clean)
-
-                    # Check execution
                     is_executable, execution_message, image = self.code_execution_pyturtle(completion_clean)
 
                     # Image comparison for executed code
@@ -120,17 +127,14 @@ class LLMCodeEvaluator:
                             pixel_recall = image_comparison.get('pixel_recall', np.nan)
                             pixel_f1 = image_comparison.get('pixel_f1', np.nan)
 
-                    # Extract embed usage
-                    embed_usage = details_dict.get("embed_usage", {})
-
                     # Compile all metrics
                     result = {
                         "id": f"{example_id}_{idx}",  # Append _n to the ID
                         "syntactically_valid": is_valid_syntax,
                         "outer_valid": details_dict["outer_valid"],
-                        "any_embed_call": embed_usage.get("any_embed_call", False),
-                        "correctly_formed_embed": embed_usage.get("correctly_formed", False),
-                        "alternative_embed_patterns": embed_usage.get("alternative_patterns", []),
+                        "any_embed_call": details_dict.get("embed_usage", {}).get("any_embed_call", False),
+                        "correctly_formed_embed": details_dict.get("embed_usage", {}).get("correctly_formed", False),
+                        "alternative_embed_patterns": details_dict.get("embed_usage", {}).get("alternative_patterns", []),
                         "embed_blocks_count": len(details_dict.get("embed_blocks", [])),
                         "embed_blocks_all_valid": all(block.get("valid", False) for block in details_dict.get("embed_blocks", [])),
                         "format_message": format_message,
@@ -147,26 +151,48 @@ class LLMCodeEvaluator:
                         **self.check_crystalbleu_similarity(completion_clean, ground_truth),
                     }
 
-                    # Add AST similarity if both codes are syntactically valid
-                    try:
-                        import ast
-                        try:
-                            ast.parse(completion_clean)
-                            ast.parse(ground_truth)
-                            result.update(self.check_ast_similarity(completion_clean, ground_truth))
-                        except SyntaxError:
-                            result["ast_error"] = "Syntax error prevents AST comparison"
-                    except ImportError:
-                        result["ast_error"] = "AST comparison requires zss package"
+                    # Write the result to the JSONL file
+                    with open(detailed_metrics_path, "a") as f:
+                        f.write(json.dumps(result) + "\n")
 
-                    print(f"[DEBUG] Appending metrics for {completion_key} of example_id={example_id}")
-                    metrics.append(result)
-                else:
-                    print(f"[DEBUG] {completion_key} not found for example_id={example_id}")
-                    
-        print(f"[DEBUG] Total metrics compiled: {len(metrics)}")
-        return metrics
-    
+            # Save progress to the checkpoint file after processing each batch
+            if (i + 1) % batch_size == 0:
+                self.save_checkpoint(checkpoint_path, i + 1)
+                torch.cuda.empty_cache()
+                gc.collect()
+
+        # Save the final checkpoint
+        self.save_checkpoint(checkpoint_path, len(predictions))
+        print(f"[DEBUG] Evaluation completed and metrics saved to {detailed_metrics_path}")
+
+    @staticmethod
+    def load_checkpoint(checkpoint_path):
+        """
+        Load the last processed index from the checkpoint file.
+
+        Args:
+            checkpoint_path (str): Path to the checkpoint file.
+
+        Returns:
+            int: Last processed index.
+        """
+        if os.path.exists(checkpoint_path):
+            with open(checkpoint_path, "r") as f:
+                return int(f.read().strip())
+        return 0
+
+    @staticmethod
+    def save_checkpoint(checkpoint_path, index):
+        """
+        Save the index of the last processed entry to a checkpoint file.
+
+        Args:
+            checkpoint_path (str): Path to the checkpoint file.
+            index (int): Index of the last processed entry.
+        """
+        with open(checkpoint_path, "w") as f:
+            f.write(str(index))
+
     def generate_summary(self, metrics):
         summary = {
             "total_samples": len(metrics),
@@ -250,128 +276,101 @@ class LLMCodeEvaluator:
 
         return summary
     
-    def print_summary(self, metrics):
+    def print_summary(self, summary):
         """
-        Print a detailed summary of metrics to console.
-        
+        Print a detailed summary of metrics to the console.
+
         Args:
-            metrics (list): List of metrics for each completion
+            summary (dict): Summary dictionary generated by `generate_summary`.
         """
-        # Helper function to print percentages
-        def pct(count, total):
-            return f"{count}/{total} ({count/total*100:.2f}%)"
-        
-        total = len(metrics)
-        
+        print("\n--- SUMMARY ---")
+
+        # Total samples
+        print(f"Total samples: {summary['total_samples']}")
+
+        # Valid code
+        valid_code = summary["valid_code"]
         print("\n--- Valid Code ---")
-        valid_count = sum(1 for m in metrics if m["syntactically_valid"])
-        outer_valid_count = sum(1 for m in metrics if m["outer_valid"])
-        print(f"Completely valid code samples: {pct(valid_count, total)}")
-        print(f"Valid outer code: {pct(outer_valid_count, total)}")
+        print(f"Syntactically valid: {valid_code['syntactically_valid']}")
+        print(f"Outer valid: {valid_code['outer_valid']}")
 
-        # Embed usage stats
-        any_embed_usage = sum(1 for m in metrics if m.get("any_embed_call", False))
-        correctly_formed_embed = sum(1 for m in metrics if m.get("correctly_formed_embed", False))
-        alternative_embed = sum(1 for m in metrics if len(m.get("alternative_embed_patterns", [])) > 0)
-        print(f"Programs with any embed() call: {pct(any_embed_usage, total)}")
-        print(f"Programs with correctly formed embed(): {pct(correctly_formed_embed, total)}")
-        print(f"Programs with alternative embed() patterns: {pct(alternative_embed, total)}")
+        # Embed usage
+        embed_usage = summary["embed_usage"]
+        print("\n--- Embed Usage ---")
+        print(f"Programs with any embed() call: {embed_usage['any_embed_call']}")
+        print(f"Programs with correctly formed embed(): {embed_usage['correctly_formed']}")
+        print(f"Programs with alternative embed() patterns: {embed_usage['alternative_patterns']}")
 
-        # Embed validity for correctly formed embeds
-        programs_with_correct_embed = [m for m in metrics if m.get("embed_blocks_count", 0) > 0]
-        if programs_with_correct_embed:
-            valid_embed_in_programs_with_embed = sum(1 for m in programs_with_correct_embed if m.get("embed_blocks_all_valid", False))
-            print(f"Valid embed code: {pct(valid_embed_in_programs_with_embed, len(programs_with_correct_embed))}")
-        else:
-            print("No programs with correctly formed embed blocks found")
+        # Similarity metrics
+        similarity = summary["similarity"]
+        print("\n--- Similarity Metrics ---")
+        print(f"Exact matches: {similarity['exact_matches']}")
+        print(f"Average normalized Levenshtein distance: {similarity['avg_normalized_lev_distance']:.4f}")
+        print(f"Average line similarity: {similarity['avg_line_similarity']:.4f}")
+        print(f"Average CrystalBLEU score: {similarity['avg_crystalbleu_score']:.4f}")
+        if "avg_ast_similarity" in similarity:
+            print(f"Average AST-based similarity: {similarity['avg_ast_similarity']:.4f} from {similarity['ast_available_count']} samples")
 
-        print("\n--- SIMILARITY METRICS ---")
-        # Levenshtein similarity
-        avg_normalized_lev_distance = sum(m["normalized_lev_distance"] for m in metrics) / total
-        print(f"Average normalized levenshtein similarity: {avg_normalized_lev_distance:.4f}")
-        
-        # AST similarity
-        ast_metrics = [m for m in metrics if "normalized_ast_similarity" in m and m["normalized_ast_similarity"] >= 0]
-        if ast_metrics:
-            avg_ast_similarity = sum(m["normalized_ast_similarity"] for m in ast_metrics) / len(ast_metrics)
-            print(f"Average AST-based similarity: {avg_ast_similarity:.4f}")
-            print(f"AST similarity available for {len(ast_metrics)}/{total} samples")
-        
-        # Exact matches
-        exact_matches = sum(1 for m in metrics if m["exact_match"])
-        print(f"Exact matches: {pct(exact_matches, total)}")
 
-        # CrystalBLEU similarity
-        avg_crystalbleu_score = sum(m["crystalbleu_score"] for m in metrics if m["crystalbleu_score"] is not None) / total
-        print(f"Average CrystalBLEU similarity: {avg_crystalbleu_score:.4f}")
-
-        print("\n--- EXECUTION RESULTS ---")
-        # Execution stats
-        executable_count = sum(1 for m in metrics if m["executable"])
-        print(f"Executable code samples: {pct(executable_count, total)}")
-
-        # Image comparison stats for executable code
-        executable_metrics = [m for m in metrics if m["executable"]]
-        if executable_metrics:
-            # SSIM stats
-            valid_ssim = [m for m in executable_metrics if m.get("ssim_score") is not None]
-            if valid_ssim:
-                avg_ssim = sum(m["ssim_score"] for m in valid_ssim) / len(valid_ssim)
-                print(f"Average structural similarity: {avg_ssim:.4f} (from {len(valid_ssim)}/{len(executable_metrics)} executable samples)")
-            else:
-                print("No valid SSIM scores available")
-                
-            # Pixel similarity stats
-            valid_pixel = [m for m in executable_metrics if m.get("pixel_similarity") is not None]
-            if valid_pixel:
-                avg_pixel = sum(m["pixel_similarity"] for m in valid_pixel) / len(valid_pixel)
-                print(f"Average pixel similarity: {avg_pixel:.4f} (from {len(valid_pixel)}/{len(executable_metrics)} executable samples)")
-            else:
-                print("No valid pixel similarity scores available")
-            
-            # DreamSim stats
-            valid_dreamsim = [m for m in executable_metrics if m.get("dreamsim_score") is not None]
-            if valid_dreamsim:
-                avg_dreamsim = sum(m["dreamsim_score"] for m in valid_dreamsim) / len(valid_dreamsim)
-                print(f"Average DreamSim similarity: {avg_dreamsim:.4f} (from {len(valid_dreamsim)}/{len(executable_metrics)} executable samples)")
-            else:
-                print("No valid DreamSim scores available")
-            
-            # Precision-Recall stats
-            valid_pr = [m for m in executable_metrics if "pixel_precision" in m]
-            if valid_pr:
-                avg_precision = sum(m["pixel_precision"] for m in valid_pr) / len(valid_pr)
-                avg_recall = sum(m["pixel_recall"] for m in valid_pr) / len(valid_pr)
-                avg_f1 = sum(m["pixel_f1"] for m in valid_pr) / len(valid_pr)
-                print(f"Average pixel precision: {avg_precision:.4f} (from {len(valid_pr)}/{len(executable_metrics)} executable samples)")
-                print(f"Average pixel recall: {avg_recall:.4f} (from {len(valid_pr)}/{len(executable_metrics)} executable samples)")
-                print(f"Average pixel F1 score: {avg_f1:.4f} (from {len(valid_pr)}/{len(executable_metrics)} executable samples)")
-            else:
-                print("No valid precision-recall scores available")
-        else:
-            print("No executable code samples to calculate similarity measures")
+        # Execution metrics
+        execution = summary["execution"]
+        print("\n--- Execution Results ---")
+        print(f"Executable code samples: {execution['executable_count']}")
+        if "avg_ssim" in execution:
+            print(f"Average SSIM: {execution['avg_ssim']:.4f} (from {execution['ssim_available_count']} samples)")
+            print(f"Perfect SSIM count: {execution['perfect_ssim_count']}")
+        if "avg_pixel_similarity" in execution:
+            print(f"Average pixel similarity: {execution['avg_pixel_similarity']:.4f} (from {execution['pixel_similarity_available_count']} samples)")
+            print(f"Perfect pixel similarity count: {execution['perfect_pixel_count']}")
+        if "avg_dreamsim" in execution:
+            print(f"Average DreamSim similarity: {execution['avg_dreamsim']:.4f} (from {execution['dreamsim_available_count']} samples)")
+            print(f"Zero DreamSim count: {execution['zero_dreamsim_count']}")
+        if "perfect_agreement_count" in execution:
+            print(f"Perfect agreement count: {execution['perfect_agreement_count']} (SSIM, Pixel Sim, and DreamSIM available for {execution['all_metrics_available_count']} samples)")
+        if "avg_pixel_precision" in execution:
+            print(f"Average pixel precision: {execution['avg_pixel_precision']:.4f}")
+            print(f"Average pixel recall: {execution['avg_pixel_recall']:.4f}")
+            print(f"Average pixel F1 score: {execution['avg_pixel_f1']:.4f}")
+            print(f"Precision-recall metrics available for {execution['precision_recall_available_count']} samples")
 
     def evaluate_and_summarize(self, inf_dir, n_completions=1, fork_state=False):
         """
         Complete evaluation pipeline: load predictions, evaluate, and summarize.
-        
+
         Args:
             inf_dir (str): Directory containing predictions.json
-            
+            n_completions (int): Number of completions per prediction.
+            fork_state (bool): Whether to transform programs to fork_state format.
+
         Returns:
             tuple: (metrics, summary)
         """
         print(f"[DEBUG] evaluate_and_summarize() called with n_completions={n_completions}, fork_state={fork_state}")
 
+        # Step 1: Load predictions
         predictions = self.load_predictions(inf_dir)
         print(f"[DEBUG] Loaded {len(predictions)} predictions from {inf_dir}")
 
-        metrics = self.evaluate_completions(predictions, n_completions=n_completions, fork_state=fork_state)
-        print(f"[DEBUG] Evaluated {len(metrics)} completions")
-    
+        # Step 2: Evaluate completions and save metrics incrementally
+        self.evaluate_completions(predictions, n_completions=n_completions, fork_state=fork_state, inf_dir=inf_dir)
+        print(f"[DEBUG] Evaluation completed and metrics saved incrementally to detailed_metrics.jsonl")
+
+        # Step 3: Load metrics from detailed_metrics.jsonl
+        detailed_metrics_path = os.path.join(inf_dir, "detailed_metrics.jsonl")
+        with open(detailed_metrics_path, "r") as f:
+            metrics = [json.loads(line) for line in f]
+        print(f"[DEBUG] Loaded {len(metrics)} metrics from {detailed_metrics_path}")
+
+        # Step 4: Generate summary
         summary = self.generate_summary(metrics)
-        self.print_summary(metrics)
-        
+        self.print_summary(summary)
+
+        # Step 5: Save the evaluation summary to evaluation.json
+        evaluation_path = os.path.join(inf_dir, "evaluation.json")
+        with open(evaluation_path, "w") as f:
+            json.dump(summary, f, indent=2)
+        print(f"[DEBUG] Saved evaluation summary to {evaluation_path}")
+
         return metrics, summary
     
     @staticmethod
