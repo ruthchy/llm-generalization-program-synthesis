@@ -1432,27 +1432,6 @@ def evaluation(inf_dir: str, n_completions: int, fork_state: bool = False):
     try:
         # Run the evaluation pipeline
         metrics, summary = evaluator.evaluate_and_summarize(inf_dir, n_completions=n_completions, fork_state=fork_state)
-        
-        # Save the evaluation results
-        with open(os.path.join(inf_dir, "evaluation.json"), "w") as f:
-            json.dump(summary, f, indent=2)
-        
-        with open(os.path.join(inf_dir, "detailed_metrics.json"), "w") as f:
-            # Convert any non-serializable values to strings
-            serializable_metrics = []
-            for metric in metrics:
-                serializable_metric = {}
-                for k, v in metric.items():
-                    if isinstance(v, (str, int, float, bool, list, dict, type(None))):
-                        serializable_metric[k] = v
-                    else:
-                        serializable_metric[k] = str(v)
-                serializable_metrics.append(serializable_metric)
-            
-            # Write the entire list once, outside the loop
-            json.dump(serializable_metrics, f, indent=2) 
-            
-        print(f"Evaluation complete. Results saved to {inf_dir}/evaluation.json")
         return metrics, summary
         
     except Exception as e:
