@@ -1069,7 +1069,9 @@ def inference(model, tokenizer, config: Config, result_dir: str, inference_type:
     # Process in smaller batches to avoid memory issues
     batch_size = config.training.per_device_eval_batch_size
     num_examples = len(dataset)
-    
+
+    example_id = 0 # Global counter for example IDs
+
     with torch.no_grad():
         for batch_start in range(0, num_examples, batch_size):
             batch_end = min(batch_start + batch_size, num_examples)
@@ -1113,31 +1115,50 @@ def inference(model, tokenizer, config: Config, result_dir: str, inference_type:
                 )
                 
                 # Decode generation
-                generated_text = tokenizer.decode(generated_ids[0], skip_special_tokens=True)
-                
-                # Extract the completion part
-                if "<|assistant|>" in generated_text:
-                    # Extract between assistant token and end token
-                    completion = generated_text.split("<|assistant|>")[-1].split("<|end|>")[0].strip()
-                else:
-                    # Fall back to [/INST] pattern
-                    completion = generated_text.split("[/INST]")[-1].strip()
-                
-                # Get ground truth
-                ground_truth = example["Program"]
-                
-                # Store result for this example
-                result = {
-                    "id": i,
-                    "prompt": chat_formatted_prompt,
-                    #"completion": completion,
-                    "ground_truth": ground_truth,
-                }
-                
-                for idx, completion in enumerate(completions, start=1):
-                    result[f"completion_{idx}"] = completion
+                decoded_outputs = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
 
-                results.append(result)
+                # Group outputs per input
+                grouped_outputs = [
+                    decoded_outputs[i:i + config.model.num_return_sequences]
+                    for i in range(0, len(decoded_outputs), config.model.num_return_sequences)
+                ]
+
+                for example_idx, completions in enumerate(grouped_outputs):
+                    cleaned_completions = []
+
+                    for i, comp in enumerate(completions):
+                        # Extract the completion part - adapting to different model formats
+                        if "<|assistant|>" in comp:
+                            completion = comp.split("<|assistant|>")[-1].split("<|end|>")[0].strip()
+                        elif "[/INST]" in comp:
+                            completion = comp.split("[/INST]")[-1].strip()
+                        elif "assistant:" in comp.lower():
+                            completion = comp.split("assistant:", 1)[-1].strip()
+                        else:
+                            user_content = messages[-1]["content"]
+                            if user_content in comp:
+                                completion = comp.split(user_content, 1)[-1].strip()
+                            else:
+                                completion = comp.strip()  # Fallback
+
+                        cleaned_completions.append(completion)
+
+                    # Get ground truth
+                    ground_truth = example["Program"]
+
+                    # Store result for this example
+                    result = {
+                        "id": example_id,
+                        "prompt": chat_formatted_prompt,
+                        "ground_truth": ground_truth,
+                    }
+
+                    for idx, completion in enumerate(cleaned_completions, start=1):
+                        result[f"completion_{idx}"] = completion
+
+                    results.append(result)
+                    example_id += 1  # Increment the global counter
+
             
             if results:
                 with open(os.path.join(inf_dir, "predictions.json"), "w") as f:

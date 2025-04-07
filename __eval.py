@@ -80,7 +80,7 @@ class LLMCodeEvaluator:
 
         detailed_metrics_path = os.path.join(inf_dir, "detailed_metrics.jsonl")
         checkpoint_path = os.path.join(inf_dir, "checkpoint.txt")
-        batch_size = 5  # Number of examples to process before clearing memory
+        batch_size = 50  # Number of examples to process before clearing memory
 
         # Load the last processed index from the checkpoint
         start_index = self.load_checkpoint(checkpoint_path)
