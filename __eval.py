@@ -260,7 +260,8 @@ class LLMCodeEvaluator:
             summary["execution"]["all_metrics_available_count"] = len(executable_with_all_metrics)
 
         # Precision-Recall
-        executable_with_precision_recall = [m for m in executable_metrics if "pixel_precision" in m]
+        #executable_with_precision_recall = [m for m in executable_metrics if "pixel_precision" in m]
+        executable_with_precision_recall = executable_metrics
         if executable_with_precision_recall:
             pixel_precisions = [m["pixel_precision"] for m in executable_with_precision_recall]
             pixel_recalls = [m["pixel_recall"] for m in executable_with_precision_recall]
@@ -1011,13 +1012,29 @@ if __name__ == "__main__":
     
     evaluator = LLMCodeEvaluator()
     
+    detailed = False
+    evaluation = True
+
     if len(sys.argv) > 1:
         inf_dir = sys.argv[1]
     else:
-        inf_dir = "results/length/CodeLlama_20250311_1601/inference"
+        inf_dir = "results/length/deepseekcoder/inference/20250405_0048"
     
-    metrics, summary = evaluator.evaluate_and_summarize(inf_dir)
-    
-    # Save results if needed
-    # with open(os.path.join(inf_dir, "evaluation.json"), "w") as f:
-    #    json.dump(summary, f, indent=2)
+    if detailed and evaluation:
+        metrics, summary = evaluator.evaluate_and_summarize(inf_dir)
+    elif evaluation:
+        # Step 3: Load metrics from detailed_metrics.jsonl
+        detailed_metrics_path = os.path.join(inf_dir, "detailed_metrics.jsonl")
+        with open(detailed_metrics_path, "r") as f:
+            metrics = [json.loads(line) for line in f]
+        print(f"[DEBUG] Loaded {len(metrics)} metrics from {detailed_metrics_path}")
+
+        # Step 4: Generate summary
+        summary = evaluator.generate_summary(metrics)
+        evaluator.print_summary(summary)
+
+        # Step 5: Save the evaluation summary to evaluation.json
+        evaluation_path = os.path.join(inf_dir, "evaluation.json")
+        with open(evaluation_path, "w") as f:
+            json.dump(summary, f, indent=2)
+        print(f"[DEBUG] Saved evaluation summary to {evaluation_path}")
