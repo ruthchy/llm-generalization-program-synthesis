@@ -8,7 +8,9 @@ import os
 import re
 import numpy as np
 import gc
-from PIL import Image
+import multiprocessing
+import io
+from PIL import Image as PILImage
 import matplotlib.pyplot as plt
 from Levenshtein import distance as levenshtein_distance
 from crystalbleu import corpus_bleu
@@ -671,79 +673,42 @@ class LLMCodeEvaluator:
                 "crystalbleu_error": str(e)
             }
 
-    def code_execution_pyturtle(self, program):
+    def code_execution_pyturtle(self, program, timeout_seconds=60):
         """
-        Execute a single program and check if it runs correctly.
-        
+        Execute a single program in a separate process and check if it runs correctly.
+
         Args:
-            program (str): Python code to execute
-            
+            program (str): Python code to execute.
+            timeout_seconds (int): Timeout for the execution in seconds.
+
         Returns:
             tuple: (is_executable, message, image)
         """
-        import sys
-        import os
-        import matplotlib.pyplot as plt
-        import numpy as np
-        from PIL import Image as PILImage
-        
-        # Get current directory
-        current_dir = os.getcwd()
-        
-        # Add dependencies path to sys.path
-        dependencies_path = os.path.join(current_dir, 'external/dependencies')
-        if dependencies_path not in sys.path:
-            sys.path.append(dependencies_path)
-        
-        turtle = None
-        try:
-            from program_refactoring.domains.logos.pyturtle_pc import PyTurtle, HALF_INF, EPS_DIST, EPS_ANGLE
-            
-            # Create PyTurtle instance
-            turtle = PyTurtle()
-            
-            # Create execution scope with all necessary variables
-            exec_scope = {
-                "turtle": turtle,
-                "HALF_INF": HALF_INF,
-                "EPS_DIST": EPS_DIST,
-                "EPS_ANGLE": EPS_ANGLE,
-                "forward": turtle.forward,
-                "left": turtle.left,
-                "right": turtle.right,
-                "teleport": turtle.teleport,
-                "penup": turtle.penup,
-                "pendown": turtle.pendown,
-                "heading": turtle.heading,
-                "embed": turtle.embed
-            }
-            
-            # Execute the code
-            exec(program, exec_scope)
-            
-            # Get the image - UPDATED TO USE buffer_rgba()
-            turtle.fig.canvas.draw()
-            width, height = turtle.fig.canvas.get_width_height()
-            
-            # Get RGBA buffer and convert to PIL Image
-            buffer = turtle.fig.canvas.buffer_rgba()
-            image_array = np.frombuffer(buffer, dtype=np.uint8).reshape(height, width, 4)
-            
-            # Convert RGBA to RGB for consistency with previous code
-            image = PILImage.fromarray(image_array[:, :, :3])
-            
-            plt.close(turtle.fig)  # Close figure to free memory
-            
-            return True, "Program executed successfully", image
-            
-        except ImportError as e:
-            if turtle and hasattr(turtle, 'fig'):
-                plt.close(turtle.fig)
-            return False, f"Import error: {str(e)}", None
-        except Exception as e:
-            if turtle and hasattr(turtle, 'fig'):
-                plt.close(turtle.fig)
-            return False, f"Execution error: {str(e)}", None
+        with multiprocessing.Manager() as manager:
+            return_dict = manager.dict()
+
+            # Create a new process to execute the code
+            process = multiprocessing.Process(target=_execute_code_in_process, args=(program, return_dict))
+            process.start()
+
+            # Wait for the process to complete or timeout
+            process.join(timeout=timeout_seconds)
+
+            if process.is_alive():
+                # If the process is still running after the timeout, terminate it
+                process.terminate()
+                process.join()
+                return False, f"Execution timed out after {timeout_seconds} seconds", None
+
+            # Retrieve results from the shared dictionary
+            is_executable = return_dict.get("is_executable", False)
+            message = return_dict.get("message", "Unknown error")
+            image_data = return_dict.get("image", None)
+
+            # Convert the image bytes back to a PIL Image
+            image = PILImage.open(io.BytesIO(image_data)) if image_data else None
+
+            return is_executable, message, image
 
     def compare_images(self, image_pred, image_gr):
         """
@@ -980,6 +945,65 @@ class LLMCodeEvaluator:
         # Reconstruct the full path
         cleaned_path = os.path.join(result_dir, model_id)
         return cleaned_path
+
+
+def _execute_code_in_process(program, return_dict):
+    """
+    Helper function to execute the code in a separate process.
+
+    Args:
+        program (str): Python code to execute.
+        return_dict (multiprocessing.Manager().dict): Dictionary to store the results.
+    """
+    try:
+        from program_refactoring.domains.logos.pyturtle_pc import PyTurtle, HALF_INF, EPS_DIST, EPS_ANGLE
+
+        # Create PyTurtle instance
+        turtle = PyTurtle()
+
+        # Create execution scope with all necessary variables
+        exec_scope = {
+            "turtle": turtle,
+            "HALF_INF": HALF_INF,
+            "EPS_DIST": EPS_DIST,
+            "EPS_ANGLE": EPS_ANGLE,
+            "forward": turtle.forward,
+            "left": turtle.left,
+            "right": turtle.right,
+            "teleport": turtle.teleport,
+            "penup": turtle.penup,
+            "pendown": turtle.pendown,
+            "heading": turtle.heading,
+            "embed": turtle.embed
+        }
+
+        # Execute the code
+        exec(program, exec_scope)
+
+        # Get the image
+        turtle.fig.canvas.draw()
+        width, height = turtle.fig.canvas.get_width_height()
+        buffer = turtle.fig.canvas.buffer_rgba()
+        image_array = np.frombuffer(buffer, dtype=np.uint8).reshape(height, width, 4)
+        image = PILImage.fromarray(image_array[:, :, :3])
+
+        # Convert the image to bytes (picklable)
+        image_bytes = io.BytesIO()
+        image.save(image_bytes, format="PNG")
+        return_dict["image"] = image_bytes.getvalue()
+
+        return_dict["is_executable"] = True
+        return_dict["message"] = "Program executed successfully"
+
+        # Close the figure to free memory
+        plt.close(turtle.fig)
+
+    except Exception as e:
+        # Handle any errors during execution
+        return_dict["is_executable"] = False
+        return_dict["message"] = f"Execution error: {str(e)}"
+        return_dict["image"] = None
+
 
 # Simple usage example
 if __name__ == "__main__":
