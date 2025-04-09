@@ -47,6 +47,7 @@ parser.add_argument('--inference_hub_model', action='store_true', help='Whether 
 parser.add_argument('--eval_inf_dir', type=str, help='Whether to only run the evaluation on inference results. Provide the directory where the predictions.json file is located')
 parser.add_argument('--sample_fraction', type=float, default=1.0, help='Fraction of dataset to use (for debugging)')
 parser.add_argument('--config', type=str, default="config.yaml", help='Path to config file')
+parser.add_argument('--wb_type', type=str, help='Added to the inference run name to distinguish between different runs')
 args = parser.parse_args()
         
 fine_tune = args.fine_tune
@@ -54,6 +55,7 @@ inference_hub_model = args.inference_hub_model
 inf_dir = args.eval_inf_dir
 sample_fraction = args.sample_fraction
 config_file = args.config
+wb_type = args.wb_type
 
 # Ensure mutual exclusivity of fine_tune, inference_hub_model, and eval_inf_dir
 if sum([fine_tune, inference_hub_model, bool(inf_dir)]) != 1:
@@ -485,7 +487,7 @@ def prepare_dataset(config: Config, tokenizer, sample_fraction = 1.0):
     return tokenized_dataset
 
 # Step 4: WandB 
-def init_wandb(config: Config, timestamp: str, gen_type: str, model_type_short: str):
+def init_wandb(config: Config, timestamp: str, gen_type: str, model_type_short: str, wb_type: Optional[str] = None):
     """Initialize wandb with configuration"""
     # Generate a unique experiment name
     experiment_name = f"{gen_type}_{model_type_short}_{timestamp}"
@@ -502,12 +504,22 @@ def init_wandb(config: Config, timestamp: str, gen_type: str, model_type_short: 
     
     config_dict = make_json_serializable(config)
     
+    tags = [gen_type, model_type_short]
+    if wb_type: 
+        tags.append(wb_type)
+    if config.data.use_forkstate:
+        tags.append("with-forkstate")
+    else:
+        tags.append("with-embed()")
+
     # Init wandb
     wandb.init(
         project="master-thesis",
         name=experiment_name,
-        config=config_dict
+        config=config_dict,
+        tags=tags
     )
+
 # Step 5: Training Preperation
 # Custom Metrics
 from torch.nn import CrossEntropyLoss
@@ -720,12 +732,12 @@ def preprocess_logits_for_metrics(logits, labels):
 import transformers
 from transformers import TrainerCallback, TrainerState, TrainerControl
 
-def train_model(model, tokenizer, dataset, result_dir: str, config: Config, timestamp: str, gen_type: str, model_type_short: str):
+def train_model(model, tokenizer, dataset, result_dir: str, config: Config, timestamp: str, gen_type: str, model_type_short: str, wb_type: Optional[str] = None):
     """Training loop with configurable prompt and completion weights"""
     
     # Only if set True in config logging to wandb will be enabled
     if config.logging.use_wandb:
-        init_wandb(config, timestamp, gen_type, model_type_short)
+        init_wandb(config, timestamp, gen_type, model_type_short, wb_type)
         report_to = "wandb"
     else:
         report_to = "none"
@@ -1471,13 +1483,13 @@ if __name__ == "__main__":
             model, tokenizer = load_model_and_tokenizer(config)
             dataset = prepare_dataset(config, tokenizer, sample_fraction = sample_fraction) 
             # Training
-            model = train_model(model, tokenizer, dataset, result_dir, config, timestamp, gen_type, model_type_short)
+            model = train_model(model, tokenizer, dataset, result_dir, config, timestamp, gen_type, model_type_short, wb_type)
             clear_training_memory(dataset) # Free up memory after training
             # Inference after Finetuning
-            results, inf_dir = inference(model, tokenizer, config, result_dir, inference_type=f"test_{timestamp}", sample_fraction = sample_fraction)
+            results, inf_dir = inference(model, tokenizer, config, result_dir, inference_type=f"{wb_type}_{timestamp}", sample_fraction = sample_fraction)
         elif inference_hub_model:
             # Inference with Model from Hub
-            results, inf_dir = inference_from_hub(config, result_dir, inference_type=f"test_hub_{timestamp}", sample_fraction = sample_fraction)
+            results, inf_dir = inference_from_hub(config, result_dir, inference_type=f"{wb_type}_hub_{timestamp}", sample_fraction = sample_fraction)
         # Evaluation
         metrics, summary = evaluation(inf_dir, n_completions=config.model.num_return_sequences, fork_state=config.data.use_forkstate)
         print("Pipeline completed successfully! 🎉")
