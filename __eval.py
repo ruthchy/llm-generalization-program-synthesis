@@ -138,6 +138,12 @@ class LLMCodeEvaluator:
                         "correctly_formed_embed": details_dict.get("embed_usage", {}).get("correctly_formed", False),
                         "alternative_embed_patterns": details_dict.get("embed_usage", {}).get("alternative_patterns", []),
                         "embed_blocks_count": len(details_dict.get("embed_blocks", [])),
+                        # DEBUG
+                        "correct_embed_matches": details_dict.get("embed_usage", {}).get("correct_embed_matches", []),
+                        "correct_embed_positions": details_dict.get("embed_usage", {}).get("correct_embed_positions", []),
+                        "alternative_embed_matches": details_dict.get("embed_usage", {}).get("alternative_embed_matches", []),
+                        "alternative_embed_positions": details_dict.get("embed_usage", {}).get("alternative_embed_positions", []),
+                        # DEBUG
                         "embed_blocks_all_valid": all(block.get("valid", False) for block in details_dict.get("embed_blocks", [])),
                         "format_message": format_message,
                         "executable": is_executable,
@@ -418,7 +424,11 @@ class LLMCodeEvaluator:
             "embed_usage": {
                 "any_embed_call": False,  # Any use of embed() function
                 "correctly_formed": False,  # Specifically embed("""...""", locals())
-                "alternative_patterns": []  # Other patterns used with embed()
+                "alternative_patterns": [],  # Other patterns used with embed()
+                "correct_embed_matches": [],
+                "correct_embed_positions": [],
+                "alternative_embed_matches": [],
+                "alternative_embed_positions": []
             }
         }
         
@@ -439,10 +449,14 @@ class LLMCodeEvaluator:
         if "embed(" in completion:
             details["embed_usage"]["any_embed_call"] = True
             details["total_embed_blocks_count"] = len(re.findall(r'embed\(', completion))
+
             
             # Find correctly formed embed calls
             correct_embed_pattern = r'embed\(\s*("""|\'\'\')(.*?)("""|\'\'\')\s*,\s*locals\(\)\s*\)'
-            correct_embed_matches = re.findall(correct_embed_pattern, completion, re.DOTALL)
+            #correct_embed_matches = re.findall(correct_embed_pattern, completion, re.DOTALL)
+            correct_embed_matches = list(re.finditer(correct_embed_pattern, completion, re.DOTALL))
+
+
             if correct_embed_matches:
                 details["embed_usage"]["correctly_formed"] = True
                 details["valid_embed_blocks_count"] = len(correct_embed_matches)
@@ -451,6 +465,9 @@ class LLMCodeEvaluator:
                 all_embed_valid = True
                 for i, match in enumerate(correct_embed_matches):
                     embed_code = match[1]  # The code inside triple quotes
+                    start_position = match.start()  # Start position of the match
+                    details["embed_usage"]["correct_embed_matches"].append(match.group(0))
+                    details["embed_usage"]["correct_embed_positions"].append(start_position)
                     
                     # Validate this embedded code block
                     try:
@@ -470,14 +487,21 @@ class LLMCodeEvaluator:
             # Now look for alternative embed patterns
             # This captures the content of all embed() calls
             alternative_pattern = r'(embed\(\s*.*?\s*\))'
-            
+
             try:
-                all_embed_calls = re.findall(alternative_pattern, completion, re.DOTALL)
+                #all_embed_calls = re.findall(alternative_pattern, completion, re.DOTALL)
+                all_embed_calls = list(re.finditer(alternative_pattern, completion, re.DOTALL))
                 
                 # Filter out correctly formed patterns to find alternative ones
-                for full_call in all_embed_calls:
+                for match in all_embed_calls:
+                    full_call = match.group(0)  # The full embed() call
+                    start_position = match.start()  # Start position of the match
+                    details["embed_usage"]["alternative_embed_matches"].append(full_call)
+                    details["embed_usage"]["alternative_embed_positions"].append(start_position)
+
+
                     # Check if this is NOT a correctly formed embed call
-                    if not re.match(r'embed\(\s*("""|\'\'\').*?("""|\'\'\')\s*,\s*locals\(\)\s*\)', full_call, re.DOTALL):
+                    if start_position not in details["embed_usage"]["correct_embed_positions"]:
                         # This is an alternative pattern
                         # Format as needed
                         formatted_pattern = ""
@@ -489,6 +513,7 @@ class LLMCodeEvaluator:
                             formatted_pattern = full_call  # Without extra quotes
                         
                         details["embed_usage"]["alternative_patterns"].append(formatted_pattern)
+
             except Exception:
                 # If regex fails, just ignore
                 pass
@@ -1012,17 +1037,17 @@ if __name__ == "__main__":
     
     evaluator = LLMCodeEvaluator()
     
-    detailed = False
+    detailed = True
     evaluation = True
 
     if len(sys.argv) > 1:
         inf_dir = sys.argv[1]
     else:
-        inf_dir = "results/length/deepseekcoder/inference/20250405_0048"
+        inf_dir = "results/length/CodeLlama_20250408_1252/inference"
     
     if detailed and evaluation:
         metrics, summary = evaluator.evaluate_and_summarize(inf_dir)
-    elif evaluation:
+    elif evaluation and not detailed:
         # Step 3: Load metrics from detailed_metrics.jsonl
         detailed_metrics_path = os.path.join(inf_dir, "detailed_metrics.jsonl")
         with open(detailed_metrics_path, "r") as f:
