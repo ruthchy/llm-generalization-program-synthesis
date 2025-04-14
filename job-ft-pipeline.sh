@@ -1,13 +1,12 @@
 #!/bin/bash
 
-#SBATCH --job-name=ft-job-pipeline.sh
+#SBATCH --job-name=job-ft-pipeline.sh
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=5
-#SBATCH --mem=10G
+#SBATCH --mem=30G
 #SBATCH --mail-user=priscilla.ruth.chyrva@students.uni-mannheim.de
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --gres=gpu:1
-#SBATCH --time=12:00:00
 #SBATCH --chdir=/ceph/pratz/GitHub_repos/master-thesis
 #SBATCH --partition=gpu-vram-48gb
 
@@ -22,4 +21,5 @@ conda activate thesis_env
 python pipeline.py \
     --fine_tune \
     --sample_fraction 1.0 \
-    --config "config.yaml"
+    --config "config.yaml" \
+    --wb_type "test"

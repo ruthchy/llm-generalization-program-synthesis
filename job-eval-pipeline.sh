@@ -1,13 +1,12 @@
 #!/bin/bash
 
-#SBATCH --job-name=inf-job-pipeline.sh
+#SBATCH --job-name=job-eval-pipeline.sh
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=5
 #SBATCH --mem=30G
 #SBATCH --mail-user=priscilla.ruth.chyrva@students.uni-mannheim.de
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --gres=gpu:1
-#SBATCH --time=12:00:00
 #SBATCH --chdir=/ceph/pratz/GitHub_repos/master-thesis
 #SBATCH --partition=gpu-vram-48gb
 
@@ -20,5 +19,5 @@ conda activate thesis_env
 
 # Run your Python script
 python pipeline.py \
-    --eval_inf_dir "" \     # Directory, where the prediction.json is saved
-    --config "config.yaml"  # Path to the config file wich was used when generating the prediction.json
+    --eval_inf_dir "results/length/deepseekcoder/inference/20250405_0048" \
+    --config "results/length/deepseekcoder/inference/20250405_0048/config.yaml"  # Path to the config file wich was used when generating the prediction.json
