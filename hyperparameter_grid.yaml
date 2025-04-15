@@ -1,14 +1,8 @@
 hyperparameter_grid:
-  prompt_loss_weight: [0.0, 0.1, 0.5]
-  learning_rate: [2e-4, 1e-4, 5e-5, 2e-5]
-  per_device_train_batch_size: [8, 16, 32, 64]
-  per_device_eval_batch_size: [16, 32, 64]
-  gradient_accumulation_steps: [1, 4]
-  lora_rank: [32, 64, 128, 512]
-  lora_alpha: [32, 64, 128, 512]
-  warmup_ratio: [0.0, 0.01]
-  lr_scheduler_type: ["cosine", "linear"]
-  temperature: [0.7, 1.0, 1.2]
+  learning_rate: [2e-4, 1e-4, 2e-5]
+  per_device_train_batch_size: [16, 32, 64]
+  lora_rank: [128, 512]
+  lora_alpha: [128, 512]
 
 # Track which combinations have been run
 experiments_log: "hp_experiments_log.json"
