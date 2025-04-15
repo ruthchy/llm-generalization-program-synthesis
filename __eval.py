@@ -78,7 +78,7 @@ class LLMCodeEvaluator:
         Returns:
             None
         """
-        print(f"[DEBUG] evaluate_completions() called with n_completions={n_completions}, fork_state={fork_state}")
+        #print(f"[DEBUG] evaluate_completions() called with n_completions={n_completions}, fork_state={fork_state}")
 
         detailed_metrics_path = os.path.join(inf_dir, "detailed_metrics.jsonl")
         checkpoint_path = os.path.join(inf_dir, "checkpoint.txt")
@@ -86,7 +86,7 @@ class LLMCodeEvaluator:
 
         # Load the last processed index from the checkpoint
         start_index = self.load_checkpoint(checkpoint_path)
-        print(f"[DEBUG] Resuming evaluation from index {start_index}")
+        #print(f"[DEBUG] Resuming evaluation from index {start_index}")
 
         for i, prediction in enumerate(predictions[start_index:], start=start_index):
             example_id = prediction["id"]
@@ -95,13 +95,13 @@ class LLMCodeEvaluator:
                 ground_truth = transform_program(ground_truth, embed_to_fork=False, fork_to_embed=True)
 
             # Iterate over all completions (completion_1, completion_2, ..., completion_n)
-            print(f"[DEBUG] Evaluating example_id={example_id} with available completions: {list(prediction.keys())}")
+            #print(f"[DEBUG] Evaluating example_id={example_id} with available completions: {list(prediction.keys())}")
 
             for idx in range(1, n_completions + 1):
                 completion_key = f"completion_{idx}"
                 if completion_key in prediction:
                     completion = prediction[completion_key]
-                    print(f"[DEBUG] Evaluating {completion_key} for example_id={example_id}")
+                    #print(f"[DEBUG] Evaluating {completion_key} for example_id={example_id}")
 
                     if fork_state:
                         completion = transform_program(completion, embed_to_fork=False, fork_to_embed=True)
@@ -171,7 +171,7 @@ class LLMCodeEvaluator:
 
         # Save the final checkpoint
         self.save_checkpoint(checkpoint_path, len(predictions))
-        print(f"[DEBUG] Evaluation completed and metrics saved to {detailed_metrics_path}")
+        #print(f"[DEBUG] Evaluation completed and metrics saved to {detailed_metrics_path}")
 
     @staticmethod
     def load_checkpoint(checkpoint_path):
@@ -354,21 +354,21 @@ class LLMCodeEvaluator:
         Returns:
             tuple: (metrics, summary)
         """
-        print(f"[DEBUG] evaluate_and_summarize() called with n_completions={n_completions}, fork_state={fork_state}")
+       #print(f"[DEBUG] evaluate_and_summarize() called with n_completions={n_completions}, fork_state={fork_state}")
 
         # Step 1: Load predictions
         predictions = self.load_predictions(inf_dir)
-        print(f"[DEBUG] Loaded {len(predictions)} predictions from {inf_dir}")
+       #print(f"[DEBUG] Loaded {len(predictions)} predictions from {inf_dir}")
 
         # Step 2: Evaluate completions and save metrics incrementally
         self.evaluate_completions(predictions, n_completions=n_completions, fork_state=fork_state, inf_dir=inf_dir)
-        print(f"[DEBUG] Evaluation completed and metrics saved incrementally to detailed_metrics.jsonl")
+       #print(f"[DEBUG] Evaluation completed and metrics saved incrementally to detailed_metrics.jsonl")
 
         # Step 3: Load metrics from detailed_metrics.jsonl
         detailed_metrics_path = os.path.join(inf_dir, "detailed_metrics.jsonl")
         with open(detailed_metrics_path, "r") as f:
             metrics = [json.loads(line) for line in f]
-        print(f"[DEBUG] Loaded {len(metrics)} metrics from {detailed_metrics_path}")
+       #print(f"[DEBUG] Loaded {len(metrics)} metrics from {detailed_metrics_path}")
 
         # Step 4: Generate summary
         summary = self.generate_summary(metrics)
@@ -378,7 +378,7 @@ class LLMCodeEvaluator:
         evaluation_path = os.path.join(inf_dir, "evaluation.json")
         with open(evaluation_path, "w") as f:
             json.dump(summary, f, indent=2)
-        print(f"[DEBUG] Saved evaluation summary to {evaluation_path}")
+       #print(f"[DEBUG] Saved evaluation summary to {evaluation_path}")
 
         return metrics, summary
     
@@ -914,28 +914,28 @@ class LLMCodeEvaluator:
         gr_black_pixels = np.sum(img_gr_bw)
         gr_white_pixels = img_gr_bw.size - gr_black_pixels
         
-        print(f"Predicted image: {pred_black_pixels} black pixels, {pred_white_pixels} white pixels")
-        print(f"Ground truth image: {gr_black_pixels} black pixels, {gr_white_pixels} white pixels")
+       #print(f"Predicted image: {pred_black_pixels} black pixels, {pred_white_pixels} white pixels")
+       #print(f"Ground truth image: {gr_black_pixels} black pixels, {gr_white_pixels} white pixels")
         
         # Calculate true positives, false positives, false negatives
         true_positives = np.sum(img_pred_bw & img_gr_bw)
         false_positives = np.sum(img_pred_bw & ~img_gr_bw)
         false_negatives = np.sum(~img_pred_bw & img_gr_bw)
         
-        print(f"True positives (black pixels correctly predicted): {true_positives}")
-        print(f"False positives (black pixels incorrectly predicted): {false_positives}")
-        print(f"False negatives (missed black pixels): {false_negatives}")
+       #print(f"True positives (black pixels correctly predicted): {true_positives}")
+       #print(f"False positives (black pixels incorrectly predicted): {false_positives}")
+       #print(f"False negatives (missed black pixels): {false_negatives}")
         
         # Calculate precision and recall
         precision = true_positives / (true_positives + false_positives) if (true_positives + false_positives) > 0 else 0.0
         recall = true_positives / (true_positives + false_negatives) if (true_positives + false_negatives) > 0 else 0.0
         
-        print(f"Precision: {precision}")
-        print(f"Recall: {recall}")
+       #print(f"Precision: {precision}")
+       #print(f"Recall: {recall}")
         
         # Calculate F1 score
         f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
-        print(f"F1 Score: {f1_score}")
+       #print(f"F1 Score: {f1_score}")
         
         return {
             "pixel_precision": precision,
@@ -1052,7 +1052,7 @@ if __name__ == "__main__":
         detailed_metrics_path = os.path.join(inf_dir, "detailed_metrics.jsonl")
         with open(detailed_metrics_path, "r") as f:
             metrics = [json.loads(line) for line in f]
-        print(f"[DEBUG] Loaded {len(metrics)} metrics from {detailed_metrics_path}")
+       #print(f"[DEBUG] Loaded {len(metrics)} metrics from {detailed_metrics_path}")
 
         # Step 4: Generate summary
         summary = evaluator.generate_summary(metrics)
@@ -1062,4 +1062,4 @@ if __name__ == "__main__":
         evaluation_path = os.path.join(inf_dir, "evaluation.json")
         with open(evaluation_path, "w") as f:
             json.dump(summary, f, indent=2)
-        print(f"[DEBUG] Saved evaluation summary to {evaluation_path}")
+       #print(f"[DEBUG] Saved evaluation summary to {evaluation_path}")
