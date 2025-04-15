@@ -6,6 +6,7 @@ This repository contains scripts to generate synthetic datasets for different ge
 
 - **Main Generation Scripts**
   - `main_length_gen.py`: Generates and splits datasets based on length generalization criteria (length or execution time (later is archived)). Creates data with Description, Program, and ASCII-Art columns.
+  - `main_unbiased_test.py`: Generates a test split to the length-gen-dataset which is unbiased. This means it contains new unseen programs which are not longer as the ones seen during train and validation.
   - `main_mix_match_gen.py`: Generates and splits datasets based on mix-match generalization criteria. Creates data with Description, Program, and Image columns.
 
 - **Core Components**
