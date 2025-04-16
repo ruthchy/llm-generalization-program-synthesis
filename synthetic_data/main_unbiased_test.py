@@ -1,15 +1,16 @@
 import os
 import pandas as pd
 from datasets import load_dataset, Dataset
+from _1_logo_pseudo_code_generator import generateLOGOPseudoCode
+from _2_sampler import LOGOProgramSampler
 from _6_length import Length
 from main_length_gen import generate_synthetic_data, generateLOGOPseudoCode
 
-def generate_valid_synthetic_data(generator, combined_dataset, threshold, required_samples):
+def generate_valid_synthetic_data(combined_dataset, threshold, required_samples):
     """
     Generate synthetic programs until the required number of valid samples is reached.
 
     Args:
-        generator: The synthetic data generator.
         combined_dataset (DataFrame): Combined dataset (train, validation, test) to avoid duplicates.
         threshold (int): Maximum allowed length for programs in the new test split.
         required_samples (int): Number of valid samples needed.
@@ -17,17 +18,21 @@ def generate_valid_synthetic_data(generator, combined_dataset, threshold, requir
     Returns:
         DataFrame: A DataFrame containing exactly the required number of valid samples.
     """
+    generator = generateLOGOPseudoCode()
+    sampler = LOGOProgramSampler(generator, combined_dataset)
     length_calculator = Length()
     valid_synthetic_data = []
 
     while len(valid_synthetic_data) < required_samples:
         # Generate a batch of synthetic programs
         batch_size = required_samples - len(valid_synthetic_data)
-        synthetic_data = generate_synthetic_data(generator, combined_dataset, sample_size=batch_size)
+        synthetic_data = sampler.sample(n=batch_size)
+        synthetic_data = pd.DataFrame(synthetic_data, columns=['Description', 'Program'])
 
         # Calculate lengths and filter programs below the threshold
         synthetic_data['Length'] = synthetic_data['Program'].apply(length_calculator.calc_length)
         valid_batch = synthetic_data[synthetic_data['Length'] <= threshold]
+        print(f"Filtered down to {len(valid_batch)} valid programs...")
 
         # Add valid programs to the result
         valid_synthetic_data.extend(valid_batch.to_dict(orient="records"))
@@ -62,9 +67,8 @@ if __name__ == "__main__":
     print(f"Threshold (shortest program length in test set): {threshold}")
 
     # Step 4: Generate exactly 997 valid synthetic programs
-    generator = generateLOGOPseudoCode()
     required_samples = 997  # Desired number of new programs
-    valid_synthetic_data = generate_valid_synthetic_data(generator, combined_dataset, threshold, required_samples)
+    valid_synthetic_data = generate_valid_synthetic_data(combined_dataset, threshold, required_samples)
 
     print(f"Generated {len(valid_synthetic_data)} valid synthetic programs.")
 
@@ -75,8 +79,10 @@ if __name__ == "__main__":
     from __parser_pyturtle_pc import ProgramParser 
     parser = ProgramParser(save_dir="logo_graphic/len_gen_dataset", save_image=True, eval_mode=False)
 
-    # add the valid replace the test split with the valid synthetic data
+    # Replace the test split with the valid synthetic data
     ds['test'] = Dataset.from_pandas(valid_synthetic_data)
+
+    print(f"Dataset Structure: {ds}") # missing image column shows that replacement was successful
 
     push_to_hub = True  # Change to True if you want to upload
     hub_name = "ruthchy/length-gen-logo-image-unbiased-test" 
