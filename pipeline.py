@@ -38,6 +38,7 @@ import os
 os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 os.environ['UNSLOTH_RETURN_LOGITS'] = '1'  # new
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 # Decide the mode in which the script should run fine-tuning and/or inference; in testing or production mode
 import argparse
@@ -304,6 +305,7 @@ def load_model_and_tokenizer(config: Config):
     model, tokenizer = FastLanguageModel.from_pretrained(
             config.model.model_id,
             load_in_4bit=True,
+            device_map='auto', 
         )
 
     model = FastLanguageModel.get_peft_model(
@@ -419,11 +421,11 @@ def prepare_dataset(config: Config, tokenizer, sample_fraction = 1.0):
         full_text = tokenizer.apply_chat_template(conversation=messages, tokenize=False, add_generation_prompt=False)
 
         # DEBUG: Print formatted examples
-        if idx < 3:  # Only print the first few examples for each split
+        if idx < 1:  # Only print the first few examples for each split
             print(f"\n--- DEBUG: {split_type} EXAMPLE #{idx} ---")
             print(f"System prompt included: {config.prompt.include_sys_prompt_fn if split_type != 'test' else config.prompt.include_sys_prompt_inf}")
-            print(f"Messages format: {messages}")
-            print(f"PROMPT TEXT (for length calculation):\n{prompt_text}")
+            #print(f"Messages format: {messages}")
+            #print(f"PROMPT TEXT (for length calculation):\n{prompt_text}")
             print(f"FULL TEXT (with completion):\n{full_text}")
             print("--- END DEBUG ---\n")
 
@@ -656,7 +658,7 @@ def prepare_compute_metrics(dataset: DatasetDict, tokenizer):
                             "pixel_recall": np.nan,
                             "pixel_f1": np.nan
                         })
-                if image_metrics:
+                if image_metrics and any(not np.isnan(m["ssim_score"]) for m in image_metrics):
                     avg_ssim = np.nanmean([m["ssim_score"] for m in image_metrics])
                     avg_dreamsim = np.nanmean([m["dreamsim_score"] for m in image_metrics])
                     avg_precision = np.nanmean([m["pixel_precision"] for m in image_metrics])
@@ -668,6 +670,7 @@ def prepare_compute_metrics(dataset: DatasetDict, tokenizer):
                     avg_precision = np.nan
                     avg_recall = np.nan
                     avg_f1 = np.nan
+                image_metrics.clear()
             except Exception as e:
                 print(f"Error computing Image metrics: {str(e)}")
                 avg_ssim = np.nan
