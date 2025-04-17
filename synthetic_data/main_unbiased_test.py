@@ -1,3 +1,6 @@
+'''
+This script needs to be run inside a batch job or an interactive job with a certain amount of memory allocated.
+'''
 import os
 import pandas as pd
 import gc
