@@ -3,7 +3,7 @@
 #SBATCH --job-name=hp-tuning
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=10
-#SBATCH --mem=60G
+#SBATCH --mem=100G
 #SBATCH --mail-user=priscilla.ruth.chyrva@students.uni-mannheim.de
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --gres=gpu:1
@@ -25,10 +25,10 @@ if [ -f "hp_tuning_completed.marker" ]; then
 fi
 
 # Set the number of trials and timeout for Optuna
-N_TRIALS=2
+N_TRIALS=25
 TIMEOUT=$((48 * 60 * 60)) # Calculate timeout in seconds (48 hours) can also be set to None (no timeout, just n_trails will limit duration
 
 # Run hyperparameter tuning script
-python hp_optuna.py --n_trials $N_TRIALS --timeout $TIMEOUT --test_mode # if this flag is set each configuration will run for a single epoch
+python hp_optuna.py --n_trials $N_TRIALS #--timeout $TIMEOUT --test_mode # if this flag is set each configuration will run for a single epoch & use only a fraction of the data
 
 # Chain the next job if needed (unless we're done)

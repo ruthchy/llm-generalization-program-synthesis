@@ -34,17 +34,10 @@ def create_config_for_run(base_config_path, hp_params, output_path="config_temp.
         config = yaml.safe_load(f)
     
     # Update config with hyperparameters
-    config['training']['prompt_loss_weight'] = hp_params['prompt_loss_weight']
     config['training']['learning_rate'] = hp_params['learning_rate']
     config['training']['per_device_train_batch_size'] = hp_params['per_device_train_batch_size']
-    config['training']['per_device_eval_batch_size'] = hp_params['per_device_eval_batch_size']
-    config['training']['gradient_accumulation_steps'] = hp_params['gradient_accumulation_steps']
     config['lora']['rank'] = hp_params['lora_rank']
     config['lora']['alpha'] = hp_params['lora_alpha']
-    config['training']['warmup_ratio'] = hp_params['warmup_ratio']
-    config['training']['warmup_steps'] = None  # Disable warmup_steps to use ratio instead
-    config['training']['lr_scheduler_type'] = hp_params['lr_scheduler_type']
-    config['model']['temperature'] = hp_params['temperature']
     
     # Test mode: reduce epochs
     if TEST_MODE:
@@ -111,13 +104,18 @@ def run_pipeline(config_path, trial_id):
     logger.info(f"Logs will be saved to {log_file}")
     
     try:
-        wb_type = "test_optimize" if TEST_MODE else "optimize"
+        if TEST_MODE:
+            wb_type = "test_optimize"
+            fraction = "0.1"
+        else:
+            fraction = "1.0"
+            wb_type = "optimize"
 
         # Use your existing pipeline.py script
         cmd = [
             "python", "pipeline.py",
             "--fine_tune",
-            "--sample_fraction", "0.1",
+            "--sample_fraction", fraction,
             "--config", config_path,
             "--wb_type", wb_type
         ]
@@ -247,88 +245,6 @@ class OptunaStorage:
         
         self.save()
     
-    def get_oom_failures(self):
-        """Get list of parameter combinations that caused OOM errors"""
-        return self.data.get("oom_failures", [])
-
-def estimate_memory_footprint(params):
-    """Estimate memory footprint from parameters (higher value = more memory)"""
-    train_bs = params["per_device_train_batch_size"]
-    eval_bs = params["per_device_eval_batch_size"]
-    lora_rank = params["lora_rank"]
-    grad_accum = params["gradient_accumulation_steps"]
-    
-    # Empirical formula: rank impacts memory the most, followed by batch size
-    # This is just a heuristic - adjust based on your observations
-    return (lora_rank * 0.5) + (train_bs * 0.3) + (eval_bs * 0.1) + (10 / grad_accum)
-
-class MemoryAwareOrderingSampler(TPESampler):
-    """Custom sampler that orders trials by estimated memory usage"""
-    def __init__(self, seed=None):
-        super().__init__(seed=seed)
-        self.pending_trials = []
-        self.storage = OptunaStorage()
-        self.oom_params = set()
-        
-        # Process previous OOM failures
-        for failure in self.storage.get_oom_failures():
-            params = failure["params"]
-            key = (
-                params.get("lora_rank", 0),
-                params.get("per_device_train_batch_size", 0),
-                params.get("per_device_eval_batch_size", 0),
-                params.get("gradient_accumulation_steps", 1)
-            )
-            self.oom_params.add(key)
-    
-    def is_likely_oom(self, params):
-        """Check if parameters are likely to cause OOM based on previous failures"""
-        # Extract memory-relevant parameters
-        rank = params.get("lora_rank", 0)
-        train_bs = params.get("per_device_train_batch_size", 0)
-        eval_bs = params.get("per_device_eval_batch_size", 0)
-        grad_accum = params.get("gradient_accumulation_steps", 1)
-        
-        # Check against known failures
-        for failed_rank, failed_train, failed_eval, failed_grad in self.oom_params:
-            # If we're using same or higher values for all key parameters, likely to OOM
-            if (rank >= failed_rank and 
-                train_bs >= failed_train and 
-                eval_bs >= failed_eval and
-                grad_accum <= failed_grad):
-                return True
-                
-        return False
-    
-    def sample_independent(self, study, trial, param_name, param_distribution):
-        # Use parent's method to sample parameter values
-        value = super().sample_independent(study, trial, param_name, param_distribution)
-        
-        # If this completes a full set of parameters, add to pending trials
-        if param_name == "lr_scheduler_type":  # Last parameter we sample
-            # Get all parameter values
-            params = {}
-            for name in ["prompt_loss_weight", "learning_rate", "per_device_train_batch_size", 
-                         "per_device_eval_batch_size", "gradient_accumulation_steps", "lora_rank",
-                         "lora_alpha", "warmup_ratio", "lr_scheduler_type", "temperature"]:
-                if name == param_name:
-                    params[name] = value
-                else:
-                    distribution = trial.distributions.get(name)
-                    if distribution:
-                        # Get the already sampled value
-                        for param in trial.params.keys():
-                            if param == name:
-                                params[name] = trial.params[param]
-                                break
-            
-            # If we have a complete set of parameters
-            if len(params) == 10:  # Number of hyperparameters
-                if not self.is_likely_oom(params):
-                    self.pending_trials.append((params, estimate_memory_footprint(params)))
-        
-        return value
-    
     def get_next_trial(self):
         """Get next trial sorted by memory footprint (lowest first)"""
         if not self.pending_trials:
@@ -339,47 +255,28 @@ class MemoryAwareOrderingSampler(TPESampler):
         return self.pending_trials.pop(0)[0]
 
 def objective(trial):
-    """Optuna objective function"""
+    """Optuna objective function with OOM pruning."""
     # Load hyperparameter space
     hp_space = load_hyperparameter_space()["hyperparameter_grid"]
-    
-    # Always suggest all parameters using the standard approach
+
+    # Suggest hyperparameters
     params = {
-        "prompt_loss_weight": trial.suggest_categorical("prompt_loss_weight", hp_space["prompt_loss_weight"]),
         "learning_rate": trial.suggest_categorical("learning_rate", hp_space["learning_rate"]),
         "per_device_train_batch_size": trial.suggest_categorical("per_device_train_batch_size", hp_space["per_device_train_batch_size"]),
-        "gradient_accumulation_steps": trial.suggest_categorical("gradient_accumulation_steps", hp_space["gradient_accumulation_steps"]),
         "lora_rank": trial.suggest_categorical("lora_rank", hp_space["lora_rank"]),
         "lora_alpha": trial.suggest_categorical("lora_alpha", hp_space["lora_alpha"]),
-        "warmup_ratio": trial.suggest_categorical("warmup_ratio", hp_space["warmup_ratio"]),
-        "lr_scheduler_type": trial.suggest_categorical("lr_scheduler_type", hp_space["lr_scheduler_type"]),
-        "temperature": trial.suggest_categorical("temperature", hp_space["temperature"]),
     }
-    
-    # Handle the constraint: eval_batch_size >= train_batch_size
-    train_batch_size = params["per_device_train_batch_size"]
-    valid_eval_sizes = [bs for bs in hp_space["per_device_eval_batch_size"] if bs >= train_batch_size]
-    params["per_device_eval_batch_size"] = trial.suggest_categorical("per_device_eval_batch_size", valid_eval_sizes)
-    
-    # Let the memory-aware sampler influence the selection if available
-    sampler = trial.study.sampler
-    if isinstance(sampler, MemoryAwareOrderingSampler) and hasattr(sampler, 'get_next_trial'):
-        next_params = sampler.get_next_trial()
-        if next_params:
-            # Only use the next_params for trial ordering, not for actual parameter values
-            # This is to avoid the KeyError issue
-            logger.info("Using memory-aware ordering for trial")
-    
+
     # Create config file
     config_path = create_config_for_run("config.yaml", params)
-    
+
     # Run the pipeline
     metrics, error = run_pipeline(config_path, trial.number)
-    
+
     # Save to persistent storage
     storage = OptunaStorage()
-    
-    # Handle the trial outcome
+
+    # Save to persistent storage
     if metrics is None:
         # Trial failed completely, return a penalty value
         logger.warning(f"Trial {trial.number} failed with error: {error}")
@@ -391,7 +288,7 @@ def objective(trial):
         storage.add_trial(trial.number, params, comp_loss, error if error else None)
         return comp_loss
 
-def run_optuna_optimization(n_trials, timeout):  # ~11 hours
+def run_optuna_optimization(n_trials, timeout):
     """Run Optuna hyperparameter optimization"""
     # Create study or load existing one
     storage_file = "optuna_test_storage.json" if TEST_MODE else "optuna_storage.json"
@@ -403,11 +300,11 @@ def run_optuna_optimization(n_trials, timeout):  # ~11 hours
     else:
         logger.info("Creating new Optuna study")
     
-    # Create a study with our custom memory-aware sampler
+    # Create a study with the default TPE sampler
     study = optuna.create_study(
         study_name=study_name, 
         direction="minimize",  # Minimize the loss
-        sampler=MemoryAwareOrderingSampler(seed=42),  # Use memory-aware ordering
+        sampler=TPESampler(seed=42),
         load_if_exists=True
     )
     
