@@ -5,22 +5,29 @@ import json
 import tempfile
 import subprocess
 import os
+import sys
 import re
+import ast
+import zss  # Requires package: pip install zss
 import numpy as np
 import gc
 import multiprocessing
 import io
 from PIL import Image as PILImage
+from PIL import ImageChops, ImageStat
 import matplotlib.pyplot as plt
+from synthetic_data.transform_data_to_forkstate_custom import transform_program
+
 from Levenshtein import distance as levenshtein_distance
 from crystalbleu import corpus_bleu
-from synthetic_data.transform_data_to_forkstate_custom import transform_program
+from skimage.metrics import structural_similarity as ssim
 try: 
     import dreamsim
     import torch
     from torchvision.transforms import ToTensor
 except ImportError:
     print("dreamsim package not found. Please install it using 'pip install dreamsim'")
+import traceback
             
 
 class LLMCodeEvaluator:
@@ -35,9 +42,7 @@ class LLMCodeEvaluator:
         
         Args:
             repo_root (str, optional): Repository root path. If None, uses current directory.
-        """
-        import sys  # Add this import at the beginning of the method
-        
+        """        
         self.repo_root = repo_root or os.getcwd()
         # Configure dependencies path
         self.dependencies_path = os.path.join(self.repo_root, 'external/dependencies')
@@ -393,6 +398,19 @@ class LLMCodeEvaluator:
         Returns:
             str: Cleaned code
         """
+        #print(f"[DEBUG] Original completion: {code}")
+        # Step 1: If code is embeded in natural language extract the blocks
+        markdown_blocks = re.findall(r'```(.*?)```', code, re.DOTALL)
+        if markdown_blocks:
+            code = markdown_blocks[0]  # Use the first block if multiple are found
+        elif code.startswith("### Response:"):
+                # Find the first occurrence of '\nfor' and extract everything including 'for'
+                for_index = code.find("\nfor")
+                if for_index != -1:
+                    code = code[for_index + 1:]  # Include 'for' and everything after it
+        #print(f"[DEBUG] Completion after extraction: {code}")
+
+        # Step 2: Remove comments and empty lines
         cleaned_lines = []
         for line in code.split('\n'):
             # Remove comments
@@ -410,9 +428,6 @@ class LLMCodeEvaluator:
         Also detects different patterns of embed() usage
         Returns (is_valid, message, details_dict)
         """
-        import re
-        import ast
-        
         if not completion:
             return False, "Empty code", {"outer_valid": False, "embed_valid": False}
         
@@ -579,8 +594,6 @@ class LLMCodeEvaluator:
         Returns:
             dict: Levenshtein similarity metrics
         """
-        from Levenshtein import distance as levenshtein_distance
-        
         # Basic Levenshtein distance
         lev_distance = levenshtein_distance(completion, ground_truth)
         
@@ -608,9 +621,6 @@ class LLMCodeEvaluator:
         Returns:
             dict: AST similarity metrics
         """
-        import ast
-        import zss  # Requires package: pip install zss
-
         # Helper functions for zss
         def get_children(node):
             return [child for child in ast.iter_child_nodes(node)]
@@ -692,7 +702,6 @@ class LLMCodeEvaluator:
             }
         except Exception as e:
             print(f"Exception in check_crystalbleu_similarity: {type(e).__name__}: {e}")
-            import traceback
             traceback.print_exc()
             return {
                 "crystalbleu_score": 0.0,
@@ -799,19 +808,15 @@ class LLMCodeEvaluator:
             
         Returns:
             float: SSIM score
-        """
-        from skimage.metrics import structural_similarity as ssim
-        import numpy as np
-        
+        """        
         # Convert PIL images to numpy arrays
         img1_np = np.array(image1.convert('L'))  # Convert to grayscale
         img2_np = np.array(image2.convert('L'))
             
         # Resize if dimensions don't match
         if img1_np.shape != img2_np.shape:
-            from PIL import Image
             # Resize the second image to match the first
-            image2_resized = image2.resize(image1.size, Image.LANCZOS)
+            image2_resized = image2.resize(image1.size, PILImage.LANCZOS)
             img2_np = np.array(image2_resized.convert('L'))
             
         # Calculate SSIM
@@ -830,12 +835,9 @@ class LLMCodeEvaluator:
         Returns:
             float: Similarity score (0-1)
         """
-        import numpy as np
-        from PIL import ImageChops, ImageStat, Image
-
         # Resize if dimensions don't match
         if image1.size != image2.size:
-            image2 = image2.resize(image1.size, Image.LANCZOS)
+            image2 = image2.resize(image1.size, PILImage.LANCZOS)
             
         # Calculate difference
         diff = ImageChops.difference(image1.convert('RGB'), image2.convert('RGB'))
@@ -860,8 +862,7 @@ class LLMCodeEvaluator:
         try:
             # Resize image2 if dimensions don't match
             if image1.size != image2.size:
-                from PIL import Image
-                image2 = image2.resize(image1.size, Image.LANCZOS)
+                image2 = image2.resize(image1.size, PILImage.LANCZOS)
 
             # Preprocess images - move to the correct device
             tensor1 = self.dsim_preprocess(image1).to(self.device)
@@ -878,7 +879,6 @@ class LLMCodeEvaluator:
 
         except Exception as e:
             print(f"Error calculating DreamSim: {e}")
-            import traceback
             traceback.print_exc()
             return None
 
@@ -892,13 +892,10 @@ class LLMCodeEvaluator:
             
         Returns:
             dict: Precision and recall metrics
-        """
-        import numpy as np
-        from PIL import Image
-        
+        """        
         # Resize if dimensions don't match
         if image_pred.size != image_gr.size:
-            image_gr = image_gr.resize(image_pred.size, Image.LANCZOS)
+            image_gr = image_gr.resize(image_pred.size, PILImage.LANCZOS)
         
         # Convert to grayscale
         img_pred_gs = np.array(image_pred.convert('L'))  # Predicted image as grayscale
@@ -1033,8 +1030,6 @@ def _execute_code_in_process(program, return_dict):
 
 # Simple usage example
 if __name__ == "__main__":
-    import sys
-    
     evaluator = LLMCodeEvaluator()
     
     detailed = True
@@ -1043,7 +1038,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         inf_dir = sys.argv[1]
     else:
-        inf_dir = "results/length/CodeLlama_20250408_1252/inference"
+        inf_dir = "results/length/CodeLlama_20250409_2006/inference"
     
     if detailed and evaluation:
         metrics, summary = evaluator.evaluate_and_summarize(inf_dir)
