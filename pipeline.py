@@ -85,7 +85,8 @@ from datasets import load_dataset, DatasetDict
 from transformers import TrainingArguments, Trainer, get_scheduler, EarlyStoppingCallback
 #from transformers import default_data_collator
 from torch.nn import CrossEntropyLoss
-from torch.optim import AdamW
+from bitsandbytes.optim import AdamW8bit
+
 from Levenshtein import distance as levenshtein_distance
 
 @dataclass
@@ -315,7 +316,7 @@ def load_model_and_tokenizer(config: Config):
             lora_dropout=config.lora.dropout,
             target_modules=config.lora.target_modules,
             bias="none",
-            use_gradient_checkpointing=True)
+            use_gradient_checkpointing=config.training.gradient_checkpointing)
    
     print(f"Model's max position embeddings: {model.config.max_position_embeddings}")
     return  model, tokenizer
@@ -754,8 +755,16 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
             self.distributed_training = torch.distributed.is_initialized() # not used in single GPU setup
 
         def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None): # num_items_in_batch(batch_size*gradient_accumulation_steps) not used
+            # Debug: Check memory before forward pass
+            print(f"Before forward pass: {torch.cuda.memory_allocated() / 1e9:.2f} GB allocated")
+            print(f"Before forward pass: {torch.cuda.memory_reserved() / 1e9:.2f} GB reserved")
+        
             outputs = model(input_ids=inputs["input_ids"],
                             attention_mask=inputs["attention_mask"])
+            # Debug: Check memory after forward pass
+            print(f"After forward pass: {torch.cuda.memory_allocated() / 1e9:.2f} GB allocated")
+            print(f"After forward pass: {torch.cuda.memory_reserved() / 1e9:.2f} GB reserved")
+        
             logits = outputs.get("logits")
             labels = inputs.pop("labels")
 
@@ -930,8 +939,8 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
         tf32=True,              # bc set in run_plw.py
         seed=config.training.random_seed, 
         report_to=report_to,    # dynamic wandb reporting
-        gradient_checkpointing=True,     # use gradient checkpointing to save memory
-        gradient_checkpointing_kwargs={"use_reentrant": True},
+        gradient_checkpointing=config.training.gradient_checkpointing,     # use gradient checkpointing to save memory
+        gradient_checkpointing_kwargs={"use_reentrant": False},
         weight_decay=0.001,     # Set weight_decay to match DeepSpeed config 
         max_grad_norm=0.3,      # bc set in run_plw.py
         label_names=["labels"],
@@ -956,7 +965,8 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
         #callbacks=[EarlyStoppingCallback(early_stopping_patience=5)]
     )
 
-    trainer.optimizer = AdamW(trainer.model.parameters(), lr=training_args.learning_rate, weight_decay=training_args.weight_decay)
+    trainer.optimizer = AdamW8bit(trainer.model.parameters(), lr=training_args.learning_rate, weight_decay=training_args.weight_decay)
+    
     print("🚀 Optimizer:", trainer.optimizer)
 
     trainer.lr_scheduler = get_scheduler(
