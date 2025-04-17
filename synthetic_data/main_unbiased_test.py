@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+import gc
 from datasets import load_dataset, Dataset
 from _1_logo_pseudo_code_generator import generateLOGOPseudoCode
 from _2_sampler import LOGOProgramSampler
@@ -83,6 +84,11 @@ if __name__ == "__main__":
     ds['test'] = Dataset.from_pandas(valid_synthetic_data)
 
     print(f"Dataset Structure: {ds}") # missing image column shows that replacement was successful
+    
+    # remove unused data to free up memory
+    del combined_dataset
+    del valid_synthetic_data
+    gc.collect()
 
     push_to_hub = True  # Change to True if you want to upload
     hub_name = "ruthchy/length-gen-logo-image-unbiased-test" 
