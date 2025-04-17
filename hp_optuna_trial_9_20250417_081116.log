@@ -1,0 +1,287 @@
+Fine-tuning model with sample_fraction=1.0 and config_temp.yaml
+🦥 Unsloth: Will patch your computer to enable 2x faster free finetuning.
+🦥 Unsloth Zoo will now patch everything to make training faster!
+[2025-04-17 08:11:42,823] [INFO] [real_accelerator.py:222:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+Loaded configuration from config_temp.yaml
+results/length/CodeLlama_20250417_0811
+Random seed set to: 42
+==((====))==  Unsloth 2025.3.18: Fast Llama patching. Transformers: 4.50.3.
+   \\   /|    NVIDIA RTX 6000 Ada Generation. Num GPUs = 1. Max memory: 47.383 GB. Platform: Linux.
+O^O/ \_/ \    Torch: 2.6.0+cu124. CUDA: 8.9. CUDA Toolkit: 12.4. Triton: 3.2.0
+\        /    Bfloat16 = TRUE. FA [Xformers = 0.0.29.post3. FA2 = False]
+ "-____-"     Free license: http://github.com/unslothai/unsloth
+Unsloth: Fast downloading is enabled - ignore downloading bars which are red colored!
+
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]
+Loading checkpoint shards:  50%|█████     | 1/2 [00:21<00:21, 21.28s/it]
+Loading checkpoint shards: 100%|██████████| 2/2 [00:28<00:00, 12.92s/it]
+Loading checkpoint shards: 100%|██████████| 2/2 [00:28<00:00, 14.18s/it]
+Unsloth 2025.3.18 patched 32 layers with 32 QKV layers, 32 O layers and 32 MLP layers.
+codellama/CodeLlama-7b-Instruct-hf does not have a padding token! Will use pad_token = <unk>.
+Model's max position embeddings: 16384
+
+Formatting train prompts:   0%|          | 0/8006 [00:00<?, ? examples/s]
+Formatting train prompts:   4%|▍         | 345/8006 [00:00<00:02, 3317.30 examples/s]
+Formatting train prompts:  10%|█         | 801/8006 [00:00<00:01, 4032.92 examples/s]
+Formatting train prompts:  15%|█▌        | 1225/8006 [00:00<00:01, 3657.77 examples/s]
+Formatting train prompts:  21%|██        | 1687/8006 [00:00<00:01, 4003.78 examples/s]
+Formatting train prompts:  28%|██▊       | 2254/8006 [00:00<00:01, 3904.40 examples/s]
+Formatting train prompts:  34%|███▍      | 2714/8006 [00:00<00:01, 4106.31 examples/s]
+Formatting train prompts:  42%|████▏     | 3342/8006 [00:00<00:01, 4135.81 examples/s]
+Formatting train prompts:  48%|████▊     | 3812/8006 [00:00<00:00, 4287.04 examples/s]
+Formatting train prompts:  56%|█████▌    | 4459/8006 [00:01<00:00, 4186.46 examples/s]
+Formatting train prompts:  61%|██████▏   | 4915/8006 [00:01<00:00, 4280.23 examples/s]
+Formatting train prompts:  69%|██████▊   | 5489/8006 [00:01<00:00, 4119.64 examples/s]
+Formatting train prompts:  74%|███████▍  | 5950/8006 [00:01<00:00, 4241.34 examples/s]
+Formatting train prompts:  82%|████████▏ | 6553/8006 [00:01<00:00, 4161.90 examples/s]
+Formatting train prompts:  87%|████████▋ | 7000/8006 [00:01<00:00, 4047.33 examples/s]
+Formatting train prompts:  93%|█████████▎| 7457/8006 [00:01<00:00, 4178.55 examples/s]
+Formatting train prompts:  99%|█████████▉| 7924/8006 [00:01<00:00, 4308.93 examples/s]
+Formatting train prompts: 100%|██████████| 8006/8006 [00:01<00:00, 4075.20 examples/s]
+
+--- DEBUG: train EXAMPLE #0 ---
+System prompt included: False
+FULL TEXT (with completion):
+<s>[INST] Here is a gray scale image represented with integer values 0-9:
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000033000
+00000000000000000000000001303000
+00000000000000000000000031000200
+00000000000000000000001300000300
+00000000000000000000022000000300
+00000000000000000000310000000020
+00000000000000000013000000000031
+00000000000000000210000000000033
+00000000000000003000000000000014
+00000000000000013000000000000004
+00000000000000000310000000000033
+00000000000000000013000000000031
+00000000000000000000300000000020
+00000000000000000000022000000300
+00000000000000000122223422222422
+00000000000000000000000031000200
+00000000000000000000000002202000
+00000000000000000000000000033000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+Please write a Python program that generates this image using our custom turtle module. [/INST] for i in range(5):
+    forward(16)
+    left(180.0 - 72.0) </s>
+--- END DEBUG ---
+
+
+Formatting validation prompts:   0%|          | 0/997 [00:00<?, ? examples/s]
+Formatting validation prompts:  43%|████▎     | 429/997 [00:00<00:00, 4141.89 examples/s]
+Formatting validation prompts:  88%|████████▊ | 881/997 [00:00<00:00, 4354.74 examples/s]
+Formatting validation prompts: 100%|██████████| 997/997 [00:00<00:00, 3748.62 examples/s]
+
+--- DEBUG: validation EXAMPLE #0 ---
+System prompt included: False
+FULL TEXT (with completion):
+<s>[INST] Here is a gray scale image represented with integer values 0-9:
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000050000000000000
+00000000000000000344200000000000
+00000000000000000210120000000000
+00000000000000000300030000000000
+00000000000000000200120000000000
+00000000000000000023200000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+Please write a Python program that generates this image using our custom turtle module. [/INST] for i in range(3):
+    forward(2)
+    left(120.0)
+penup()
+forward(2)
+left(180)
+pendown()
+for i in range(HALF_INF):
+    forward(EPS_DIST*2)
+    left(EPS_ANGLE)
+for i in range(HALF_INF):
+    forward(EPS_DIST*2)
+    left(EPS_ANGLE)
+penup()
+forward(20)
+pendown() </s>
+--- END DEBUG ---
+
+
+Tokenizing train set:   0%|          | 0/8006 [00:00<?, ? examples/s]
+Tokenizing train set:  12%|█▏        | 1000/8006 [00:05<00:36, 192.97 examples/s]
+Tokenizing train set:  25%|██▍       | 2000/8006 [00:10<00:32, 185.71 examples/s]
+Tokenizing train set:  37%|███▋      | 3000/8006 [00:16<00:27, 184.35 examples/s]
+Tokenizing train set:  50%|████▉     | 4000/8006 [00:21<00:21, 182.38 examples/s]
+Tokenizing train set:  62%|██████▏   | 5000/8006 [00:27<00:16, 182.10 examples/s]
+Tokenizing train set:  75%|███████▍  | 6000/8006 [00:32<00:11, 181.43 examples/s]
+Tokenizing train set:  87%|████████▋ | 7000/8006 [00:38<00:05, 180.76 examples/s]
+Tokenizing train set: 100%|█████████▉| 8000/8006 [00:43<00:00, 179.99 examples/s]
+Tokenizing train set: 100%|██████████| 8006/8006 [00:44<00:00, 180.01 examples/s]
+
+Tokenizing validation set:   0%|          | 0/997 [00:00<?, ? examples/s]
+Tokenizing validation set: 100%|██████████| 997/997 [00:05<00:00, 198.49 examples/s]
+Tokenizing validation set: 100%|██████████| 997/997 [00:05<00:00, 190.22 examples/s]
+wandb: Using wandb-core as the SDK backend.  Please refer to https://wandb.me/wandb-core for more information.
+wandb: Currently logged in as: priscillachyrva (priscillachyrva-university-mannheim) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: Tracking run with wandb version 0.19.7.dev1
+wandb: Run data is saved locally in /ceph/pratz/GitHub_repos/master-thesis/wandb/run-20250417_081411-by5ke1xh
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run length_CodeLlama_20250417_0811
+wandb: ⭐️ View project at https://wandb.ai/priscillachyrva-university-mannheim/master-thesis
+wandb: 🚀 View run at https://wandb.ai/priscillachyrva-university-mannheim/master-thesis/runs/by5ke1xh
+Using cache found in ./models/facebookresearch_dino_main
+/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+Using cache found in ./models/facebookresearch_dino_main
+==((====))==  Unsloth - 2x faster free finetuning | Num GPUs used = 1
+   \\   /|    Num examples = 8,006 | Num Epochs = 1 | Total steps = 62
+O^O/ \_/ \    Batch size per device = 16 | Gradient accumulation steps = 8
+\        /    Data Parallel GPUs = 1 | Total batch size (16 x 8 x 1) = 128
+ "-____-"     Trainable parameters = 319,815,680/7,000,000,000 (4.57% trained)
+wandb: WARNING The `run_name` is currently set to the same value as `TrainingArguments.output_dir`. If this was not intended, please specify a different run name by setting the `TrainingArguments.run_name` parameter.
+Using cached ./models
+🚀 Optimizer: AdamW (
+Parameter Group 0
+    amsgrad: False
+    betas: (0.9, 0.999)
+    capturable: False
+    differentiable: False
+    eps: 1e-08
+    foreach: None
+    fused: None
+    lr: 2e-05
+    maximize: False
+    weight_decay: 0.001
+)
+🚀 Scheduler: <torch.optim.lr_scheduler.LambdaLR object at 0x7f1dc4459390>
+Using cached ./models
+
+  0%|          | 0/62 [00:00<?, ?it/s]
+  2%|▏         | 1/62 [01:59<2:01:39, 119.67s/it]
+  3%|▎         | 2/62 [03:57<1:58:43, 118.72s/it]
+  5%|▍         | 3/62 [05:57<1:57:02, 119.03s/it]
+  6%|▋         | 4/62 [07:56<1:55:12, 119.18s/it]
+  8%|▊         | 5/62 [09:56<1:53:20, 119.30s/it]
+ 10%|▉         | 6/62 [11:55<1:51:17, 119.24s/it]
+ 11%|█▏        | 7/62 [13:54<1:49:14, 119.17s/it]
+ 13%|█▎        | 8/62 [15:53<1:47:16, 119.19s/it]
+ 15%|█▍        | 9/62 [17:52<1:45:09, 119.05s/it]
+ 16%|█▌        | 10/62 [19:51<1:43:11, 119.06s/it]
+                                                  
+
+ 16%|█▌        | 10/62 [19:51<1:43:11, 119.06s/it]Unsloth: Will smartly offload gradients to save VRAM!
+{'loss': 9.1773, 'grad_norm': 3.5792043209075928, 'learning_rate': 1.9980345953194892e-05, 'epoch': 0.16}
+Traceback (most recent call last):
+  File "/ceph/pratz/GitHub_repos/master-thesis/pipeline.py", line 1489, in <module>
+    model = train_model(model, tokenizer, dataset, result_dir, config, timestamp, gen_type, model_type_short, wb_type)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/ceph/pratz/GitHub_repos/master-thesis/pipeline.py", line 982, in train_model
+    trainer.train()
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/transformers/trainer.py", line 2236, in train
+    return inner_training_loop(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "<string>", line 374, in _fast_inner_training_loop
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/transformers/trainer.py", line 3093, in _maybe_log_save_evaluate
+    metrics = self._evaluate(trial, ignore_keys_for_eval)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/transformers/trainer.py", line 3047, in _evaluate
+    metrics = self.evaluate(ignore_keys=ignore_keys_for_eval)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/transformers/trainer.py", line 4136, in evaluate
+    output = eval_loop(
+             ^^^^^^^^^^
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/transformers/trainer.py", line 4330, in evaluation_loop
+    losses, logits, labels = self.prediction_step(model, inputs, prediction_loss_only, ignore_keys=ignore_keys)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/transformers/trainer.py", line 4546, in prediction_step
+    loss, outputs = self.compute_loss(model, inputs, return_outputs=True)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/ceph/pratz/GitHub_repos/master-thesis/pipeline.py", line 757, in compute_loss
+    outputs = model(input_ids=inputs["input_ids"],
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1739, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1750, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/accelerate/utils/operations.py", line 819, in forward
+    return model_forward(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/accelerate/utils/operations.py", line 807, in __call__
+    return convert_to_fp32(self.model_forward(*args, **kwargs))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/accelerate/utils/operations.py", line 786, in convert_to_fp32
+    return recursively_apply(_convert_to_fp32, tensor, test_type=_is_fp16_bf16_tensor)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/accelerate/utils/operations.py", line 118, in recursively_apply
+    {
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/accelerate/utils/operations.py", line 119, in <dictcomp>
+    k: recursively_apply(
+       ^^^^^^^^^^^^^^^^^^
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/accelerate/utils/operations.py", line 107, in recursively_apply
+    return honor_type(
+           ^^^^^^^^^^^
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/accelerate/utils/operations.py", line 81, in honor_type
+    return type(obj)(generator)
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/accelerate/utils/operations.py", line 110, in <genexpr>
+    recursively_apply(
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/accelerate/utils/operations.py", line 107, in recursively_apply
+    return honor_type(
+           ^^^^^^^^^^^
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/accelerate/utils/operations.py", line 81, in honor_type
+    return type(obj)(generator)
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/accelerate/utils/operations.py", line 110, in <genexpr>
+    recursively_apply(
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/accelerate/utils/operations.py", line 126, in recursively_apply
+    return func(data, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/accelerate/utils/operations.py", line 778, in _convert_to_fp32
+    return tensor.float()
+           ^^^^^^^^^^^^^^
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 512.00 MiB. GPU 0 has a total capacity of 47.38 GiB of which 238.56 MiB is free. Including non-PyTorch memory, this process has 47.12 GiB memory in use. Of the allocated memory 46.42 GiB is allocated by PyTorch, and 181.45 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+An error occurred: CUDA out of memory. Tried to allocate 512.00 MiB. GPU 0 has a total capacity of 47.38 GiB of which 238.56 MiB is free. Including non-PyTorch memory, this process has 47.12 GiB memory in use. Of the allocated memory 46.42 GiB is allocated by PyTorch, and 181.45 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+[1;34mwandb[0m: 
+[1;34mwandb[0m: 🚀 View run [33mlength_CodeLlama_20250417_0811[0m at: [34mhttps://wandb.ai/priscillachyrva-university-mannheim/master-thesis/runs/by5ke1xh[0m
+[1;34mwandb[0m: Find logs at: [1;35mwandb/run-20250417_081411-by5ke1xh/logs[0m
+
+ 16%|█▌        | 10/62 [20:44<1:47:49, 124.42s/it]
+
+
+Trial failed with CUDA out of memory (exit code 0)

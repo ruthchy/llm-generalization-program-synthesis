@@ -1,0 +1,166 @@
+Fine-tuning model with sample_fraction=1.0 and config_temp.yaml
+🦥 Unsloth: Will patch your computer to enable 2x faster free finetuning.
+🦥 Unsloth Zoo will now patch everything to make training faster!
+[2025-04-16 17:21:23,032] [INFO] [real_accelerator.py:222:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+Loaded configuration from config_temp.yaml
+results/length/CodeLlama_20250416_1721
+Random seed set to: 42
+==((====))==  Unsloth 2025.3.18: Fast Llama patching. Transformers: 4.50.3.
+   \\   /|    NVIDIA RTX 6000 Ada Generation. Num GPUs = 1. Max memory: 47.383 GB. Platform: Linux.
+O^O/ \_/ \    Torch: 2.6.0+cu124. CUDA: 8.9. CUDA Toolkit: 12.4. Triton: 3.2.0
+\        /    Bfloat16 = TRUE. FA [Xformers = 0.0.29.post3. FA2 = False]
+ "-____-"     Free license: http://github.com/unslothai/unsloth
+Unsloth: Fast downloading is enabled - ignore downloading bars which are red colored!
+
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]
+Loading checkpoint shards:  50%|█████     | 1/2 [00:21<00:21, 21.96s/it]
+Loading checkpoint shards: 100%|██████████| 2/2 [00:29<00:00, 13.21s/it]
+Loading checkpoint shards: 100%|██████████| 2/2 [00:29<00:00, 14.52s/it]
+Unsloth 2025.3.18 patched 32 layers with 32 QKV layers, 32 O layers and 32 MLP layers.
+codellama/CodeLlama-7b-Instruct-hf does not have a padding token! Will use pad_token = <unk>.
+Model's max position embeddings: 16384
+
+Tokenizing train set:   0%|          | 0/8006 [00:00<?, ? examples/s]
+Tokenizing train set:  12%|█▏        | 1000/8006 [00:04<00:34, 201.72 examples/s]
+Tokenizing train set:  25%|██▍       | 2000/8006 [00:10<00:31, 192.44 examples/s]
+Tokenizing train set:  37%|███▋      | 3000/8006 [00:15<00:26, 188.58 examples/s]
+Tokenizing train set:  50%|████▉     | 4000/8006 [00:21<00:21, 186.43 examples/s]
+Tokenizing train set:  62%|██████▏   | 5000/8006 [00:26<00:16, 184.70 examples/s]
+Tokenizing train set:  75%|███████▍  | 6000/8006 [00:32<00:10, 182.91 examples/s]
+Tokenizing train set:  87%|████████▋ | 7000/8006 [00:37<00:05, 183.42 examples/s]
+Tokenizing train set: 100%|█████████▉| 8000/8006 [00:43<00:00, 182.72 examples/s]
+Tokenizing train set: 100%|██████████| 8006/8006 [00:43<00:00, 183.25 examples/s]
+
+Tokenizing validation set:   0%|          | 0/997 [00:00<?, ? examples/s]
+Tokenizing validation set: 100%|██████████| 997/997 [00:05<00:00, 198.41 examples/s]
+Tokenizing validation set: 100%|██████████| 997/997 [00:05<00:00, 190.12 examples/s]
+wandb: Using wandb-core as the SDK backend.  Please refer to https://wandb.me/wandb-core for more information.
+wandb: Currently logged in as: priscillachyrva (priscillachyrva-university-mannheim) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: Tracking run with wandb version 0.19.7.dev1
+wandb: Run data is saved locally in /ceph/pratz/GitHub_repos/master-thesis/wandb/run-20250416_172407-fj9i3tfy
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run length_CodeLlama_20250416_1721
+wandb: ⭐️ View project at https://wandb.ai/priscillachyrva-university-mannheim/master-thesis
+wandb: 🚀 View run at https://wandb.ai/priscillachyrva-university-mannheim/master-thesis/runs/fj9i3tfy
+Using cache found in ./models/facebookresearch_dino_main
+/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+Using cache found in ./models/facebookresearch_dino_main
+==((====))==  Unsloth - 2x faster free finetuning | Num GPUs used = 1
+   \\   /|    Num examples = 8,006 | Num Epochs = 1 | Total steps = 125
+O^O/ \_/ \    Batch size per device = 8 | Gradient accumulation steps = 8
+\        /    Data Parallel GPUs = 1 | Total batch size (8 x 8 x 1) = 64
+ "-____-"     Trainable parameters = 1,279,262,720/7,000,000,000 (18.28% trained)
+wandb: WARNING The `run_name` is currently set to the same value as `TrainingArguments.output_dir`. If this was not intended, please specify a different run name by setting the `TrainingArguments.run_name` parameter.
+Using cached ./models
+🚀 Optimizer: AdamW (
+Parameter Group 0
+    amsgrad: False
+    betas: (0.9, 0.999)
+    capturable: False
+    differentiable: False
+    eps: 1e-08
+    foreach: None
+    fused: None
+    lr: 0.0001
+    maximize: False
+    weight_decay: 0.001
+)
+🚀 Scheduler: <torch.optim.lr_scheduler.LambdaLR object at 0x7fbbe8d10fd0>
+Using cached ./models
+
+  0%|          | 0/125 [00:00<?, ?it/s]
+  1%|          | 1/125 [01:10<2:26:30, 70.89s/it]
+  2%|▏         | 2/125 [02:21<2:25:16, 70.87s/it]
+  2%|▏         | 3/125 [03:34<2:25:34, 71.60s/it]
+  3%|▎         | 4/125 [04:47<2:25:22, 72.09s/it]
+  4%|▍         | 5/125 [05:59<2:24:43, 72.36s/it]
+  5%|▍         | 6/125 [07:12<2:23:52, 72.54s/it]
+  6%|▌         | 7/125 [08:25<2:22:53, 72.66s/it]
+  6%|▋         | 8/125 [09:38<2:21:49, 72.73s/it]
+  7%|▋         | 9/125 [10:51<2:20:43, 72.79s/it]
+  8%|▊         | 10/125 [12:04<2:19:33, 72.82s/it]
+                                                  
+
+  8%|▊         | 10/125 [12:04<2:19:33, 72.82s/it]Unsloth: Will smartly offload gradients to save VRAM!
+{'loss': 8.2662, 'grad_norm': 0.3880736827850342, 'learning_rate': 9.997537728428837e-05, 'epoch': 0.08}
+Traceback (most recent call last):
+  File "/ceph/pratz/GitHub_repos/master-thesis/pipeline.py", line 1489, in <module>
+    model = train_model(model, tokenizer, dataset, result_dir, config, timestamp, gen_type, model_type_short, wb_type)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/ceph/pratz/GitHub_repos/master-thesis/pipeline.py", line 982, in train_model
+    trainer.train()
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/transformers/trainer.py", line 2236, in train
+    return inner_training_loop(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "<string>", line 374, in _fast_inner_training_loop
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/transformers/trainer.py", line 3093, in _maybe_log_save_evaluate
+    metrics = self._evaluate(trial, ignore_keys_for_eval)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/transformers/trainer.py", line 3047, in _evaluate
+    metrics = self.evaluate(ignore_keys=ignore_keys_for_eval)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/transformers/trainer.py", line 4136, in evaluate
+    output = eval_loop(
+             ^^^^^^^^^^
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/transformers/trainer.py", line 4330, in evaluation_loop
+    losses, logits, labels = self.prediction_step(model, inputs, prediction_loss_only, ignore_keys=ignore_keys)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/transformers/trainer.py", line 4546, in prediction_step
+    loss, outputs = self.compute_loss(model, inputs, return_outputs=True)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/ceph/pratz/GitHub_repos/master-thesis/pipeline.py", line 757, in compute_loss
+    outputs = model(input_ids=inputs["input_ids"],
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1739, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1750, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/accelerate/utils/operations.py", line 819, in forward
+    return model_forward(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/accelerate/utils/operations.py", line 807, in __call__
+    return convert_to_fp32(self.model_forward(*args, **kwargs))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/accelerate/utils/operations.py", line 786, in convert_to_fp32
+    return recursively_apply(_convert_to_fp32, tensor, test_type=_is_fp16_bf16_tensor)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/accelerate/utils/operations.py", line 118, in recursively_apply
+    {
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/accelerate/utils/operations.py", line 119, in <dictcomp>
+    k: recursively_apply(
+       ^^^^^^^^^^^^^^^^^^
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/accelerate/utils/operations.py", line 107, in recursively_apply
+    return honor_type(
+           ^^^^^^^^^^^
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/accelerate/utils/operations.py", line 81, in honor_type
+    return type(obj)(generator)
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/accelerate/utils/operations.py", line 110, in <genexpr>
+    recursively_apply(
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/accelerate/utils/operations.py", line 107, in recursively_apply
+    return honor_type(
+           ^^^^^^^^^^^
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/accelerate/utils/operations.py", line 81, in honor_type
+    return type(obj)(generator)
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/accelerate/utils/operations.py", line 110, in <genexpr>
+    recursively_apply(
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/accelerate/utils/operations.py", line 126, in recursively_apply
+    return func(data, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/accelerate/utils/operations.py", line 778, in _convert_to_fp32
+    return tensor.float()
+           ^^^^^^^^^^^^^^
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 256.00 MiB. GPU 0 has a total capacity of 47.38 GiB of which 206.56 MiB is free. Including non-PyTorch memory, this process has 47.16 GiB memory in use. Of the allocated memory 46.32 GiB is allocated by PyTorch, and 330.07 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+An error occurred: CUDA out of memory. Tried to allocate 256.00 MiB. GPU 0 has a total capacity of 47.38 GiB of which 206.56 MiB is free. Including non-PyTorch memory, this process has 47.16 GiB memory in use. Of the allocated memory 46.32 GiB is allocated by PyTorch, and 330.07 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+[1;34mwandb[0m: 
+[1;34mwandb[0m: 🚀 View run [33mlength_CodeLlama_20250416_1721[0m at: [34mhttps://wandb.ai/priscillachyrva-university-mannheim/master-thesis/runs/fj9i3tfy[0m
+[1;34mwandb[0m: Find logs at: [1;35mwandb/run-20250416_172407-fj9i3tfy/logs[0m
+
+  8%|▊         | 10/125 [12:39<2:25:29, 75.91s/it]
+
+
+Trial failed with CUDA out of memory (exit code 0)

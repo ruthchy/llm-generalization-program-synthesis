@@ -1,0 +1,209 @@
+{
+  "trials": [
+    {
+      "trial_id": 0,
+      "params": {
+        "learning_rate": "1e-4",
+        "per_device_train_batch_size": 8,
+        "lora_rank": 512,
+        "lora_alpha": 512
+      },
+      "value": 999.0,
+      "datetime": "2025-04-16 16:34:00",
+      "error": "CUDA out of memory"
+    },
+    {
+      "trial_id": 1,
+      "params": {
+        "learning_rate": "1e-4",
+        "per_device_train_batch_size": 8,
+        "lora_rank": 512,
+        "lora_alpha": 128
+      },
+      "value": 999.0,
+      "datetime": "2025-04-16 16:51:08",
+      "error": "CUDA out of memory"
+    },
+    {
+      "trial_id": 2,
+      "params": {
+        "learning_rate": "2e-4",
+        "per_device_train_batch_size": 32,
+        "lora_rank": 512,
+        "lora_alpha": 128
+      },
+      "value": 999.0,
+      "datetime": "2025-04-16 16:55:57",
+      "error": "CUDA out of memory"
+    },
+    {
+      "trial_id": 3,
+      "params": {
+        "learning_rate": "2e-4",
+        "per_device_train_batch_size": 16,
+        "lora_rank": 128,
+        "lora_alpha": 128
+      },
+      "value": 999.0,
+      "datetime": "2025-04-16 17:20:56",
+      "error": "CUDA out of memory"
+    },
+    {
+      "trial_id": 4,
+      "params": {
+        "learning_rate": "1e-4",
+        "per_device_train_batch_size": 8,
+        "lora_rank": 512,
+        "lora_alpha": 128
+      },
+      "value": 999.0,
+      "datetime": "2025-04-16 17:38:07",
+      "error": "CUDA out of memory"
+    },
+    {
+      "trial_id": 5,
+      "params": {
+        "learning_rate": "2e-4",
+        "per_device_train_batch_size": 32,
+        "lora_rank": 512,
+        "lora_alpha": 512
+      },
+      "value": 999.0,
+      "datetime": "2025-04-16 17:42:56",
+      "error": "CUDA out of memory"
+    },
+    {
+      "trial_id": 6,
+      "params": {
+        "learning_rate": "2e-5",
+        "per_device_train_batch_size": 32,
+        "lora_rank": 512,
+        "lora_alpha": 512
+      },
+      "value": 999.0,
+      "datetime": "2025-04-16 17:47:51",
+      "error": "CUDA out of memory"
+    },
+    {
+      "trial_id": 7,
+      "params": {
+        "learning_rate": "2e-4",
+        "per_device_train_batch_size": 8,
+        "lora_rank": 128,
+        "lora_alpha": 128
+      },
+      "value": 0.11218863147313088,
+      "datetime": "2025-04-17 08:02:22"
+    },
+    {
+      "trial_id": 8,
+      "params": {
+        "learning_rate": "2e-4",
+        "per_device_train_batch_size": 32,
+        "lora_rank": 128,
+        "lora_alpha": 128
+      },
+      "value": 999.0,
+      "datetime": "2025-04-17 08:11:16",
+      "error": "No metrics found"
+    },
+    {
+      "trial_id": 9,
+      "params": {
+        "learning_rate": "2e-5",
+        "per_device_train_batch_size": 16,
+        "lora_rank": 128,
+        "lora_alpha": 512
+      },
+      "value": 999.0,
+      "datetime": "2025-04-17 08:36:15",
+      "error": "CUDA out of memory"
+    }
+  ],
+  "best_trial": {
+    "trial_id": 7,
+    "params": {
+      "learning_rate": "2e-4",
+      "per_device_train_batch_size": 8,
+      "lora_rank": 128,
+      "lora_alpha": 128
+    },
+    "value": 0.11218863147313088,
+    "datetime": "2025-04-17 08:02:22"
+  },
+  "best_value": 0.11218863147313088,
+  "oom_failures": [
+    {
+      "params": {
+        "learning_rate": "1e-4",
+        "per_device_train_batch_size": 8,
+        "lora_rank": 512,
+        "lora_alpha": 512
+      },
+      "datetime": "2025-04-16 16:34:00"
+    },
+    {
+      "params": {
+        "learning_rate": "1e-4",
+        "per_device_train_batch_size": 8,
+        "lora_rank": 512,
+        "lora_alpha": 128
+      },
+      "datetime": "2025-04-16 16:51:08"
+    },
+    {
+      "params": {
+        "learning_rate": "2e-4",
+        "per_device_train_batch_size": 32,
+        "lora_rank": 512,
+        "lora_alpha": 128
+      },
+      "datetime": "2025-04-16 16:55:57"
+    },
+    {
+      "params": {
+        "learning_rate": "2e-4",
+        "per_device_train_batch_size": 16,
+        "lora_rank": 128,
+        "lora_alpha": 128
+      },
+      "datetime": "2025-04-16 17:20:56"
+    },
+    {
+      "params": {
+        "learning_rate": "1e-4",
+        "per_device_train_batch_size": 8,
+        "lora_rank": 512,
+        "lora_alpha": 128
+      },
+      "datetime": "2025-04-16 17:38:07"
+    },
+    {
+      "params": {
+        "learning_rate": "2e-4",
+        "per_device_train_batch_size": 32,
+        "lora_rank": 512,
+        "lora_alpha": 512
+      },
+      "datetime": "2025-04-16 17:42:56"
+    },
+    {
+      "params": {
+        "learning_rate": "2e-5",
+        "per_device_train_batch_size": 32,
+        "lora_rank": 512,
+        "lora_alpha": 512
+      },
+      "datetime": "2025-04-16 17:47:51"
+    },
+    {
+      "params": {
+        "learning_rate": "2e-5",
+        "per_device_train_batch_size": 16,
+        "lora_rank": 128,
+        "lora_alpha": 512
+      },
+      "datetime": "2025-04-17 08:36:15"
+    }
+  ]
+}

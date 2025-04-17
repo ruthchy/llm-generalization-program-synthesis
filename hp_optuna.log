@@ -1,0 +1,66 @@
+2025-04-16 16:16:03,673 [INFO] Creating new Optuna study
+2025-04-16 16:16:03,806 [INFO] Starting trial 0 at 20250416_161603
+2025-04-16 16:16:03,806 [INFO] Logs will be saved to hp_optuna_trial_0_20250416_161603.log
+2025-04-16 16:19:54,371 [INFO] Detected WandB run ID early: zpllvewl
+2025-04-16 16:34:00,955 [ERROR] Trial 0 failed with CUDA out of memory (exit code 0)
+2025-04-16 16:34:00,960 [WARNING] Trial 0 failed with error: CUDA out of memory
+2025-04-16 16:34:00,981 [INFO] Starting trial 1 at 20250416_163400
+2025-04-16 16:34:00,981 [INFO] Logs will be saved to hp_optuna_trial_1_20250416_163400.log
+2025-04-16 16:37:15,087 [INFO] Detected WandB run ID early: ix4299il
+2025-04-16 16:51:08,770 [ERROR] Trial 1 failed with CUDA out of memory (exit code 0)
+2025-04-16 16:51:08,775 [WARNING] Trial 1 failed with error: CUDA out of memory
+2025-04-16 16:51:08,791 [INFO] Starting trial 2 at 20250416_165108
+2025-04-16 16:51:08,792 [INFO] Logs will be saved to hp_optuna_trial_2_20250416_165108.log
+2025-04-16 16:54:21,036 [INFO] Detected WandB run ID early: 9592zhch
+2025-04-16 16:55:57,146 [ERROR] Trial 2 failed with CUDA out of memory (exit code 0)
+2025-04-16 16:55:57,151 [WARNING] Trial 2 failed with error: CUDA out of memory
+2025-04-16 16:55:57,169 [INFO] Starting trial 3 at 20250416_165557
+2025-04-16 16:55:57,170 [INFO] Logs will be saved to hp_optuna_trial_3_20250416_165557.log
+2025-04-16 16:58:52,912 [INFO] Detected WandB run ID early: f9ewurku
+2025-04-16 17:20:56,531 [ERROR] Trial 3 failed with CUDA out of memory (exit code 0)
+2025-04-16 17:20:56,535 [WARNING] Trial 3 failed with error: CUDA out of memory
+2025-04-16 17:20:56,553 [INFO] Starting trial 4 at 20250416_172056
+2025-04-16 17:20:56,553 [INFO] Logs will be saved to hp_optuna_trial_4_20250416_172056.log
+2025-04-16 17:24:08,226 [INFO] Detected WandB run ID early: fj9i3tfy
+2025-04-16 17:38:07,293 [ERROR] Trial 4 failed with CUDA out of memory (exit code 0)
+2025-04-16 17:38:07,297 [WARNING] Trial 4 failed with error: CUDA out of memory
+2025-04-16 17:38:07,316 [INFO] Starting trial 5 at 20250416_173807
+2025-04-16 17:38:07,316 [INFO] Logs will be saved to hp_optuna_trial_5_20250416_173807.log
+2025-04-16 17:41:21,181 [INFO] Detected WandB run ID early: vlo7wce4
+2025-04-16 17:42:56,859 [ERROR] Trial 5 failed with CUDA out of memory (exit code 0)
+2025-04-16 17:42:56,866 [WARNING] Trial 5 failed with error: CUDA out of memory
+2025-04-16 17:42:56,903 [INFO] Starting trial 6 at 20250416_174256
+2025-04-16 17:42:56,903 [INFO] Logs will be saved to hp_optuna_trial_6_20250416_174256.log
+2025-04-16 17:46:10,824 [INFO] Detected WandB run ID early: q6xazl4u
+2025-04-16 17:47:51,161 [ERROR] Trial 6 failed with CUDA out of memory (exit code 0)
+2025-04-16 17:47:51,167 [WARNING] Trial 6 failed with error: CUDA out of memory
+2025-04-16 17:47:51,186 [INFO] Starting trial 7 at 20250416_174751
+2025-04-16 17:47:51,187 [INFO] Logs will be saved to hp_optuna_trial_7_20250416_174751.log
+2025-04-16 17:50:48,160 [INFO] Detected WandB run ID early: 48bylkl5
+2025-04-17 08:02:21,999 [INFO] Successfully retrieved metrics for run 48bylkl5
+2025-04-17 08:02:22,003 [INFO] Using WandB metrics: 0.11218863147313088
+2025-04-17 08:02:22,179 [INFO] Starting trial 8 at 20250417_080222
+2025-04-17 08:02:22,180 [INFO] Logs will be saved to hp_optuna_trial_8_20250417_080222.log
+2025-04-17 08:07:57,686 [INFO] Detected WandB run ID early: xlw0kq51
+2025-04-17 08:09:16,061 [INFO] Waiting for metrics to sync for run xlw0kq51... (0s)
+2025-04-17 08:09:26,065 [INFO] Waiting for metrics to sync for run xlw0kq51... (10s)
+2025-04-17 08:09:36,066 [INFO] Waiting for metrics to sync for run xlw0kq51... (20s)
+2025-04-17 08:09:46,067 [INFO] Waiting for metrics to sync for run xlw0kq51... (30s)
+2025-04-17 08:09:56,067 [INFO] Waiting for metrics to sync for run xlw0kq51... (40s)
+2025-04-17 08:10:06,068 [INFO] Waiting for metrics to sync for run xlw0kq51... (50s)
+2025-04-17 08:10:16,069 [INFO] Waiting for metrics to sync for run xlw0kq51... (60s)
+2025-04-17 08:10:26,070 [INFO] Waiting for metrics to sync for run xlw0kq51... (70s)
+2025-04-17 08:10:36,072 [INFO] Waiting for metrics to sync for run xlw0kq51... (80s)
+2025-04-17 08:10:46,072 [INFO] Waiting for metrics to sync for run xlw0kq51... (90s)
+2025-04-17 08:10:56,073 [INFO] Waiting for metrics to sync for run xlw0kq51... (100s)
+2025-04-17 08:11:06,073 [INFO] Waiting for metrics to sync for run xlw0kq51... (110s)
+2025-04-17 08:11:16,074 [WARNING] Timed out waiting for metrics for run xlw0kq51
+2025-04-17 08:11:16,074 [WARNING] No metrics found in trial 8 output
+2025-04-17 08:11:16,096 [INFO] Starting trial 9 at 20250417_081116
+2025-04-17 08:11:16,096 [INFO] Logs will be saved to hp_optuna_trial_9_20250417_081116.log
+2025-04-17 08:14:12,511 [INFO] Detected WandB run ID early: by5ke1xh
+2025-04-17 08:36:15,630 [ERROR] Trial 9 failed with CUDA out of memory (exit code 0)
+2025-04-17 08:36:15,636 [WARNING] Trial 9 failed with error: CUDA out of memory
+2025-04-17 08:36:15,667 [INFO] Starting trial 10 at 20250417_083615
+2025-04-17 08:36:15,667 [INFO] Logs will be saved to hp_optuna_trial_10_20250417_083615.log
+2025-04-17 08:39:17,928 [INFO] Detected WandB run ID early: ko0lskzm

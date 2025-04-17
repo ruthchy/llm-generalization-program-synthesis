@@ -1,0 +1,2792 @@
+Fine-tuning model with sample_fraction=1.0 and config_temp.yaml
+🦥 Unsloth: Will patch your computer to enable 2x faster free finetuning.
+🦥 Unsloth Zoo will now patch everything to make training faster!
+[2025-04-17 08:36:42,448] [INFO] [real_accelerator.py:222:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+Loaded configuration from config_temp.yaml
+results/length/CodeLlama_20250417_0836
+Random seed set to: 42
+==((====))==  Unsloth 2025.3.18: Fast Llama patching. Transformers: 4.50.3.
+   \\   /|    NVIDIA RTX 6000 Ada Generation. Num GPUs = 1. Max memory: 47.383 GB. Platform: Linux.
+O^O/ \_/ \    Torch: 2.6.0+cu124. CUDA: 8.9. CUDA Toolkit: 12.4. Triton: 3.2.0
+\        /    Bfloat16 = TRUE. FA [Xformers = 0.0.29.post3. FA2 = False]
+ "-____-"     Free license: http://github.com/unslothai/unsloth
+Unsloth: Fast downloading is enabled - ignore downloading bars which are red colored!
+
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]
+Loading checkpoint shards:  50%|█████     | 1/2 [00:21<00:21, 21.38s/it]
+Loading checkpoint shards: 100%|██████████| 2/2 [00:28<00:00, 13.00s/it]
+Loading checkpoint shards: 100%|██████████| 2/2 [00:28<00:00, 14.25s/it]
+Unsloth 2025.3.18 patched 32 layers with 32 QKV layers, 32 O layers and 32 MLP layers.
+codellama/CodeLlama-7b-Instruct-hf does not have a padding token! Will use pad_token = <unk>.
+Model's max position embeddings: 16384
+
+Formatting train prompts:   0%|          | 0/8006 [00:00<?, ? examples/s]
+Formatting train prompts:   4%|▍         | 343/8006 [00:00<00:02, 3309.86 examples/s]
+Formatting train prompts:  10%|▉         | 798/8006 [00:00<00:01, 4024.25 examples/s]
+Formatting train prompts:  15%|█▌        | 1224/8006 [00:00<00:01, 3636.33 examples/s]
+Formatting train prompts:  21%|██        | 1685/8006 [00:00<00:01, 3984.98 examples/s]
+Formatting train prompts:  28%|██▊       | 2245/8006 [00:00<00:01, 3869.52 examples/s]
+Formatting train prompts:  34%|███▍      | 2705/8006 [00:00<00:01, 4082.31 examples/s]
+Formatting train prompts:  41%|████▏     | 3319/8006 [00:00<00:01, 4083.61 examples/s]
+Formatting train prompts:  47%|████▋     | 3786/8006 [00:00<00:00, 4238.90 examples/s]
+Formatting train prompts:  53%|█████▎    | 4222/8006 [00:01<00:00, 4071.48 examples/s]
+Formatting train prompts:  58%|█████▊    | 4680/8006 [00:01<00:00, 4209.26 examples/s]
+Formatting train prompts:  66%|██████▌   | 5258/8006 [00:01<00:00, 4074.10 examples/s]
+Formatting train prompts:  71%|███████▏  | 5721/8006 [00:01<00:00, 4215.42 examples/s]
+Formatting train prompts:  79%|███████▉  | 6323/8006 [00:01<00:00, 4139.57 examples/s]
+Formatting train prompts:  85%|████████▍ | 6775/8006 [00:01<00:00, 4235.47 examples/s]
+Formatting train prompts:  90%|█████████ | 7224/8006 [00:01<00:00, 4077.83 examples/s]
+Formatting train prompts:  97%|█████████▋| 7784/8006 [00:01<00:00, 3955.41 examples/s]
+Formatting train prompts: 100%|██████████| 8006/8006 [00:02<00:00, 3982.27 examples/s]
+
+--- DEBUG: train EXAMPLE #0 ---
+System prompt included: False
+FULL TEXT (with completion):
+<s>[INST] Here is a gray scale image represented with integer values 0-9:
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000033000
+00000000000000000000000001303000
+00000000000000000000000031000200
+00000000000000000000001300000300
+00000000000000000000022000000300
+00000000000000000000310000000020
+00000000000000000013000000000031
+00000000000000000210000000000033
+00000000000000003000000000000014
+00000000000000013000000000000004
+00000000000000000310000000000033
+00000000000000000013000000000031
+00000000000000000000300000000020
+00000000000000000000022000000300
+00000000000000000122223422222422
+00000000000000000000000031000200
+00000000000000000000000002202000
+00000000000000000000000000033000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+Please write a Python program that generates this image using our custom turtle module. [/INST] for i in range(5):
+    forward(16)
+    left(180.0 - 72.0) </s>
+--- END DEBUG ---
+
+
+Formatting validation prompts:   0%|          | 0/997 [00:00<?, ? examples/s]
+Formatting validation prompts:  43%|████▎     | 424/997 [00:00<00:00, 4082.19 examples/s]
+Formatting validation prompts:  88%|████████▊ | 875/997 [00:00<00:00, 4326.06 examples/s]
+Formatting validation prompts: 100%|██████████| 997/997 [00:00<00:00, 3720.31 examples/s]
+
+--- DEBUG: validation EXAMPLE #0 ---
+System prompt included: False
+FULL TEXT (with completion):
+<s>[INST] Here is a gray scale image represented with integer values 0-9:
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000050000000000000
+00000000000000000344200000000000
+00000000000000000210120000000000
+00000000000000000300030000000000
+00000000000000000200120000000000
+00000000000000000023200000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+00000000000000000000000000000000
+Please write a Python program that generates this image using our custom turtle module. [/INST] for i in range(3):
+    forward(2)
+    left(120.0)
+penup()
+forward(2)
+left(180)
+pendown()
+for i in range(HALF_INF):
+    forward(EPS_DIST*2)
+    left(EPS_ANGLE)
+for i in range(HALF_INF):
+    forward(EPS_DIST*2)
+    left(EPS_ANGLE)
+penup()
+forward(20)
+pendown() </s>
+--- END DEBUG ---
+
+
+Tokenizing train set:   0%|          | 0/8006 [00:00<?, ? examples/s]
+Tokenizing train set:  12%|█▏        | 1000/8006 [00:05<00:35, 196.70 examples/s]
+Tokenizing train set:  25%|██▍       | 2000/8006 [00:10<00:31, 188.36 examples/s]
+Tokenizing train set:  37%|███▋      | 3000/8006 [00:16<00:26, 185.55 examples/s]
+Tokenizing train set:  50%|████▉     | 4000/8006 [00:21<00:21, 182.87 examples/s]
+Tokenizing train set:  62%|██████▏   | 5000/8006 [00:27<00:16, 182.52 examples/s]
+Tokenizing train set:  75%|███████▍  | 6000/8006 [00:32<00:11, 181.48 examples/s]
+Tokenizing train set:  87%|████████▋ | 7000/8006 [00:38<00:05, 181.30 examples/s]
+Tokenizing train set: 100%|█████████▉| 8000/8006 [00:43<00:00, 180.35 examples/s]
+Tokenizing train set: 100%|██████████| 8006/8006 [00:44<00:00, 180.67 examples/s]
+
+Tokenizing validation set:   0%|          | 0/997 [00:00<?, ? examples/s]
+Tokenizing validation set: 100%|██████████| 997/997 [00:05<00:00, 197.96 examples/s]
+Tokenizing validation set: 100%|██████████| 997/997 [00:05<00:00, 189.68 examples/s]
+wandb: Using wandb-core as the SDK backend.  Please refer to https://wandb.me/wandb-core for more information.
+wandb: Currently logged in as: priscillachyrva (priscillachyrva-university-mannheim) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: Tracking run with wandb version 0.19.7.dev1
+wandb: Run data is saved locally in /ceph/pratz/GitHub_repos/master-thesis/wandb/run-20250417_083917-ko0lskzm
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run length_CodeLlama_20250417_0836
+wandb: ⭐️ View project at https://wandb.ai/priscillachyrva-university-mannheim/master-thesis
+wandb: 🚀 View run at https://wandb.ai/priscillachyrva-university-mannheim/master-thesis/runs/ko0lskzm
+Using cache found in ./models/facebookresearch_dino_main
+/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+Using cache found in ./models/facebookresearch_dino_main
+==((====))==  Unsloth - 2x faster free finetuning | Num GPUs used = 1
+   \\   /|    Num examples = 8,006 | Num Epochs = 1 | Total steps = 125
+O^O/ \_/ \    Batch size per device = 8 | Gradient accumulation steps = 8
+\        /    Data Parallel GPUs = 1 | Total batch size (8 x 8 x 1) = 64
+ "-____-"     Trainable parameters = 319,815,680/7,000,000,000 (4.57% trained)
+wandb: WARNING The `run_name` is currently set to the same value as `TrainingArguments.output_dir`. If this was not intended, please specify a different run name by setting the `TrainingArguments.run_name` parameter.
+Using cached ./models
+🚀 Optimizer: AdamW (
+Parameter Group 0
+    amsgrad: False
+    betas: (0.9, 0.999)
+    capturable: False
+    differentiable: False
+    eps: 1e-08
+    foreach: None
+    fused: None
+    lr: 0.0002
+    maximize: False
+    weight_decay: 0.001
+)
+🚀 Scheduler: <torch.optim.lr_scheduler.LambdaLR object at 0x7f96ae1d2f50>
+Using cached ./models
+
+  0%|          | 0/125 [00:00<?, ?it/s]
+  1%|          | 1/125 [01:01<2:06:16, 61.10s/it]
+  2%|▏         | 2/125 [01:59<2:01:44, 59.39s/it]
+  2%|▏         | 3/125 [02:58<2:00:51, 59.44s/it]
+  3%|▎         | 4/125 [03:58<2:00:20, 59.67s/it]
+  4%|▍         | 5/125 [04:59<1:59:42, 59.86s/it]
+  5%|▍         | 6/125 [05:59<1:58:59, 59.99s/it]
+  6%|▌         | 7/125 [06:59<1:58:06, 60.06s/it]
+  6%|▋         | 8/125 [07:59<1:57:08, 60.07s/it]
+  7%|▋         | 9/125 [08:59<1:56:11, 60.10s/it]
+  8%|▊         | 10/125 [09:59<1:55:13, 60.12s/it]
+                                                  
+
+  8%|▊         | 10/125 [09:59<1:55:13, 60.12s/it]Unsloth: Will smartly offload gradients to save VRAM!
+{'loss': 7.0421, 'grad_norm': 0.6513826251029968, 'learning_rate': 0.00019995075456857674, 'epoch': 0.08}
+
+
+  0%|          | 0/125 [00:00<?, ?it/s][A
+
+  2%|▏         | 2/125 [00:02<02:32,  1.24s/it][A
+
+  2%|▏         | 3/125 [00:04<03:34,  1.76s/it][A
+
+  3%|▎         | 4/125 [00:07<04:05,  2.03s/it][A
+
+  4%|▍         | 5/125 [00:09<04:22,  2.19s/it][A
+
+  5%|▍         | 6/125 [00:12<04:32,  2.29s/it][A
+
+  6%|▌         | 7/125 [00:14<04:38,  2.36s/it][A
+
+  6%|▋         | 8/125 [00:17<04:41,  2.41s/it][A
+
+  7%|▋         | 9/125 [00:19<04:43,  2.44s/it][A
+
+  8%|▊         | 10/125 [00:22<04:43,  2.47s/it][A
+
+  9%|▉         | 11/125 [00:25<04:43,  2.48s/it][A
+
+ 10%|▉         | 12/125 [00:27<04:41,  2.49s/it][A
+
+ 10%|█         | 13/125 [00:30<04:40,  2.51s/it][A
+
+ 11%|█         | 14/125 [00:32<04:39,  2.52s/it][A
+
+ 12%|█▏        | 15/125 [00:35<04:37,  2.52s/it][A
+
+ 13%|█▎        | 16/125 [00:37<04:35,  2.53s/it][A
+
+ 14%|█▎        | 17/125 [00:40<04:33,  2.54s/it][A
+
+ 14%|█▍        | 18/125 [00:42<04:31,  2.54s/it][A
+
+ 15%|█▌        | 19/125 [00:45<04:29,  2.55s/it][A
+
+ 16%|█▌        | 20/125 [00:47<04:27,  2.55s/it][A
+
+ 17%|█▋        | 21/125 [00:50<04:25,  2.55s/it][A
+
+ 18%|█▊        | 22/125 [00:53<04:23,  2.56s/it][A
+
+ 18%|█▊        | 23/125 [00:55<04:20,  2.56s/it][A
+
+ 19%|█▉        | 24/125 [00:58<04:18,  2.56s/it][A
+
+ 20%|██        | 25/125 [01:00<04:16,  2.57s/it][A
+
+ 21%|██        | 26/125 [01:03<04:14,  2.57s/it][A
+
+ 22%|██▏       | 27/125 [01:05<04:11,  2.57s/it][A
+
+ 22%|██▏       | 28/125 [01:08<04:09,  2.57s/it][A
+
+ 23%|██▎       | 29/125 [01:11<04:06,  2.57s/it][A
+
+ 24%|██▍       | 30/125 [01:13<04:04,  2.57s/it][A
+
+ 25%|██▍       | 31/125 [01:16<04:01,  2.57s/it][A
+
+ 26%|██▌       | 32/125 [01:18<03:59,  2.57s/it][A
+
+ 26%|██▋       | 33/125 [01:21<03:56,  2.57s/it][A
+
+ 27%|██▋       | 34/125 [01:23<03:53,  2.57s/it][A
+
+ 28%|██▊       | 35/125 [01:26<03:51,  2.57s/it][A
+
+ 29%|██▉       | 36/125 [01:29<03:48,  2.57s/it][A
+
+ 30%|██▉       | 37/125 [01:31<03:45,  2.57s/it][A
+
+ 30%|███       | 38/125 [01:34<03:43,  2.57s/it][A
+
+ 31%|███       | 39/125 [01:36<03:40,  2.57s/it][A
+
+ 32%|███▏      | 40/125 [01:39<03:38,  2.57s/it][A
+
+ 33%|███▎      | 41/125 [01:41<03:35,  2.57s/it][A
+
+ 34%|███▎      | 42/125 [01:44<03:33,  2.57s/it][A
+
+ 34%|███▍      | 43/125 [01:47<03:31,  2.58s/it][A
+
+ 35%|███▌      | 44/125 [01:49<03:29,  2.58s/it][A
+
+ 36%|███▌      | 45/125 [01:52<03:26,  2.58s/it][A
+
+ 37%|███▋      | 46/125 [01:54<03:24,  2.58s/it][A
+
+ 38%|███▊      | 47/125 [01:57<03:21,  2.58s/it][A
+
+ 38%|███▊      | 48/125 [01:59<03:18,  2.58s/it][A
+
+ 39%|███▉      | 49/125 [02:02<03:16,  2.58s/it][A
+
+ 40%|████      | 50/125 [02:05<03:13,  2.58s/it][A
+
+ 41%|████      | 51/125 [02:07<03:11,  2.58s/it][A
+
+ 42%|████▏     | 52/125 [02:10<03:08,  2.58s/it][A
+
+ 42%|████▏     | 53/125 [02:12<03:05,  2.58s/it][A
+
+ 43%|████▎     | 54/125 [02:15<03:03,  2.58s/it][A
+
+ 44%|████▍     | 55/125 [02:18<03:00,  2.59s/it][A
+
+ 45%|████▍     | 56/125 [02:20<02:58,  2.59s/it][A
+
+ 46%|████▌     | 57/125 [02:23<02:55,  2.59s/it][A
+
+ 46%|████▋     | 58/125 [02:25<02:53,  2.59s/it][A
+
+ 47%|████▋     | 59/125 [02:28<02:50,  2.59s/it][A
+
+ 48%|████▊     | 60/125 [02:30<02:48,  2.59s/it][A
+
+ 49%|████▉     | 61/125 [02:33<02:45,  2.59s/it][A
+
+ 50%|████▉     | 62/125 [02:36<02:43,  2.59s/it][A
+
+ 50%|█████     | 63/125 [02:38<02:40,  2.59s/it][A
+
+ 51%|█████     | 64/125 [02:41<02:37,  2.59s/it][A
+
+ 52%|█████▏    | 65/125 [02:43<02:35,  2.59s/it][A
+
+ 53%|█████▎    | 66/125 [02:46<02:32,  2.59s/it][A
+
+ 54%|█████▎    | 67/125 [02:49<02:30,  2.59s/it][A
+
+ 54%|█████▍    | 68/125 [02:51<02:27,  2.59s/it][A
+
+ 55%|█████▌    | 69/125 [02:54<02:24,  2.59s/it][A
+
+ 56%|█████▌    | 70/125 [02:56<02:22,  2.59s/it][A
+
+ 57%|█████▋    | 71/125 [02:59<02:19,  2.59s/it][A
+
+ 58%|█████▊    | 72/125 [03:02<02:17,  2.59s/it][A
+
+ 58%|█████▊    | 73/125 [03:04<02:14,  2.59s/it][A
+
+ 59%|█████▉    | 74/125 [03:07<02:11,  2.59s/it][A
+
+ 60%|██████    | 75/125 [03:09<02:09,  2.58s/it][A
+
+ 61%|██████    | 76/125 [03:12<02:06,  2.58s/it][A
+
+ 62%|██████▏   | 77/125 [03:14<02:03,  2.58s/it][A
+
+ 62%|██████▏   | 78/125 [03:17<02:01,  2.58s/it][A
+
+ 63%|██████▎   | 79/125 [03:20<01:58,  2.58s/it][A
+
+ 64%|██████▍   | 80/125 [03:22<01:56,  2.59s/it][A
+
+ 65%|██████▍   | 81/125 [03:25<01:53,  2.58s/it][A
+
+ 66%|██████▌   | 82/125 [03:27<01:51,  2.58s/it][A
+
+ 66%|██████▋   | 83/125 [03:30<01:48,  2.58s/it][A
+
+ 67%|██████▋   | 84/125 [03:33<01:45,  2.58s/it][A
+
+ 68%|██████▊   | 85/125 [03:35<01:43,  2.58s/it][A
+
+ 69%|██████▉   | 86/125 [03:38<01:40,  2.58s/it][A
+
+ 70%|██████▉   | 87/125 [03:40<01:38,  2.58s/it][A
+
+ 70%|███████   | 88/125 [03:43<01:35,  2.58s/it][A
+
+ 71%|███████   | 89/125 [03:45<01:32,  2.58s/it][A
+
+ 72%|███████▏  | 90/125 [03:48<01:30,  2.57s/it][A
+
+ 73%|███████▎  | 91/125 [03:51<01:27,  2.57s/it][A
+
+ 74%|███████▎  | 92/125 [03:53<01:25,  2.58s/it][A
+
+ 74%|███████▍  | 93/125 [03:56<01:22,  2.58s/it][A
+
+ 75%|███████▌  | 94/125 [03:58<01:19,  2.58s/it][A
+
+ 76%|███████▌  | 95/125 [04:01<01:17,  2.58s/it][A
+
+ 77%|███████▋  | 96/125 [04:03<01:14,  2.58s/it][A
+
+ 78%|███████▊  | 97/125 [04:06<01:12,  2.58s/it][A
+
+ 78%|███████▊  | 98/125 [04:09<01:09,  2.58s/it][A
+
+ 79%|███████▉  | 99/125 [04:11<01:07,  2.58s/it][A
+
+ 80%|████████  | 100/125 [04:14<01:04,  2.58s/it][A
+
+ 81%|████████  | 101/125 [04:16<01:01,  2.58s/it][A
+
+ 82%|████████▏ | 102/125 [04:19<00:59,  2.57s/it][A
+
+ 82%|████████▏ | 103/125 [04:21<00:56,  2.57s/it][A
+
+ 83%|████████▎ | 104/125 [04:24<00:54,  2.58s/it][A
+
+ 84%|████████▍ | 105/125 [04:27<00:51,  2.58s/it][A
+
+ 85%|████████▍ | 106/125 [04:29<00:48,  2.58s/it][A
+
+ 86%|████████▌ | 107/125 [04:32<00:46,  2.57s/it][A
+
+ 86%|████████▋ | 108/125 [04:34<00:43,  2.57s/it][A
+
+ 87%|████████▋ | 109/125 [04:37<00:41,  2.57s/it][A
+
+ 88%|████████▊ | 110/125 [04:39<00:38,  2.57s/it][A
+
+ 89%|████████▉ | 111/125 [04:42<00:35,  2.57s/it][A
+
+ 90%|████████▉ | 112/125 [04:45<00:33,  2.57s/it][A
+
+ 90%|█████████ | 113/125 [04:47<00:30,  2.58s/it][A
+
+ 91%|█████████ | 114/125 [04:50<00:28,  2.57s/it][A
+
+ 92%|█████████▏| 115/125 [04:52<00:25,  2.57s/it][A
+
+ 93%|█████████▎| 116/125 [04:55<00:23,  2.57s/it][A
+
+ 94%|█████████▎| 117/125 [04:57<00:20,  2.57s/it][A
+
+ 94%|█████████▍| 118/125 [05:00<00:17,  2.57s/it][A
+
+ 95%|█████████▌| 119/125 [05:03<00:15,  2.57s/it][A
+
+ 96%|█████████▌| 120/125 [05:05<00:12,  2.57s/it][A
+
+ 97%|█████████▋| 121/125 [05:08<00:10,  2.57s/it][A
+
+ 98%|█████████▊| 122/125 [05:10<00:07,  2.57s/it][A
+
+ 98%|█████████▊| 123/125 [05:13<00:05,  2.57s/it][A
+
+ 99%|█████████▉| 124/125 [05:15<00:02,  2.56s/it][A
+
+100%|██████████| 125/125 [05:17<00:00,  2.28s/it][AError executing program for(4))
+left(170.
+for i in range(5):
+    forward(4)
+    left(40.0)"
+pen(20)
+left(280)
+
+                                                  
+
+                                                 
+[A
+  8%|▊         | 10/125 [54:55<1:55:13, 60.12s/it]
+
+100%|██████████| 125/125 [44:27<00:00,  2.28s/it][A{'eval_loss': 0.08900631219148636, 'eval_comp_loss': 0.29613784294460055, 'eval_prompt_loss': 0.07968753795200435, 'eval_avg_norm_levenshtein_dist': 0.877494764847854, 'eval_std_norm_levenshtein_dist': 0.046993139701308445, 'eval_avg_crystalbleu': 0.8355381344972589, 'eval_exact_prog_match': 0, 'eval_avg_ssim': nan, 'eval_avg_dreamsim': nan, 'eval_avg_precision': nan, 'eval_avg_recall': nan, 'eval_avg_f1': nan, 'eval_exact_image_match': 0, 'eval_runtime': 2670.0724, 'eval_samples_per_second': 0.373, 'eval_steps_per_second': 0.047, 'epoch': 0.08}
+wandb: WARNING Tried to log to step 9 that is less than the current step 10. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+
+
+                                                 [A
+  9%|▉         | 11/125 [56:18<28:14:48, 892.00s/it]
+ 10%|▉         | 12/125 [57:16<20:02:05, 638.28s/it]
+ 10%|█         | 13/125 [58:15<14:24:01, 462.87s/it]
+ 11%|█         | 14/125 [59:15<10:31:02, 341.10s/it]
+ 12%|█▏        | 15/125 [1:00:15<7:50:02, 256.39s/it]
+ 13%|█▎        | 16/125 [1:01:15<5:58:23, 197.28s/it]
+ 14%|█▎        | 17/125 [1:02:15<4:40:47, 155.99s/it]
+ 14%|█▍        | 18/125 [1:03:15<3:46:41, 127.12s/it]
+ 15%|█▌        | 19/125 [1:04:14<3:08:53, 106.92s/it]
+ 16%|█▌        | 20/125 [1:05:14<2:42:23, 92.80s/it] 
+                                                    
+
+ 16%|█▌        | 20/125 [1:05:14<2:42:23, 92.80s/it]{'loss': 0.6383, 'grad_norm': 0.4336640536785126, 'learning_rate': 0.00019980306677655713, 'epoch': 0.16}
+
+
+  0%|          | 0/125 [00:00<?, ?it/s][A
+
+  2%|▏         | 2/125 [00:02<02:31,  1.23s/it][A
+
+  2%|▏         | 3/125 [00:04<03:32,  1.74s/it][A
+
+  3%|▎         | 4/125 [00:07<04:03,  2.01s/it][A
+
+  4%|▍         | 5/125 [00:09<04:20,  2.17s/it][A
+
+  5%|▍         | 6/125 [00:12<04:30,  2.28s/it][A
+
+  6%|▌         | 7/125 [00:14<04:36,  2.35s/it][A
+
+  6%|▋         | 8/125 [00:17<04:40,  2.39s/it][A
+
+  7%|▋         | 9/125 [00:19<04:41,  2.43s/it][A
+
+  8%|▊         | 10/125 [00:22<04:41,  2.45s/it][A
+
+  9%|▉         | 11/125 [00:24<04:41,  2.47s/it][A
+
+ 10%|▉         | 12/125 [00:27<04:40,  2.48s/it][A
+
+ 10%|█         | 13/125 [00:29<04:39,  2.49s/it][A
+
+ 11%|█         | 14/125 [00:32<04:37,  2.50s/it][A
+
+ 12%|█▏        | 15/125 [00:34<04:36,  2.51s/it][A
+
+ 13%|█▎        | 16/125 [00:37<04:34,  2.52s/it][A
+
+ 14%|█▎        | 17/125 [00:40<04:32,  2.53s/it][A
+
+ 14%|█▍        | 18/125 [00:42<04:30,  2.53s/it][A
+
+ 15%|█▌        | 19/125 [00:45<04:28,  2.54s/it][A
+
+ 16%|█▌        | 20/125 [00:47<04:26,  2.54s/it][A
+
+ 17%|█▋        | 21/125 [00:50<04:24,  2.54s/it][A
+
+ 18%|█▊        | 22/125 [00:52<04:22,  2.55s/it][A
+
+ 18%|█▊        | 23/125 [00:55<04:20,  2.55s/it][A
+
+ 19%|█▉        | 24/125 [00:57<04:17,  2.55s/it][A
+
+ 20%|██        | 25/125 [01:00<04:15,  2.55s/it][A
+
+ 21%|██        | 26/125 [01:03<04:13,  2.56s/it][A
+
+ 22%|██▏       | 27/125 [01:05<04:10,  2.56s/it][A
+
+ 22%|██▏       | 28/125 [01:08<04:08,  2.56s/it][A
+
+ 23%|██▎       | 29/125 [01:10<04:05,  2.56s/it][A
+
+ 24%|██▍       | 30/125 [01:13<04:03,  2.56s/it][A
+
+ 25%|██▍       | 31/125 [01:15<04:00,  2.56s/it][A
+
+ 26%|██▌       | 32/125 [01:18<03:58,  2.56s/it][A
+
+ 26%|██▋       | 33/125 [01:20<03:56,  2.57s/it][A
+
+ 27%|██▋       | 34/125 [01:23<03:53,  2.57s/it][A
+
+ 28%|██▊       | 35/125 [01:26<03:50,  2.57s/it][A
+
+ 29%|██▉       | 36/125 [01:28<03:48,  2.56s/it][A
+
+ 30%|██▉       | 37/125 [01:31<03:45,  2.57s/it][A
+
+ 30%|███       | 38/125 [01:33<03:42,  2.56s/it][A
+
+ 31%|███       | 39/125 [01:36<03:40,  2.56s/it][A
+
+ 32%|███▏      | 40/125 [01:38<03:37,  2.56s/it][A
+
+ 33%|███▎      | 41/125 [01:41<03:35,  2.56s/it][A
+
+ 34%|███▎      | 42/125 [01:44<03:33,  2.57s/it][A
+
+ 34%|███▍      | 43/125 [01:46<03:30,  2.57s/it][A
+
+ 35%|███▌      | 44/125 [01:49<03:27,  2.57s/it][A
+
+ 36%|███▌      | 45/125 [01:51<03:25,  2.56s/it][A
+
+ 37%|███▋      | 46/125 [01:54<03:22,  2.56s/it][A
+
+ 38%|███▊      | 47/125 [01:56<03:20,  2.56s/it][A
+
+ 38%|███▊      | 48/125 [01:59<03:17,  2.57s/it][A
+
+ 39%|███▉      | 49/125 [02:01<03:14,  2.57s/it][A
+
+ 40%|████      | 50/125 [02:04<03:12,  2.56s/it][A
+
+ 41%|████      | 51/125 [02:07<03:09,  2.57s/it][A
+
+ 42%|████▏     | 52/125 [02:09<03:07,  2.57s/it][A
+
+ 42%|████▏     | 53/125 [02:12<03:04,  2.57s/it][A
+
+ 43%|████▎     | 54/125 [02:14<03:02,  2.57s/it][A
+
+ 44%|████▍     | 55/125 [02:17<02:59,  2.57s/it][A
+
+ 45%|████▍     | 56/125 [02:19<02:57,  2.57s/it][A
+
+ 46%|████▌     | 57/125 [02:22<02:54,  2.57s/it][A
+
+ 46%|████▋     | 58/125 [02:25<02:52,  2.57s/it][A
+
+ 47%|████▋     | 59/125 [02:27<02:49,  2.57s/it][A
+
+ 48%|████▊     | 60/125 [02:30<02:46,  2.57s/it][A
+
+ 49%|████▉     | 61/125 [02:32<02:44,  2.57s/it][A
+
+ 50%|████▉     | 62/125 [02:35<02:41,  2.57s/it][A
+
+ 50%|█████     | 63/125 [02:37<02:39,  2.57s/it][A
+
+ 51%|█████     | 64/125 [02:40<02:36,  2.57s/it][A
+
+ 52%|█████▏    | 65/125 [02:43<02:34,  2.57s/it][A
+
+ 53%|█████▎    | 66/125 [02:45<02:31,  2.57s/it][A
+
+ 54%|█████▎    | 67/125 [02:48<02:28,  2.57s/it][A
+
+ 54%|█████▍    | 68/125 [02:50<02:26,  2.57s/it][A
+
+ 55%|█████▌    | 69/125 [02:53<02:23,  2.57s/it][A
+
+ 56%|█████▌    | 70/125 [02:55<02:21,  2.57s/it][A
+
+ 57%|█████▋    | 71/125 [02:58<02:18,  2.57s/it][A
+
+ 58%|█████▊    | 72/125 [03:01<02:16,  2.58s/it][A
+
+ 58%|█████▊    | 73/125 [03:03<02:13,  2.58s/it][A
+
+ 59%|█████▉    | 74/125 [03:06<02:11,  2.57s/it][A
+
+ 60%|██████    | 75/125 [03:08<02:08,  2.57s/it][A
+
+ 61%|██████    | 76/125 [03:11<02:06,  2.58s/it][A
+
+ 62%|██████▏   | 77/125 [03:13<02:03,  2.58s/it][A
+
+ 62%|██████▏   | 78/125 [03:16<02:01,  2.58s/it][A
+
+ 63%|██████▎   | 79/125 [03:19<01:58,  2.58s/it][A
+
+ 64%|██████▍   | 80/125 [03:21<01:56,  2.58s/it][A
+
+ 65%|██████▍   | 81/125 [03:24<01:53,  2.58s/it][A
+
+ 66%|██████▌   | 82/125 [03:26<01:50,  2.57s/it][A
+
+ 66%|██████▋   | 83/125 [03:29<01:48,  2.58s/it][A
+
+ 67%|██████▋   | 84/125 [03:32<01:45,  2.58s/it][A
+
+ 68%|██████▊   | 85/125 [03:34<01:43,  2.58s/it][A
+
+ 69%|██████▉   | 86/125 [03:37<01:40,  2.58s/it][A
+
+ 70%|██████▉   | 87/125 [03:39<01:37,  2.58s/it][A
+
+ 70%|███████   | 88/125 [03:42<01:35,  2.58s/it][A
+
+ 71%|███████   | 89/125 [03:44<01:32,  2.57s/it][A
+
+ 72%|███████▏  | 90/125 [03:47<01:30,  2.57s/it][A
+
+ 73%|███████▎  | 91/125 [03:50<01:27,  2.57s/it][A
+
+ 74%|███████▎  | 92/125 [03:52<01:24,  2.57s/it][A
+
+ 74%|███████▍  | 93/125 [03:55<01:22,  2.57s/it][A
+
+ 75%|███████▌  | 94/125 [03:57<01:19,  2.57s/it][A
+
+ 76%|███████▌  | 95/125 [04:00<01:17,  2.57s/it][A
+
+ 77%|███████▋  | 96/125 [04:02<01:14,  2.57s/it][A
+
+ 78%|███████▊  | 97/125 [04:05<01:12,  2.57s/it][A
+
+ 78%|███████▊  | 98/125 [04:08<01:09,  2.58s/it][A
+
+ 79%|███████▉  | 99/125 [04:10<01:06,  2.57s/it][A
+
+ 80%|████████  | 100/125 [04:13<01:04,  2.57s/it][A
+
+ 81%|████████  | 101/125 [04:15<01:01,  2.57s/it][A
+
+ 82%|████████▏ | 102/125 [04:18<00:59,  2.58s/it][A
+
+ 82%|████████▏ | 103/125 [04:20<00:56,  2.59s/it][A
+
+ 83%|████████▎ | 104/125 [04:23<00:54,  2.58s/it][A
+
+ 84%|████████▍ | 105/125 [04:26<00:51,  2.58s/it][A
+
+ 85%|████████▍ | 106/125 [04:28<00:49,  2.58s/it][A
+
+ 86%|████████▌ | 107/125 [04:31<00:46,  2.58s/it][A
+
+ 86%|████████▋ | 108/125 [04:33<00:43,  2.58s/it][A
+
+ 87%|████████▋ | 109/125 [04:36<00:41,  2.57s/it][A
+
+ 88%|████████▊ | 110/125 [04:38<00:38,  2.58s/it][A
+
+ 89%|████████▉ | 111/125 [04:41<00:36,  2.57s/it][A
+
+ 90%|████████▉ | 112/125 [04:44<00:33,  2.57s/it][A
+
+ 90%|█████████ | 113/125 [04:46<00:30,  2.57s/it][A
+
+ 91%|█████████ | 114/125 [04:49<00:28,  2.57s/it][A
+
+ 92%|█████████▏| 115/125 [04:51<00:25,  2.58s/it][A
+
+ 93%|█████████▎| 116/125 [04:54<00:23,  2.57s/it][A
+
+ 94%|█████████▎| 117/125 [04:56<00:20,  2.57s/it][A
+
+ 94%|█████████▍| 118/125 [04:59<00:17,  2.57s/it][A
+
+ 95%|█████████▌| 119/125 [05:02<00:15,  2.57s/it][A
+
+ 96%|█████████▌| 120/125 [05:04<00:12,  2.57s/it][A
+
+ 97%|█████████▋| 121/125 [05:07<00:10,  2.57s/it][A
+
+ 98%|█████████▊| 122/125 [05:09<00:07,  2.56s/it][A
+
+ 98%|█████████▊| 123/125 [05:12<00:05,  2.57s/it][A
+
+ 99%|█████████▉| 124/125 [05:14<00:02,  2.56s/it][A
+
+100%|██████████| 125/125 [05:16<00:00,  2.28s/it][AError executing program for i in range(H):
+    forward(2)
+    left(120.0)
+forwardup()
+forward(2)
+leftown()
+for i in range(7):
+    forward(2)
+    left(45.0)
+Error executing program forup()
+forward(2))
+left(270)
+pendown()
+for i in range(7):
+    forward(4)
+    left(120.0)
+Error executing program forup()
+forward(2)
+leftown()
+for i in range(9):
+    forward(2)
+    left(72.0)
+penup()
+forward(2))
+left(10)
+pendown()
+Error executing program forup()
+forward(2)
+left(20)
+pendown()
+for i in range(7):
+    forward(4)
+    left(51.42857142857143)
+penup()
+forward(2)
+left(280)
+pendown()
+Error executing program for i in range(H):
+    forward(2)
+    left(72.0)
+forward(2)
+left(170)
+Error executing program forup()
+forward(2)
+left(280)
+pendown()
+for i in range(7ALF_INF):
+    forward(EPS_DIST*2)
+    left(EPS_ANGLE)
+for i in range(HALF_INF):
+    forward(EPS_DIST*2)
+    left(EPS_ANGLE)
+penup()
+forward(2))
+left(270)
+pendown()
+Error executing program forup()
+forward(2)
+left(270)
+pendown()
+for i in range(7ALF_INF):
+    forward(EPS_DIST*1)
+    left(EPS_ANGLE)
+forup()
+forward(2)
+left(20)
+pendown()
+Error executing program forup()
+forward(2)
+leftown()
+for i in range(7):
+    forward(2)
+    left(45.0)
+penup()
+forward(2))
+leftown()
+Error executing program forup()
+forward(2)
+left(280)
+pendown()
+for i in range(7):
+    forward(2)
+    left(120.0)
+penup()
+forward(2)
+leftown()
+Error executing program for(2))
+left(270)
+for i in range(8):
+    forward(2)
+    left(45.0)
+forward(20)
+left(20)
+Error executing program for i in range(H):
+    forward(2)
+    left(51.42857142857143)
+forward(2)
+left(170)
+Error executing program for i in range(H):
+    forward(2)
+    left(60.0)
+forwardup()
+forward(2))
+leftown()
+for i in range(7):
+    forward(2)
+    left(45.0)
+Error executing program for i in range(7):
+    forward(2)
+    left(40.0)
+forwardup()
+forward(20)
+left(10)
+pendown()
+for i in range(7):
+    forward(2)
+    left(60.0)
+Error executing program for(2)
+left(280)
+for i in range(8):
+    forward(2)
+    left(72.0)
+forward(2)
+left(280)
+Error executing program for i in range(9):
+    forward(2)
+    left(72.0)
+forward(2)
+left i in range(5):
+    forward(2)
+    left(40.0)
+Error executing program for i in range(H):
+    forward(2)
+    left(90.0)
+forward(2)
+left(10)
+for i in range(4):
+    forward(2)
+    left(72.0)
+Error executing program for i in range(9):
+    forward(2)
+    left(45.0)
+forwardup()
+forward(20
+leftown()
+for i in range(7):
+    forward(2)
+    left(120.0)
+Error executing program forup()
+forward(2)
+left(270)
+pendown()
+for i in range(9):
+    forward(4)
+    left(120.0)
+penup()
+forward(2)
+left(270)
+pendown()
+Error executing program for i in range(H):
+    forward(2)
+    left(51.42857142857143)
+forward(2)
+left(170)"
+for i in range(7):
+    forward(4)
+    left(45.0)
+Error executing program for i in range(7):
+    forward(4)
+    left(90.0)
+forward(2))
+left(170)"
+for i in range(7):
+    forward(4)
+    left(51.42857142857143)
+Error executing program forup()
+forward(2)
+left(280)
+pendown()
+for i in range(7ALF_INF):
+    forward(EPS_DIST*2)
+    left(EPS_ANGLE)
+for i in range(HALF_INF):
+    forward(EPS_DIST*2)
+    left(EPS_ANGLE)
+penup()
+forward(2))
+left(280)
+pendown()
+Error executing program for i in range(H):
+    forward(2)
+    left(40.0)
+forwardup()
+forward(2))
+left(10)
+pendown()
+for i in range(7):
+    forward(2)
+    left(90.0)
+Error executing program for i in range(H):
+    forward(2)
+    left(120.0)
+forward(2))
+left(180)
+Error executing program forup()
+forward(2)
+left(270)
+pendown()
+for i in range(7):
+    forward(2)
+    left(45.0)
+penup()
+forward(2)
+leftown()
+Error executing program for i in range(H):
+    forward(2)
+    left(120.0)
+forward(2)
+left(170)
+Error executing program for(2)
+left(20)
+for i in range(6):
+    forward(2)
+    left(45.0)
+forward(2)
+left(270)
+Error executing program for(2)
+left(270)
+for i in range(7):
+    forward(2)
+    left(60.0)
+forward(2))
+left(280)
+Error executing program for i in range(7):
+    forward(2)
+    left(45.0)
+forwardup()
+forward(2))
+left(10)
+pendown()
+for i in range(7):
+    forward(2)
+    left(40.0)
+Error executing program forup()
+forward(2)
+left(270)
+pendown()
+for i in range(9):
+    forward(4)
+    left(60.0)
+penup()
+forward(2))
+leftown()
+Error executing program forup()
+forward(2))
+left(20)
+pendown()
+for i in range(7):
+    forward(2)
+    left(45.0)
+penup()
+forward(20
+leftown()
+Error executing program for(2))
+left(270)
+for i in range(7):
+    forward(2)
+    left(40.0)
+forward(20)
+left(280)
+Error executing program forup()
+forward(2)
+left(270)
+pendown()
+for i in range(7):
+    forward(2)
+    left(45.0)
+Error executing program for(2)
+left(280)
+for i in range(7ALF_INF):
+    forward(EPS_DIST*1)
+    left(EPS_ANGLE)
+for i in range(HALF_INF):
+    forward(EPS_DIST*1)
+    left(EPS_ANGLE)"
+forward(2)
+left(280)
+Error executing program for i in range(7):
+    forward(2)
+    left(51.42857142857143)
+forward(20)
+left(170)"
+for i in range(7):
+    forward(2)
+    left(45.0)
+Error executing program for(2))
+left(20)
+for i in range(7ALF_INF):
+    forward(EPS_DIST*1)
+    left(EPS_ANGLE)
+for i in range(HALF_INF):
+    forward(EPS_DIST*1)
+    left(EPS_ANGLE)
+forward(20)
+left(20)
+Error executing program for i in range(H):
+    forward(2)
+    left(120.0)
+forwardup()
+forward(2))
+left(180)
+pendown()
+for i in range(7):
+    forward(2)
+    left(72.0)
+Error executing program for(2)
+left(20)
+for i in range(6):
+    forward(4)
+    left(72.0)
+forward(2))
+left(270)
+Error executing program for i in range(HALF_INF):
+    forward(EPS_DIST*1)
+    left(EPS_ANGLE)
+for i in range(HALF_INF):
+    forward(EPS_DIST*2)
+    left(EPS_ANGLE)
+for(2)
+left(270)
+Error executing program for(2)
+left i in range(7):
+    forward(2)
+    left(45.0)
+forward(2)
+left(280)
+Error executing program for i in range(H):
+    forward(2)
+    left(45.0)
+forward(2))
+left i in range(8):
+    forward(2)
+    left(120.0)
+Error executing program for i in range(H):
+    forward(2)
+    left(120.0)
+forwardup()
+forward(2))
+leftown()
+for i in range(7):
+    forward(2)
+    left(51.42857142857143)
+Error executing program forup()
+forward(2)
+leftown()
+for i in range(7):
+    forward(4)
+    left(90.0)
+penup()
+forward(2))
+left(10)
+pendown()
+Error executing program for i in range(H):
+    forward(2)
+    left(45.0)
+forwardup()
+forward(2)
+left(20)
+pendown()
+for i in range(7):
+    forward(4)
+    left(51.42857142857143)
+Error executing program for i in range(H):
+    forward(2)
+    left(45.0)
+forwardup()
+forward(2)
+left(180)
+pendown()
+for i in range(7):
+    forward(2)
+    left(60.0)
+Error executing program forup()
+forward(2))
+leftown()
+for i in range(8ALF_INF):
+    forward(EPS_DIST*1)
+    left(EPS_ANGLE)
+for i in range(HALF_INF):
+    forward(EPS_DIST*2)
+    left(EPS_ANGLE)
+penup()
+forward(2)
+left(20)
+pendown()
+Error executing program forup()
+forward(2))
+left(280)
+pendown()
+for i in range(7):
+    forward(2)
+    left(72.0)"
+penup()
+forward(20)
+left(280)
+pendown()
+Error executing program for i in range(H):
+    forward(4)
+    left(90.0)
+forward(2)
+left i in range(4):
+    forward(2)
+    left(40.0)
+Error executing program for i in range(8):
+    forward(2)
+    left(60.0)
+forwardup()
+forward(2)
+leftown()
+for i in range(4):
+    forward(2)
+    left(90.0)
+Error executing program for(2))
+left(20)
+for i in range(7ALF_INF):
+    forward(EPS_DIST*1)
+    left(EPS_ANGLE)
+for i in range(HALF_INF):
+    forward(EPS_DIST*1)
+    left(EPS_ANGLE)
+forward(20
+left(180)
+Error executing program forup()
+forward(2)
+left(20)
+pendown()
+for i in range(6ALF_INF):
+    forward(EPS_DIST*2)
+    left(EPS_ANGLE)
+forup()
+forward(2)
+left(270)
+pendown()
+Error executing program for i in range(H):
+    forward(2)
+    left(60.0)
+forwardup()
+forward(2)
+left(10)
+pendown()
+for i in range(7):
+    forward(2)
+    left(40.0)
+Error executing program forup()
+forward(2)
+left(280)
+pendown()
+for i in range(7):
+    forward(2)
+    left(40.0)
+Error executing program for i in range(9):
+    forward(2)
+    left(72.0)
+forward(2))
+left(180)
+for i in range(5):
+    forward(2)
+    left(40.0)
+Error executing program for i in range(9):
+    forward(4)
+    left(90.0)
+forward(2)
+left i in range(4):
+    forward(2)
+    left(60.0)
+Error executing program forup()
+forward(2))
+left(280)
+pendown()
+for i in range(7):
+    forward(2)
+    left(72.0)"
+penup()
+forward(20)
+left(270)
+pendown()
+Error executing program for i in range(H):
+    forward(2)
+    left(40.0)
+forwardup()
+forward(2))
+leftown()
+for i in range(7):
+    forward(2)
+    left(60.0)
+Error executing program for i in range(9):
+    forward(2)
+    left(60.0)
+forward(2))
+left(180)
+for i in range(6):
+    forward(2)
+    left(72.0)
+Error executing program forup()
+forward(2)
+left(280)
+pendown()
+for i in range(7):
+    forward(2)
+    left(45.0)"
+penup()
+forward(2))
+leftown()
+Error executing program for(2)
+left(280)
+for i in range(7):
+    forward(2)
+    left(51.42857142857143)
+forward(2)
+left(270)
+Error executing program for i in range(H):
+    forward(2)
+    left(120.0)
+forwardup()
+forward(2)
+left(10)
+pendown()
+for i in range(7ALF_INF):
+    forward(EPS_DIST*1)
+    left(EPS_ANGLE)
+for i in range(HALF_INF):
+    forward(EPS_DIST*1)
+    left(EPS_ANGLE)
+Error executing program for i in range(H):
+    forward(4)
+    left(90.0)
+forward(2))
+left(10)
+for i in range(5):
+    forward(2)
+    left(72.0)
+Error executing program forup()
+forward(2))
+left(20)
+pendown()
+for i in range(7):
+    forward(2)
+    left(40.0)
+penup()
+forward(20)
+left(180)
+pendown()
+Error executing program forup()
+forward(2)
+left(20)
+pendown()
+for i in range(H):
+    forward(2)
+    left(90.0)
+penup()
+forward(2)
+leftown()
+Error executing program for i in range(H):
+    forward(2)
+    left(45.0)
+forward(2)
+left i in range(8):
+    forward(2)
+    left(51.42857142857143)
+Error executing program for i in range(HALF_INF):
+    forward(EPS_DIST*1)
+    left(EPS_ANGLE)
+forup()
+forward(2)
+left(20)
+pendown()
+for i in range(H):
+    forward(2)
+    left(72.0)
+Error executing program for i in range(H):
+    forward(4)
+    left(90.0)
+forwardup()
+forward(2)
+left(10)
+pendown()
+for i in range(7):
+    forward(2)
+    left(40.0)
+Error executing program for i in range(H):
+    forward(2)
+    left(60.0)
+forward(2)
+left(10)
+for i in range(6):
+    forward(4)
+    left(90.0)
+Error executing program for i in range(H):
+    forward(2)
+    left(120.0)
+forward(2)
+left(180)"
+for i in range(7):
+    forward(2)
+    left(90.0)
+Error executing program forup()
+forward(2)
+left(270)
+pendown()
+for i in range(9ALF_INF):
+    forward(EPS_DIST*2)
+    left(EPS_ANGLE)
+for i in range(HALF_INF):
+    forward(EPS_DIST*2)
+    left(EPS_ANGLE)
+penup()
+forward(2)
+leftown()
+Error executing program for(2)
+left(280)
+for i in range(6):
+    forward(4)
+    left(51.42857142857143)
+forward(2)
+left(20)
+Error executing program forup()
+forward(2)
+left(2)0)
+pendforown()
+for i in range(HALF_INF):
+    forward(EPS_DIST*1)
+    left(EPS_ANGLE)
+forup()
+forward(2)
+left(2.0)
+pendpendown()
+for i in range(H):
+    forward(2)
+    left(90.0)
+Error executing program forup()
+forward(2)
+left(280)
+pendown()
+for i in range(7):
+    forward(4)
+    left(72.0)"
+penup()
+forward(2)
+leftown()
+Error executing program for i in range(H):
+    forward(2)
+    left(60.0)
+forwardup()
+forward(2)
+left(180)
+pendown()
+for i in range(7):
+    forward(4)
+    left(72.0)
+Error executing program for i in range(9):
+    forward(2)
+    left(45.0)
+forward(2))
+left i in range(8):
+    forward(2)
+    left(120.0)
+Error executing program for i in range(H):
+    forward(2)
+    left(60.0)
+forward(2)
+left(180)
+for i in range(6):
+    forward(4)
+    left(60.0)
+Error executing program for(2)
+left(20)
+for i in range(6ALF_INF):
+    forward(EPS_DIST*1)
+    left(EPS_ANGLE)
+for i in range(HALF_INF):
+    forward(EPS_DIST*2)
+    left(EPS_ANGLE)
+forward(2)
+left(270)
+Error executing program for i in range(H):
+    forward(2)
+    left(90.0)
+forward(2)
+left(170)
+Error executing program forup()
+forward(2))
+left(270)
+pendown()
+for i in range(7ALF_INF):
+    forward(EPS_DIST*1)
+    left(EPS_ANGLE)
+for i in range(HALF_INF):
+    forward(EPS_DIST*1)
+    left(EPS_ANGLE)
+penup()
+forward(20)
+left(270)
+pendown()
+Error executing program for i in range(H):
+    forward(2)
+    left(90.0)
+forwardup()
+forward(2)
+left(170)
+pendown()
+for i in range(7):
+    forward(2)
+    left(120.0)
+Error executing program forup()
+forward(2)
+leftown()
+for i in range(7):
+    forward(2)
+    left(60.0)
+penup()
+forward(2)
+left(170)
+pendown()
+Error executing program for(2)
+left(280)
+for i in range(4ALF_INF):
+    forward(EPS_DIST*1)
+    left(EPS_ANGLE)
+for i in range(HALF_INF):
+    forward(EPS_DIST*1)
+    left(EPS_ANGLE)
+forward(2)
+left(270)
+Error executing program for i in range(H):
+    forward(2)
+    left(45.0)
+forward(2)
+left(170)
+for i in range(8):
+    forward(2)
+    left(45.0)
+Error executing program for i in range(H):
+    forward(2)
+    left(60.0)
+forward(2)
+left(170)
+Error executing program forup()
+forward(2)
+left(270)
+pendown()
+for i in range(7):
+    forward(2)
+    left(60.0)
+penup()
+forward(2)
+left(280)
+pendown()
+Error executing program for(2))
+left(270)
+for i in range(7):
+    forward(2)
+    left(72.0)
+forward(20)
+left(20)
+Error executing program forup()
+forward(2)
+left(270)
+pendown()
+for i in range(9):
+    forward(4)
+    left(72.0)
+Error executing program forup()
+forward(2))
+leftown()
+for i in range(8):
+    forward(2)
+    left(120.0)
+penup()
+forward(20
+left(270)
+pendown()
+Error executing program for i in range(9):
+    forward(4)
+    left(90.0)
+forward(2)
+left i in range(4):
+    forward(4)
+    left(60.0)
+Error executing program for i in range(7):
+    forward(2)
+    left(51.42857142857143)
+forward(2))
+left(180)
+for i in range(7):
+    forward(4)
+    left(40.0)
+Error executing program for i in range(HALF_INF):
+    forward(EPS_DIST*1)
+    left(EPS_ANGLE)
+for i in range(HALF_INF):
+    forward(EPS_DIST*2)
+    left(EPS_ANGLE)
+forup()
+forward(2)
+left(280)
+pendown()
+Error executing program for i in range(H):
+    forward(2)
+    left(90.0)
+forward(2)
+left(10)
+for i in range(4):
+    forward(2)
+    left(90.0)
+Error executing program for i in range(H):
+    forward(2)
+    left(51.42857142857143)
+forwardup()
+forward(2)
+left(170)
+pendown()
+for i in range(7):
+    forward(2)
+    left(51.42857142857143)
+Error executing program for(2)
+left(280)
+for i in range(7):
+    forward(2)
+    left(45.0)
+forward(2))
+left(280)
+Error executing program forup()
+forward(2))
+left(270)
+pendown()
+for i in range(7):
+    forward(4)
+    left(120.0)"
+penup()
+forward(20)
+left(280)
+pendown()
+Error executing program forup()
+forward(2))
+left(20)
+pendown()
+for i in range(7ALF_INF):
+    forward(EPS_DIST*2)
+    left(EPS_ANGLE)
+for i in range(HALF_INF):
+    forward(EPS_DIST*2)
+    left(EPS_ANGLE)
+penup()
+forward(20)
+left(280)
+pendown()
+Error executing program for(2)
+left(20)
+for i in range(7):
+    forward(4)
+    left(51.42857142857143)
+forward(2))
+left(270)
+Error executing program forup()
+forward(2)
+leftown()
+for i in range(7):
+    forward(2)
+    left(40.0)
+penup()
+forward(2)
+left(180)
+pendown()
+Error executing program for(2)
+left i in range(8):
+    forward(2)
+    left(90.0)
+forward(2)
+left(280)
+Error executing program forup()
+forward(2)
+left(20)
+pendown()
+for i in range(7):
+    forward(4)
+    left(40.0)"
+penup()
+forward(2)
+leftown()
+Error executing program for i in range(9):
+    forward(2)
+    left(72.0)
+forward(2)
+left i in range(5):
+    forward(2)
+    left(45.0)
+Error executing program for i in range(HALF_INF):
+    forward(EPS_DIST*1)
+    left(EPS_ANGLE)
+forup()
+forward(2)
+leftown()
+for i in range(H):
+    forward(2)
+    left(40.0)
+Error executing program forup()
+forward(2)
+left(20)
+pendown()
+for i in range(7):
+    forward(4)
+    left(40.0)"
+penup()
+forward(2)
+leftown()
+Error executing program for i in range(9):
+    forward(2)
+    left(60.0)
+forward(2)
+left(180)"
+for i in range(6):
+    forward(4)
+    left(51.42857142857143)
+Error executing program for(2))
+left(280)
+for i in range(7):
+    forward(2)
+    left(120.0)
+forward(2)
+left(270)
+Error executing program forup()
+forward(2))
+left(20)
+pendown()
+for i in range(7):
+    forward(2)
+    left(120.0)
+penup()
+forward(20
+left(20)
+pendown()
+Error executing program forup()
+forward(2))
+left(20)
+pendown()
+for i in range(7):
+    forward(2)
+    left(120.0)
+penup()
+forward(20)
+left(20)
+pendown()
+Error executing program for(2))
+left(280)
+for i in range(7ALF_INF):
+    forward(EPS_DIST*1)
+    left(EPS_ANGLE)
+for i in range(HALF_INF):
+    forward(EPS_DIST*2)
+    left(EPS_ANGLE)
+forward(20)
+left(270)
+Error executing program forup()
+forward(2)
+left(270)
+pendown()
+for i in range(7ALF_INF):
+    forward(EPS_DIST*2)
+    left(EPS_ANGLE)
+for i in range(HALF_INF):
+    forward(EPS_DIST*2)
+    left(EPS_ANGLE)
+penup()
+forward(2))
+leftown()
+Error executing program for(2)
+left(20)
+for i in range(7):
+    forward(2)
+    left(90.0)
+forward(2))
+left(270)
+Error executing program for i in range(H):
+    forward(2)
+    left(40.0)
+forward(2)
+left(180)
+Error executing program for i in range(H):
+    forward(2)
+    left(72.0)
+forwardup()
+forward(2)
+left(180)
+pendown()
+for i in range(7):
+    forward(2)
+    left(60.0)
+Error executing program forup()
+forward(2)
+left(280)
+pendown()
+for i in range(7):
+    forward(4)
+    left(51.42857142857143)
+penup()
+forward(2)
+left(20)
+pendown()
+Error executing program for(2)
+left i in range(4):
+    forward(2)
+    left(51.42857142857143)
+forward(2)
+left(170)
+Error executing program for(2)
+left i in range(7):
+    forward(2)
+    left(40.0)
+forward(2)
+left(10)
+Error executing program for(2))
+left(20)
+for i in range(7ALF_INF):
+    forward(EPS_DIST*1)
+    left(EPS_ANGLE)
+for i in range(HALF_INF):
+    forward(EPS_DIST*1)
+    left(EPS_ANGLE)
+forward(20)
+left(10)
+Error executing program for i in range(H):
+    forward(2)
+    left(60.0)
+forwardup()
+forward(2)
+left(180)
+pendown()
+for i in range(7):
+    forward(2)
+    left(120.0)
+Error executing program for i in range(9):
+    forward(2)
+    left(51.42857142857143)
+forward(2))
+left(170)
+for i in range(7):
+    forward(2)
+    left(45.0)
+Error executing program forup()
+forward(2))
+left(270)
+pendown()
+for i in range(8):
+    forward(2)
+    left(60.0)"
+penup()
+forward(20)
+left(280)
+pendown()
+Error executing program for i in range(H):
+    forward(2)
+    left(120.0)
+forwardup()
+forward(2)
+leftown()
+for i in range(7):
+    forward(2)
+    left(90.0)
+Error executing program forup()
+forward(2)
+leftown()
+for i in range(8):
+    forward(4)
+    left(40.0)
+penup()
+forward(2)
+left(10)
+pendown()
+Error executing program forup()
+forward(2)
+left(280)
+pendown()
+for i in range(9):
+    forward(4)
+    left(60.0)"
+penup()
+forward(2))
+leftown()
+Error executing program for i in range(H):
+    forward(2)
+    left(72.0)
+forward(2)
+left(10)
+for i in range(5):
+    forward(2)
+    left(60.0)
+Error executing program for i in range(H):
+    forward(2)
+    left(40.0)
+forwardup()
+forward(2)
+left(180)
+pendown()
+for i in range(7):
+    forward(2)
+    left(120.0)
+Error executing program for i in range(H):
+    forward(2)
+    left(45.0)
+forward(2)
+left(180)
+for i in range(8):
+    forward(2)
+    left(90.0)
+Error executing program for i in range(H):
+    forward(2)
+    left(60.0)
+forward(2)
+left(170)"
+for i in range(6):
+    forward(4)
+    left(120.0)
+Error executing program for i in range(H):
+    forward(2)
+    left(45.0)
+forward(2)
+left(10)
+for i in range(8):
+    forward(2)
+    left(45.0)
+Error executing program for i in range(9):
+    forward(2)
+    left(45.0)
+forward(2))
+left(170)
+for i in range(8):
+    forward(2)
+    left(40.0)
+Error executing program for i in range(H):
+    forward(2)
+    left(120.0)
+forwardup()
+forward(20)
+left(170)
+pendown()
+for i in range(7):
+    forward(2)
+    left(60.0)
+Error executing program for i in range(H):
+    forward(2)
+    left(72.0)
+forwardup()
+forward(2)
+left(180)
+pendown()
+for i in range(7):
+    forward(2)
+    left(120.0)
+Error executing program for(2)
+left i in range(5):
+    forward(2)
+    left(60.0)
+forward(2)
+left(180)
+Error executing program for i in range(H):
+    forward(2)
+    left(72.0)
+forward(2)
+left(10)
+for i in range(7):
+    forward(2)
+    left(40.0)
+Error executing program forup()
+forward(2)
+left(270)
+pendown()
+for i in range(7):
+    forward(2)
+    left(51.42857142857143)
+penup()
+forward(2)
+left(280)
+pendown()
+Error executing program forup()
+forward(2)
+left(20)
+pendown()
+for i in range(H):
+    forward(2)
+    left(45.0)
+penup()
+forward(2)
+left(270)
+pendown()
+Error executing program forup()
+forward(2)
+left(20)
+pendown()
+for i in range(7):
+    forward(2)
+    left(72.0)"
+penup()
+forward(2)
+left(180)
+pendown()
+Error executing program forup()
+forward(2)
+left(280)
+pendown()
+for i in range(H):
+    forward(2)
+    left(120.0)
+penup()
+forward(2))
+left(280)
+pendown()
+Error executing program for i in range(H):
+    forward(4)
+    left(90.0)
+forward(2)
+left(180)
+Error executing program for i in range(H):
+    forward(2)
+    left(72.0)
+forwardup()
+forward(2))
+left(180)
+pendown()
+for i in range(7):
+    forward(2)
+    left(40.0)
+Error executing program for i in range(H):
+    forward(2)
+    left(51.42857142857143)
+forwardup()
+forward(2))
+left(170)
+pendown()
+for i in range(7):
+    forward(2)
+    left(120.0)
+Error executing program forup()
+forward(2)
+left(280)
+pendown()
+for i in range(9):
+    forward(2)
+    left(45.0)"
+penup()
+forward(2)
+left(270)
+pendown()
+Error executing program forup()
+forward(2))
+left(270)
+pendown()
+for i in range(9):
+    forward(4)
+    left(40.0)"
+penup()
+forward(20
+left(20)
+pendown()
+Error executing program forup()
+forward(2)
+leftown()
+for i in range(7):
+    forward(4)
+    left(40.0)
+penup()
+forward(2))
+left(170)
+pendown()
+Error executing program for i in range(H):
+    forward(2)
+    left(51.42857142857143)
+forwardup()
+forward(2)
+left(270)
+pendown()
+for i in range(7):
+    forward(4)
+    left(40.0)
+Error executing program for(2)
+left(270)
+for i in range(5ALF_INF):
+    forward(EPS_DIST*1)
+    left(EPS_ANGLE)
+for i in range(HALF_INF):
+    forward(EPS_DIST*1)
+    left(EPS_ANGLE)
+forward(2)
+left(280)
+Error executing program forup()
+forward(2))
+leftown()
+for i in range(8):
+    forward(2)
+    left(120.0)
+penup()
+forward(2)
+left(280)
+pendown()
+Error executing program for i in range(7):
+    forward(2)
+    left(45.0)
+forward(2))
+left i in range(8):
+    forward(2)
+    left(60.0)
+Error executing program forup()
+forward(2))
+left(270)
+pendown()
+for i in range(7):
+    forward(4)
+    left(51.42857142857143)
+penup()
+forward(2)
+left(270)
+pendown()
+Error executing program for i in range(H):
+    forward(2)
+    left(40.0)
+forwardup()
+forward(20)
+left(170)
+pendown()
+for i in range(9):
+    forward(2)
+    left(90.0)
+Error executing program for i in range(H):
+    forward(4)
+    left(90.0)
+forward(2)
+left(180)
+Error executing program for i in range(H):
+    forward(2)
+    left(45.0)
+forwardup()
+forward(2))
+left(170)
+pendown()
+for i in range(7):
+    forward(2)
+    left(90.0)
+Error executing program for i in range(7):
+    forward(2)
+    left(51.42857142857143)
+forward(2))
+left(10)
+for i in range(7):
+    forward(2)
+    left(90.0)
+Error executing program for i in range(H):
+    forward(2)
+    left(72.0)
+forward(2)
+left(170)"
+for i in range(5):
+    forward(2)
+    left(60.0)
+
+                                                    
+
+                                                 
+[A
+ 16%|█▌        | 20/125 [1:53:30<2:42:23, 92.80s/it]
+
+100%|██████████| 125/125 [47:39<00:00,  2.28s/it][A{'eval_loss': 0.06964466720819473, 'eval_comp_loss': 0.17644113590474766, 'eval_prompt_loss': 0.06484046184981242, 'eval_avg_norm_levenshtein_dist': 0.9367651574489924, 'eval_std_norm_levenshtein_dist': 0.02646504120107589, 'eval_avg_crystalbleu': 0.8985074334951092, 'eval_exact_prog_match': 0, 'eval_avg_ssim': 0.9973356266787797, 'eval_avg_dreamsim': 0.10841495807354266, 'eval_avg_precision': 0.3473287329545388, 'eval_avg_recall': 0.3693409519266349, 'eval_avg_f1': 0.34981256425449675, 'eval_exact_image_match': 0, 'eval_runtime': 2861.5354, 'eval_samples_per_second': 0.348, 'eval_steps_per_second': 0.044, 'epoch': 0.16}
+
+
+                                                 [Awandb: WARNING Tried to log to step 19 that is less than the current step 20. Steps must be monotonically increasing, so this data will be ignored. See https://wandb.me/define-metric to log data out of order.
+
+ 17%|█▋        | 21/125 [1:54:59<27:45:19, 960.76s/it]
+ 18%|█▊        | 22/125 [1:55:57<19:44:13, 689.84s/it]
+ 18%|█▊        | 23/125 [1:56:56<14:11:00, 500.59s/it]
+ 19%|█▉        | 24/125 [1:57:56<10:19:58, 368.30s/it]
+ 20%|██        | 25/125 [1:58:56<7:39:37, 275.78s/it] 
+ 21%|██        | 26/125 [1:59:56<5:48:13, 211.04s/it]
+ 22%|██▏       | 27/125 [2:00:55<4:30:38, 165.69s/it]
+ 22%|██▏       | 28/125 [2:01:55<3:36:32, 133.94s/it]
+ 23%|██▎       | 29/125 [2:02:55<2:58:45, 111.73s/it]
+ 24%|██▍       | 30/125 [2:03:55<2:32:16, 96.18s/it] 
+                                                    
+
+ 24%|██▍       | 30/125 [2:03:55<2:32:16, 96.18s/it]{'loss': 0.5573, 'grad_norm': 0.7197080850601196, 'learning_rate': 0.00019955708208292198, 'epoch': 0.24}
+Error executing program forup()
+forward(2)
+leftown()
+for i in range(H):
+    forward(4)
+    left(60.0)
+penup()
+forward(2))
+left(10)
+pendown()
+
+
+  0%|          | 0/125 [00:00<?, ?it/s][A
+
+  2%|▏         | 2/125 [00:02<02:33,  1.24s/it][A
+
+  2%|▏         | 3/125 [00:04<03:34,  1.76s/it][A
+
+  3%|▎         | 4/125 [00:07<04:05,  2.03s/it][A
+
+  4%|▍         | 5/125 [00:09<04:22,  2.19s/it][A
+
+  5%|▍         | 6/125 [00:12<04:32,  2.29s/it][A
+
+  6%|▌         | 7/125 [00:14<04:38,  2.36s/it][A
+
+  6%|▋         | 8/125 [00:17<04:41,  2.41s/it][A
+
+  7%|▋         | 9/125 [00:19<04:43,  2.44s/it][A
+
+  8%|▊         | 10/125 [00:22<04:43,  2.46s/it][A
+
+  9%|▉         | 11/125 [00:25<04:43,  2.48s/it][A
+
+ 10%|▉         | 12/125 [00:27<04:42,  2.50s/it][A
+
+ 10%|█         | 13/125 [00:30<04:41,  2.51s/it][A
+
+ 11%|█         | 14/125 [00:32<04:40,  2.52s/it][A
+
+ 12%|█▏        | 15/125 [00:35<04:38,  2.53s/it][A
+
+ 13%|█▎        | 16/125 [00:37<04:36,  2.53s/it][A
+
+ 14%|█▎        | 17/125 [00:40<04:34,  2.54s/it][A
+
+ 14%|█▍        | 18/125 [00:42<04:32,  2.54s/it][A
+
+ 15%|█▌        | 19/125 [00:45<04:29,  2.55s/it][A
+
+ 16%|█▌        | 20/125 [00:47<04:27,  2.55s/it][A
+
+ 17%|█▋        | 21/125 [00:50<04:25,  2.55s/it][A
+
+ 18%|█▊        | 22/125 [00:53<04:23,  2.56s/it][A
+
+ 18%|█▊        | 23/125 [00:55<04:20,  2.56s/it][A
+
+ 19%|█▉        | 24/125 [00:58<04:18,  2.56s/it][A
+
+ 20%|██        | 25/125 [01:00<04:15,  2.56s/it][A
+
+ 21%|██        | 26/125 [01:03<04:13,  2.56s/it][A
+
+ 22%|██▏       | 27/125 [01:05<04:10,  2.56s/it][A
+
+ 22%|██▏       | 28/125 [01:08<04:08,  2.56s/it][A
+
+ 23%|██▎       | 29/125 [01:10<04:06,  2.56s/it][A
+
+ 24%|██▍       | 30/125 [01:13<04:03,  2.56s/it][A
+
+ 25%|██▍       | 31/125 [01:16<04:00,  2.56s/it][A
+
+ 26%|██▌       | 32/125 [01:18<03:58,  2.56s/it][A
+
+ 26%|██▋       | 33/125 [01:21<03:55,  2.56s/it][A
+
+ 27%|██▋       | 34/125 [01:23<03:53,  2.57s/it][A
+
+ 28%|██▊       | 35/125 [01:26<03:50,  2.57s/it][A
+
+ 29%|██▉       | 36/125 [01:28<03:48,  2.57s/it][A
+
+ 30%|██▉       | 37/125 [01:31<03:46,  2.57s/it][A
+
+ 30%|███       | 38/125 [01:34<03:43,  2.57s/it][A
+
+ 31%|███       | 39/125 [01:36<03:40,  2.57s/it][A
+
+ 32%|███▏      | 40/125 [01:39<03:37,  2.56s/it][A
+
+ 33%|███▎      | 41/125 [01:41<03:35,  2.56s/it][A
+
+ 34%|███▎      | 42/125 [01:44<03:32,  2.56s/it][A
+
+ 34%|███▍      | 43/125 [01:46<03:30,  2.57s/it][A
+
+ 35%|███▌      | 44/125 [01:49<03:28,  2.57s/it][A
+
+ 36%|███▌      | 45/125 [01:52<03:25,  2.57s/it][A
+
+ 37%|███▋      | 46/125 [01:54<03:23,  2.57s/it][A
+
+ 38%|███▊      | 47/125 [01:57<03:20,  2.57s/it][A
+
+ 38%|███▊      | 48/125 [01:59<03:17,  2.56s/it][A
+
+ 39%|███▉      | 49/125 [02:02<03:15,  2.57s/it][A
+
+ 40%|████      | 50/125 [02:04<03:12,  2.57s/it][A
+
+ 41%|████      | 51/125 [02:07<03:10,  2.57s/it][A
+
+ 42%|████▏     | 52/125 [02:10<03:07,  2.57s/it][A
+
+ 42%|████▏     | 53/125 [02:12<03:04,  2.57s/it][A
+
+ 43%|████▎     | 54/125 [02:15<03:02,  2.57s/it][A
+
+ 44%|████▍     | 55/125 [02:17<02:59,  2.57s/it][A
+
+ 45%|████▍     | 56/125 [02:20<02:57,  2.57s/it][A
+
+ 46%|████▌     | 57/125 [02:22<02:54,  2.57s/it][A
+
+ 46%|████▋     | 58/125 [02:25<02:52,  2.57s/it][A
+
+ 47%|████▋     | 59/125 [02:28<02:49,  2.57s/it][A
+
+ 48%|████▊     | 60/125 [02:30<02:47,  2.57s/it][A
+
+ 49%|████▉     | 61/125 [02:33<02:44,  2.57s/it][A
+
+ 50%|████▉     | 62/125 [02:35<02:42,  2.57s/it][A
+
+ 50%|█████     | 63/125 [02:38<02:39,  2.57s/it][A
+
+ 51%|█████     | 64/125 [02:40<02:37,  2.58s/it][A
+
+ 52%|█████▏    | 65/125 [02:43<02:34,  2.58s/it][A
+
+ 53%|█████▎    | 66/125 [02:46<02:31,  2.57s/it][A
+
+ 54%|█████▎    | 67/125 [02:48<02:29,  2.58s/it][A
+
+ 54%|█████▍    | 68/125 [02:51<02:27,  2.58s/it][A
+
+ 55%|█████▌    | 69/125 [02:53<02:24,  2.58s/it][A
+
+ 56%|█████▌    | 70/125 [02:56<02:21,  2.58s/it][A
+
+ 57%|█████▋    | 71/125 [02:58<02:18,  2.57s/it][A
+
+ 58%|█████▊    | 72/125 [03:01<02:16,  2.58s/it][A
+
+ 58%|█████▊    | 73/125 [03:04<02:13,  2.58s/it][A
+
+ 59%|█████▉    | 74/125 [03:06<02:11,  2.58s/it][A
+
+ 60%|██████    | 75/125 [03:09<02:08,  2.58s/it][A
+
+ 61%|██████    | 76/125 [03:11<02:06,  2.57s/it][A
+
+ 62%|██████▏   | 77/125 [03:14<02:03,  2.57s/it][A
+
+ 62%|██████▏   | 78/125 [03:16<02:01,  2.58s/it][A
+
+ 63%|██████▎   | 79/125 [03:19<01:58,  2.58s/it][A
+
+ 64%|██████▍   | 80/125 [03:22<01:56,  2.58s/it][A
+
+ 65%|██████▍   | 81/125 [03:24<01:53,  2.58s/it][A
+
+ 66%|██████▌   | 82/125 [03:27<01:50,  2.58s/it][A
+
+ 66%|██████▋   | 83/125 [03:29<01:48,  2.57s/it][A
+
+ 67%|██████▋   | 84/125 [03:32<01:45,  2.58s/it][A
+
+ 68%|██████▊   | 85/125 [03:35<01:42,  2.57s/it][A
+
+ 69%|██████▉   | 86/125 [03:37<01:40,  2.57s/it][A
+
+ 70%|██████▉   | 87/125 [03:40<01:37,  2.57s/it][A
+
+ 70%|███████   | 88/125 [03:42<01:35,  2.57s/it][A
+
+ 71%|███████   | 89/125 [03:45<01:32,  2.57s/it][A
+
+ 72%|███████▏  | 90/125 [03:47<01:29,  2.57s/it][A
+
+ 73%|███████▎  | 91/125 [03:50<01:27,  2.58s/it][A
+
+ 74%|███████▎  | 92/125 [03:53<01:25,  2.58s/it][A
+
+ 74%|███████▍  | 93/125 [03:55<01:22,  2.58s/it][A
+
+ 75%|███████▌  | 94/125 [03:58<01:19,  2.58s/it][A
+
+ 76%|███████▌  | 95/125 [04:00<01:17,  2.58s/it][A
+
+ 77%|███████▋  | 96/125 [04:03<01:14,  2.58s/it][A
+
+ 78%|███████▊  | 97/125 [04:05<01:12,  2.58s/it][A
+
+ 78%|███████▊  | 98/125 [04:08<01:09,  2.57s/it][A
+
+ 79%|███████▉  | 99/125 [04:11<01:07,  2.58s/it][A
+
+ 80%|████████  | 100/125 [04:13<01:04,  2.58s/it][A
+
+ 81%|████████  | 101/125 [04:16<01:01,  2.57s/it][A
+
+ 82%|████████▏ | 102/125 [04:18<00:59,  2.57s/it][A
+
+ 82%|████████▏ | 103/125 [04:21<00:56,  2.57s/it][A
+
+ 83%|████████▎ | 104/125 [04:23<00:54,  2.58s/it][A
+
+ 84%|████████▍ | 105/125 [04:26<00:51,  2.57s/it][A
+
+ 85%|████████▍ | 106/125 [04:29<00:48,  2.57s/it][A
+
+ 86%|████████▌ | 107/125 [04:31<00:46,  2.57s/it][A
+
+ 86%|████████▋ | 108/125 [04:34<00:43,  2.57s/it][A
+
+ 87%|████████▋ | 109/125 [04:36<00:41,  2.57s/it][A
+
+ 88%|████████▊ | 110/125 [04:39<00:38,  2.57s/it][A
+
+ 89%|████████▉ | 111/125 [04:41<00:36,  2.57s/it][A
+
+ 90%|████████▉ | 112/125 [04:44<00:33,  2.58s/it][A
+
+ 90%|█████████ | 113/125 [04:47<00:30,  2.58s/it][A
+
+ 91%|█████████ | 114/125 [04:49<00:28,  2.57s/it][A
+
+ 92%|█████████▏| 115/125 [04:52<00:25,  2.57s/it][A
+
+ 93%|█████████▎| 116/125 [04:54<00:23,  2.57s/it][A
+
+ 94%|█████████▎| 117/125 [04:57<00:20,  2.57s/it][A
+
+ 94%|█████████▍| 118/125 [04:59<00:17,  2.57s/it][A
+
+ 95%|█████████▌| 119/125 [05:02<00:15,  2.57s/it][A
+
+ 96%|█████████▌| 120/125 [05:05<00:12,  2.57s/it][A
+
+ 97%|█████████▋| 121/125 [05:07<00:10,  2.57s/it][A
+
+ 98%|█████████▊| 122/125 [05:10<00:07,  2.57s/it][A
+
+ 98%|█████████▊| 123/125 [05:12<00:05,  2.57s/it][A
+
+ 99%|█████████▉| 124/125 [05:15<00:02,  2.57s/it][A
+
+100%|██████████| 125/125 [05:16<00:00,  2.29s/it][AError executing program for i in range(H):
+    forward(2)
+    left(51.42857142857143)
+penup()
+forward(2)
+leftown()
+Error executing program for i in range(H):
+    forward(2)
+    left(120.0)
+penup()
+forward(2)
+leftown()
+for i in range(H):
+    forward(4)
+    left(45.0)
+Error executing program for i in range(HALF_INF):
+    forward(EPS_DIST*1)
+    left(EPS_ANGLE)
+for(2))
+for(980)
+for i in range(H):
+    forward(4)
+    left(60.0)
+Error executing program for i in range(H):
+    forward(2)
+    left(120.0)
+penup()
+forward(2))
+left(170)
+pendown()
+Error executing program forup()
+forward(2)
+leftown()
+for i in range(H):
+    forward(4)
+    left(72.0)
+penup()
+forward(2))
+left(10)
+pendown()
+Error executing program forup()
+forward(2)
+left(20)
+pendown()
+for i in range(H):
+    forward(4)
+    left(51.42857142857143)"
+penup()
+forward(2)
+left(980)
+pendown()
+Error executing program for i in range(H):
+    forward(2)
+    left(72.0)
+pen(2)
+left(170)
+Error executing program for i in range(HALF_INF):
+    forward(EPS_DIST*1)
+    left(EPS_ANGLE)
+for(2))
+left(180)
+for i in range(H):
+    forward(4)
+    left(72.0)
+Error executing program forup()
+forward(2)
+left(280)
+pendown()
+for i in range(HALF_INF):
+    forward(EPS_DIST*2)
+    left(EPS_ANGLE)
+for i in range(HALF_INF):
+    forward(EPS_DIST*2)
+    left(EPS_ANGLE)
+penup()
+forward(2))
+left(270)
+pendown()
+Error executing program for i in range(H):
+    forward(2)
+    left(72.0)
+penup()
+forward(2))
+left(180)
+pendown()
+Error executing program forup()
+forward(2)
+left(10)
+pendown()
+for i in range(H):
+    forward(4)
+    left(51.42857142857143)
+Error executing program forup()
+forward(2)
+left(170)
+pendown()
+for i in range(HALF_INF):
+    forward(EPS_DIST*1)
+    left(EPS_ANGLE)
+forup()
+forward(2)
+left(20)
+pendown()
+Error executing program forup()
+forward(2)
+leftown()
+for i in range(H):
+    forward(4)
+    left(45.0)
+penup()
+forward(2))
+leftown()
+Error executing program forup()
+forward(2)
+left(180)
+pendown()
+for i in range(H):
+    forward(4)
+    left(120.0)
+penup()
+forward(2)
+leftown()
+Error executing program for(2))
+left(170)
+for i in range(H):
+    forward(4)
+    left(45.0)
+forward(20)
+left(20)
+Error executing program for i in range(HALF_INF):
+    forward(EPS_DIST*1)
+    left(EPS_ANGLE)
+for i in range(HALF_INF):
+    forward(EPS_DIST*2)
+    left(EPS_ANGLE)
+forup()
+forward(2))
+left(270)
+pendown()
+Error executing program for i in range(H):
+    forward(2)
+    left(120.0)
+penup()
+forward(2)
+left(170)
+pendown()""for i in range(HALF_INF):
+    forward(EPS_DIST*2)
+    left(EPS_ANGLE)
+Error executing program for i in range(H):
+    forward(2)
+    left(51.42857142857143)
+pen(2)
+left(170)
+Error executing program forup()
+forward(2)
+left(180)
+pendown()
+for i in range(H):
+    forward(4)
+    left(51.42857142857143)
+Error executing program for i in range(H):
+    forward(2)
+    left(72.0)
+penup()
+forward(2)
+left(180)
+pendown()
+Error executing program for i in range(H):
+    forward(2)
+    left(60.0)
+penup()
+forward(2))
+leftown()
+for i in range(9):
+    forward(4)
+    left(45.0)
+Error executing program for i in range(H):
+    forward(2)
+    left(40.0)
+penup()
+forward(2))
+left(10)
+pendown()
+for i in range(H):
+    forward(4)
+    left(60.0)
+Error executing program for(2)
+left(180)
+for i in range(H):
+    forward(4)
+    left(72.0)"
+forward(2)
+left(280)
+Error executing program for i in range(H):
+    forward(2)
+    left(72.0)
+pen(2)
+left i in range(3):
+    forward(4)
+    left(40.0)
+Error executing program for i in range(H):
+    forward(2)
+    left(90.0)
+pen(2)
+left(10)
+for i in range(H):
+    forward(4)
+    left(72.0)
+Error executing program for i in range(H):
+    forward(2)
+    left(72.0)
+pen(2)
+left(10)
+for i in range(H):
+    forward(4)
+    left(40.0)
+Error executing program forup()
+forward(2)
+left(1.0)
+pendpendown()
+for(2)
+left(0.0)
+
+penup()
+forward(2)
+left(0.0)
+
+pendown()
+for i in range(H):
+    forward(2)
+    left(72.0)
+Error executing program for i in range(H):
+    forward(4)
+    left(45.0)
+penup()
+forward(2)
+leftown()
+for i in range(H):
+    forward(4)
+    left(120.0)
+Error executing program for i in range(H):
+    forward(2)
+    left(72.0)
+penup()
+forward(2)
+left(180)
+pendown()
+Error executing program forup()
+forward(2)
+left(270)
+pendown()
+for i in range(H):
+    forward(4)
+    left(120.0)
+penup()
+forward(2)
+left(270)
+pendown()
+Error executing program for i in range(H):
+    forward(2)
+    left(51.42857142857143)
+pen(2)
+left(170)"
+for i in range(H):
+    forward(4)
+    left(45.0)
+Error executing program for i in range(H):
+    forward(2)
+    left(90.0)
+pen(2))
+left(170)
+for i in range(H):
+    forward(4)
+    left(51.42857142857143)
+Error executing program forup()
+forward(2)
+left(280)
+pendown()
+for i in range(HALF_INF):
+    forward(EPS_DIST*2)
+    left(EPS_ANGLE)
+for i in range(HALF_INF):
+    forward(EPS_DIST*2)
+    left(EPS_ANGLE)
+penup()
+forward(2))
+left(280)
+pendown()
+Error executing program for i in range(H):
+    forward(2)
+    left(40.0)
+penup()
+forward(2))
+left(10)
+pendown()
+for i in range(H):
+    forward(4)
+    left(90.0)
+Error executing program for i in range(H):
+    forward(2)
+    left(45.0)
+penup()
+forward(2))
+left(10)
+pendown()
+Error executing program for i in range(HALF_INF):
+    forward(EPS_DIST*1)
+    left(EPS_ANGLE)
+forup()
+forward(2)
+left(270)
+pendown()
+for i in range(H):
+    forward(4)
+    left(120.0)
+Error executing program forup()
+forward(2)
+left(1.0)
+pendpendown()
+for i in range(H):
+    forward(4)
+    left(120.0)
+penup()
+forward(2)
+left(9.0)
+pendpendown()""for i in range(3ALF_INF):
+    forward(EPS_DIST*1)
+    left(EPS_ANGLE)"
+for i in range(HALF_INF):
+    forward(EPS_DIST*2)
+    left(EPS_ANGLE)
+Error executing program forup()
+forward(2)
+left(270)
+pendown()
+for i in range(H):
+    forward(4)
+    left(45.0)
+penup()
+forward(2)
+leftown()
+Error executing program for(2)
+left(10)
+for i in range(H):
+    forward(4)
+    left(45.0)
+forward(2)
+left(170)
+Error executing program for(2)
+left(170)
+for i in range(H):
+    forward(4)
+    left(60.0)
+forward(2))
+left(280)
+Error executing program for i in range(H):
+    forward(2)
+    left(45.0)
+penup()
+forward(2))
+left(10)
+pendown()
+for i in range(9):
+    forward(4)
+    left(40.0)
+Error executing program forup()
+forward(2)
+left(270)
+pendown()
+for i in range(H):
+    forward(4)
+    left(60.0)
+penup()
+forward(2))
+leftown()
+Error executing program for(2)
+left(180)
+for i in range(HALF_INF):
+    forward(EPS_DIST*1)
+    left(EPS_ANGLE)
+for(2)
+left(20)
+Error executing program for i in range(H):
+    forward(2)
+    left(90.0)
+penup()
+forward(2))
+left(10)
+pendown()
+Error executing program forup()
+forward(2))
+left(10)
+pendown()
+for i in range(H):
+    forward(4)
+    left(45.0)
+penup()
+forward(2)
+leftown()
+Error executing program for(2))
+left(170)
+for i in range(H):
+    forward(4)
+    left(40.0)
+forward(2))
+left(280)
