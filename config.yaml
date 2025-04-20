@@ -16,6 +16,10 @@ data:
     block_size: 32
     crop_to_size: 512 # optional: to crop image around the center (as done in PBE)
 
+parsing:
+  ft_model_for_parsing: None # "codellama/CodeLlama-7b-Instruct-hf"
+  inf_model_for_parsing: "codellama/CodeLlama-7b-Instruct-hf"
+
 model:
   model_id: "codellama/CodeLlama-7b-Instruct-hf"
   #model_id: "deepseek-ai/deepseek-coder-6.7b-base" 
@@ -41,9 +45,10 @@ training:
   warmup_ratio: 0.01 # 0.1, 0.05, 0.01 
   lr_scheduler_type: "cosine" #"cosine" # "linear" (default), "cosine", "cosine_with_restarts", "polynomial", "constant", "constant_with_warmup" # linear and cosine are usually; used cosine is used in PBE
   train_epochs: 1
-  per_device_train_batch_size: 16
+  per_device_train_batch_size: 8
   per_device_eval_batch_size: 32 # 4, 8, 16, 32, 64, 128, 256, 512 recommended 64 in PBE 
-  gradient_accumulation_steps: 8 
+  gradient_accumulation_steps: 8
+  gradient_checkpointing: false
   # checkpointing and evaluation
   save_steps: 500
   eval_steps: 10

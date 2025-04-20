@@ -142,6 +142,11 @@ class DataConfig:
     ascii_parameters: Dict[str, Any] = field(default_factory=dict)
 
 @dataclass
+class ParsingConfig:
+    ft_model_for_parsing: Optional[str] = None  # Use model for parsing during Fine-tuning
+    inf_model_for_parsing: Optional[str] = None  # Use model for parisng during Inference
+
+@dataclass
 class PromptConfig:
     include_sys_prompt_fn: bool = False
     include_sys_prompt_inf: bool = False
@@ -231,6 +236,10 @@ class Config:
             mix_directions=bool(config_dict["data"]["mix_directions"]),
             image_to_ascii=bool(config_dict["data"]["image_to_ascii"]),
             ascii_parameters=config_dict["data"].get("ascii_parameters", {})
+        )
+        self.parsing = ParsingConfig(
+            ft_model_for_parsing=str(config_dict["parsing"].get("ft_model_for_parsing", None)),
+            inf_model_for_parsing=str(config_dict["parsing"].get("inf_model_for_parsing", None))
         )
         self.prompt = PromptConfig(
             include_sys_prompt_fn=bool(config_dict["data"]["include_sys_prompt_fn"]),
@@ -536,7 +545,7 @@ from __eval import LLMCodeEvaluator
 
 def prepare_compute_metrics(dataset: DatasetDict, tokenizer):
     """Prepare custom metrics function for Trainer"""
-    evaluator = LLMCodeEvaluator(model_for_parsing=None) # during fine-tuning, no model is used for parsing during the evaluation
+    evaluator = LLMCodeEvaluator(model_for_parsing=config.parsing.ft_model_for_parsing) 
 
     val_prompt_mask = np.array([x["prompt_mask"] for x in dataset['validation']])
     val_completion_mask = np.array([x["completion_mask"] for x in dataset['validation']])
@@ -1480,7 +1489,7 @@ def evaluation(inf_dir: str, n_completions: int, fork_state: bool = False):
     print(f"Starting evaluation on predictions in {inf_dir}")
     
     # Initialize the evaluator
-    evaluator = LLMCodeEvaluator(model_for_parsing="codellama/CodeLlama-7b-Instruct-hf")
+    evaluator = LLMCodeEvaluator(model_for_parsing=config.parsing.inf_model_for_parsing)
     
     try:
         # Run the evaluation pipeline
