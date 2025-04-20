@@ -64,3 +64,23 @@
 2025-04-17 08:36:15,667 [INFO] Starting trial 10 at 20250417_083615
 2025-04-17 08:36:15,667 [INFO] Logs will be saved to hp_optuna_trial_10_20250417_083615.log
 2025-04-17 08:39:17,928 [INFO] Detected WandB run ID early: ko0lskzm
+2025-04-17 23:09:27,317 [INFO] Successfully retrieved metrics for run ko0lskzm
+2025-04-17 23:09:27,322 [INFO] Using WandB metrics: 0.1183096450198572
+2025-04-17 23:09:27,563 [INFO] Starting trial 11 at 20250417_230927
+2025-04-17 23:09:27,563 [INFO] Logs will be saved to hp_optuna_trial_11_20250417_230927.log
+2025-04-17 23:12:54,201 [INFO] Detected WandB run ID early: b1cnx0oe
+2025-04-18 16:00:16,779 [INFO] Successfully retrieved metrics for run b1cnx0oe
+2025-04-18 16:00:16,783 [INFO] Using WandB metrics: 0.11558062559646126
+2025-04-18 16:00:16,910 [INFO] Starting trial 12 at 20250418_160016
+2025-04-18 16:00:16,911 [INFO] Logs will be saved to hp_optuna_trial_12_20250418_160016.log
+2025-04-18 16:03:46,547 [INFO] Detected WandB run ID early: 69vf9u4a
+2025-04-19 09:38:48,394 [INFO] Successfully retrieved metrics for run 69vf9u4a
+2025-04-19 09:38:48,398 [INFO] Using WandB metrics: 0.1166372242706335
+2025-04-19 09:38:48,537 [INFO] Starting trial 13 at 20250419_093848
+2025-04-19 09:38:48,537 [INFO] Logs will be saved to hp_optuna_trial_13_20250419_093848.log
+2025-04-19 09:42:31,496 [INFO] Detected WandB run ID early: bxk8kjim
+2025-04-20 03:12:01,597 [INFO] Successfully retrieved metrics for run bxk8kjim
+2025-04-20 03:12:01,602 [INFO] Using WandB metrics: 0.1133167722751599
+2025-04-20 03:12:01,937 [INFO] Starting trial 14 at 20250420_031201
+2025-04-20 03:12:01,938 [INFO] Logs will be saved to hp_optuna_trial_14_20250420_031201.log
+2025-04-20 03:15:35,276 [INFO] Detected WandB run ID early: ow89rnm9

@@ -118,6 +118,50 @@
       "value": 999.0,
       "datetime": "2025-04-17 08:36:15",
       "error": "CUDA out of memory"
+    },
+    {
+      "trial_id": 10,
+      "params": {
+        "learning_rate": "2e-4",
+        "per_device_train_batch_size": 8,
+        "lora_rank": 128,
+        "lora_alpha": 128
+      },
+      "value": 0.1183096450198572,
+      "datetime": "2025-04-17 23:09:27"
+    },
+    {
+      "trial_id": 11,
+      "params": {
+        "learning_rate": "2e-4",
+        "per_device_train_batch_size": 8,
+        "lora_rank": 128,
+        "lora_alpha": 128
+      },
+      "value": 0.11558062559646126,
+      "datetime": "2025-04-18 16:00:16"
+    },
+    {
+      "trial_id": 12,
+      "params": {
+        "learning_rate": "2e-4",
+        "per_device_train_batch_size": 8,
+        "lora_rank": 128,
+        "lora_alpha": 128
+      },
+      "value": 0.1166372242706335,
+      "datetime": "2025-04-19 09:38:48"
+    },
+    {
+      "trial_id": 13,
+      "params": {
+        "learning_rate": "2e-4",
+        "per_device_train_batch_size": 8,
+        "lora_rank": 128,
+        "lora_alpha": 128
+      },
+      "value": 0.1133167722751599,
+      "datetime": "2025-04-20 03:12:01"
     }
   ],
   "best_trial": {
