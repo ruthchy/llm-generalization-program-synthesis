@@ -88,6 +88,8 @@ from torch.nn import CrossEntropyLoss
 from bitsandbytes.optim import AdamW8bit
 
 from Levenshtein import distance as levenshtein_distance
+dtype = torch.bfloat16 if is_bfloat16_supported() else torch.float16
+print(f"Using dtype: {dtype}")
 
 @dataclass
 class LoraSettings:
@@ -305,8 +307,9 @@ def set_random_seeds(seed: int):
 def load_model_and_tokenizer(config: Config):
     model, tokenizer = FastLanguageModel.from_pretrained(
             config.model.model_id,
+            dtype=dtype,
             load_in_4bit=True,
-            device_map='auto', 
+            device_map='auto',
         )
 
     model = FastLanguageModel.get_peft_model(
@@ -316,7 +319,9 @@ def load_model_and_tokenizer(config: Config):
             lora_dropout=config.lora.dropout,
             target_modules=config.lora.target_modules,
             bias="none",
-            use_gradient_checkpointing=config.training.gradient_checkpointing)
+            use_gradient_checkpointing=config.training.gradient_checkpointing,
+            random_state=config.training.random_seed,
+            )
    
     print(f"Model's max position embeddings: {model.config.max_position_embeddings}")
     return  model, tokenizer
@@ -756,14 +761,14 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
 
         def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None): # num_items_in_batch(batch_size*gradient_accumulation_steps) not used
             # Debug: Check memory before forward pass
-            print(f"Before forward pass: {torch.cuda.memory_allocated() / 1e9:.2f} GB allocated")
-            print(f"Before forward pass: {torch.cuda.memory_reserved() / 1e9:.2f} GB reserved")
+            #print(f"Before forward pass: {torch.cuda.memory_allocated() / 1e9:.2f} GB allocated")
+            #print(f"Before forward pass: {torch.cuda.memory_reserved() / 1e9:.2f} GB reserved")
         
             outputs = model(input_ids=inputs["input_ids"],
                             attention_mask=inputs["attention_mask"])
             # Debug: Check memory after forward pass
-            print(f"After forward pass: {torch.cuda.memory_allocated() / 1e9:.2f} GB allocated")
-            print(f"After forward pass: {torch.cuda.memory_reserved() / 1e9:.2f} GB reserved")
+            #print(f"After forward pass: {torch.cuda.memory_allocated() / 1e9:.2f} GB allocated")
+            #print(f"After forward pass: {torch.cuda.memory_reserved() / 1e9:.2f} GB reserved")
         
             logits = outputs.get("logits")
             labels = inputs.pop("labels")
@@ -1257,9 +1262,11 @@ def inference_from_hub(config: Config, result_dir: str, inference_type: str, sam
         from unsloth import FastLanguageModel
         model, tokenizer = FastLanguageModel.from_pretrained(
             config.model.model_id,
-            max_seq_length=config.training.max_seq_length,  # allows longer token seq. needed for few-shot prompting (as the default set by unsloth)
+            max_seq_length=config.training.max_seq_length,  # allows longer token seq. needed for few-shot prompting (as the default set by unsloth),
+            dtype=dtype,
             load_in_4bit=True,
         )
+
         model = FastLanguageModel.for_inference(model)
         print(f"Loaded model {config.model.model_id} using Unsloth's optimized inference")
     except Exception as e:
@@ -1268,8 +1275,8 @@ def inference_from_hub(config: Config, result_dir: str, inference_type: str, sam
         tokenizer = AutoTokenizer.from_pretrained(config.model.model_id)
         model = AutoModelForCausalLM.from_pretrained(
             config.model.model_id,
-            torch_dtype=torch.bfloat16 if is_bfloat16_supported() else torch.float16,
-            device_map="auto",
+            torch_dtype=dtype,
+            device_map='auto',
         )
         print(f"Loaded model {config.model.model_id} using standard HF Transformers")
     
