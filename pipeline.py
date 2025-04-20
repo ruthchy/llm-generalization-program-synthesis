@@ -536,7 +536,7 @@ from __eval import LLMCodeEvaluator
 
 def prepare_compute_metrics(dataset: DatasetDict, tokenizer):
     """Prepare custom metrics function for Trainer"""
-    evaluator = LLMCodeEvaluator()
+    evaluator = LLMCodeEvaluator(model_for_parsing=None) # during fine-tuning, no model is used for parsing during the evaluation
 
     val_prompt_mask = np.array([x["prompt_mask"] for x in dataset['validation']])
     val_completion_mask = np.array([x["completion_mask"] for x in dataset['validation']])
@@ -1262,7 +1262,7 @@ def inference_from_hub(config: Config, result_dir: str, inference_type: str, sam
         from unsloth import FastLanguageModel
         model, tokenizer = FastLanguageModel.from_pretrained(
             config.model.model_id,
-            max_seq_length=config.training.max_seq_length,  # allows longer token seq. needed for few-shot prompting (as the default set by unsloth),
+            max_seq_length=config.training.max_seq_length,  # allows longer token seq. needed for few-shot prompting (as the default set by unsloth)
             dtype=dtype,
             load_in_4bit=True,
         )
@@ -1480,7 +1480,7 @@ def evaluation(inf_dir: str, n_completions: int, fork_state: bool = False):
     print(f"Starting evaluation on predictions in {inf_dir}")
     
     # Initialize the evaluator
-    evaluator = LLMCodeEvaluator()
+    evaluator = LLMCodeEvaluator(model_for_parsing="codellama/CodeLlama-7b-Instruct-hf")
     
     try:
         # Run the evaluation pipeline

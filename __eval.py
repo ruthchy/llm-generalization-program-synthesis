@@ -27,8 +27,7 @@ try:
     from torchvision.transforms import ToTensor
 except ImportError:
     print("dreamsim package not found. Please install it using 'pip install dreamsim'")
-import traceback
-            
+import traceback      
 
 class LLMCodeEvaluator:
     """
@@ -36,7 +35,7 @@ class LLMCodeEvaluator:
     Handles syntax validation, similarity metrics, execution testing, and image comparison.
     """
     
-    def __init__(self, repo_root=None):
+    def __init__(self, repo_root=None, model_for_parsing=None):
         """
         Initialize the evaluator.
         
@@ -44,6 +43,8 @@ class LLMCodeEvaluator:
             repo_root (str, optional): Repository root path. If None, uses current directory.
         """        
         self.repo_root = repo_root or os.getcwd()
+        self.model_for_parsing = model_for_parsing
+
         # Configure dependencies path
         self.dependencies_path = os.path.join(self.repo_root, 'external/dependencies')
         if self.dependencies_path not in sys.path:
@@ -52,6 +53,18 @@ class LLMCodeEvaluator:
         # Check for GPU availability - making sure it uses the GPU
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         #print(f"Using device: {self.device}")
+
+         # Initialize model and tokenizer only if model_for_parsing is True
+        if self.model_for_parsing is not None:
+            try:
+                from parse_pipeline import init_model
+                
+                self.model, self.tokenizer = init_model(model_for_parsing)
+            except Exception as e:
+                print(f"Error initializing model: {e}")
+                self.model, self.tokenizer = None, None
+        else:
+            self.model, self.tokenizer = None, None
 
         # Initialize DreamSim model
         self.dsim_model, self.dsim_preprocess = dreamsim.dreamsim(pretrained=True, device=self.device)
@@ -106,11 +119,15 @@ class LLMCodeEvaluator:
                 completion_key = f"completion_{idx}"
                 if completion_key in prediction:
                     completion = prediction[completion_key]
-                    #print(f"[DEBUG] Evaluating {completion_key} for example_id={example_id}")
+                    print(f"[DEBUG] Evaluating {completion_key} for example_id={example_id}")
 
                     if fork_state:
                         completion = transform_program(completion, embed_to_fork=False, fork_to_embed=True)
+                    if self.model_for_parsing and self.model and self.tokenizer:
+                        completion = self.parse_python_code(completion) # use LLM to extract the program (still requires extracting the program from a markdown block which is done in the clean_python_code function)
+                        print(f"[DEBUG] Parsed completion: {completion}")
                     completion_clean = self.clean_python_code(completion)
+                    print(f"[DEBUG] Cleaned completion: {completion_clean}")  
 
                     # Evaluate the completion (your existing logic here)
                     is_valid_syntax, format_message, details_dict = self.check_formatting(completion_clean)
@@ -387,6 +404,16 @@ class LLMCodeEvaluator:
 
         return metrics, summary
     
+    def parse_python_code(self, code):
+        print(f"[DEBUG] Original completion: {code}")
+        from parse_pipeline import extract_program
+        try:
+            extracted_program = extract_program(code, self.model, self.tokenizer)
+            if extracted_program.strip():
+                return extracted_program
+        except Exception as e:
+            print(f"[DEBUG] extract_program() failed: {e}")
+
     @staticmethod
     def clean_python_code(code):
         """
@@ -398,7 +425,6 @@ class LLMCodeEvaluator:
         Returns:
             str: Cleaned code
         """
-        #print(f"[DEBUG] Original completion: {code}")
         # Step 1: If code is embeded in natural language extract the blocks
         markdown_blocks = re.findall(r'```(.*?)```', code, re.DOTALL)
         if markdown_blocks:
@@ -1030,7 +1056,7 @@ def _execute_code_in_process(program, return_dict):
 
 # Simple usage example
 if __name__ == "__main__":
-    evaluator = LLMCodeEvaluator()
+    evaluator = LLMCodeEvaluator(model_for_parsing="codellama/CodeLlama-7b-Instruct-hf")
     
     detailed = True
     evaluation = True
