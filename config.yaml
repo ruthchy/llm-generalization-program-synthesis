@@ -52,7 +52,7 @@ training:
   # checkpointing and evaluation
   save_steps: 500
   eval_steps: 10
-  logging_steps: 10
+  logging_steps: 10 # > 1 otherwise some metrics are not logged to wandb (e.g. comp_loss, prompt_loss, etc.)
   # reproducibility
   random_seed: 42
   shuffle: True # whether to shuffle the training data during training
