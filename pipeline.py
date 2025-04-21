@@ -310,6 +310,7 @@ def set_random_seeds(seed: int):
         torch.cuda.manual_seed_all(seed)
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
+        torch.use_deterministic_algorithms(True)
     print(f"Random seed set to: {seed}")
 
 # Step 2: Load the Model and Tokenizer
@@ -807,6 +808,14 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
             if self.train_dataset is None:
                 raise ValueError("Training requires a train_dataset.")
 
+            sampler=self._get_train_sampler()
+            use_generator = isinstance(sampler, torch.utils.data.RandomSampler)
+            if use_generator:
+                generator = torch.Generator()
+                generator.manual_seed(config.training.random_seed)
+            else:
+                generator = None
+
             dataloader = torch.utils.data.DataLoader(
                 self.train_dataset,
                 batch_size=self.args.train_batch_size,
@@ -815,6 +824,7 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
                 drop_last=self.args.dataloader_drop_last,
                 num_workers=self.args.dataloader_num_workers,
                 pin_memory=self.args.dataloader_pin_memory,
+                generator=generator,
             )
 
             return dataloader
