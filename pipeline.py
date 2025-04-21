@@ -39,6 +39,7 @@ os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 os.environ['UNSLOTH_RETURN_LOGITS'] = '1'  # new
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8" # ensures deterministic behavior
 
 # Decide the mode in which the script should run fine-tuning and/or inference; in testing or production mode
 import argparse
@@ -905,7 +906,7 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
                     eval_prediction.inputs = batch
 
                     # Compute metrics for training data
-                    train_metrics = self.compute_metrics_fn(eval_prediction,split='train')
+                    train_metrics = self.compute_metrics_fn(eval_prediction, split='train')
                     
                     # Add train/ prefix to all metrics
                     train_metrics_prefixed = {f"train/{k}": v for k, v in train_metrics.items()}
