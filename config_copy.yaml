@@ -1,0 +1,62 @@
+logging:
+  use_wandb: False
+
+data: 
+  dataset_id: "ruthchy/length-gen-logo-image" # "ruthchy/length-gen-logo-ascii_35" # "ruthchy/mix-match-gen-logo-image"
+  use_forkstate: False # forkestate instead of embed() function 
+  include_desc: False
+  include_ascii: True
+  include_sys_prompt_fn: False
+  include_sys_prompt_inf: True
+  # modifications yes or no
+  mix_directions: False        # whether 50% of the Programs contain right or left as direction instead of all containing left
+  image_to_ascii: True       # whether the ascii art is generated from the image or not (only needed if image dataset is used)
+  ascii_parameters:
+    black_threshold: 200
+    block_size: 32
+    crop_to_size: 512 # optional: to crop image around the center (as done in PBE)
+
+model:
+  model_id: "codellama/CodeLlama-7b-Instruct-hf"
+  #model_id: "deepseek-ai/deepseek-coder-6.7b-base" 
+  # already finetuned on logo data => inference only models
+  #model_id: "xu3kev/deepseekcoder-7b-logo-pbe" 
+  #model_id: "ruthchy/fine-tune-CodeLlama-7b-Instruct-sem-len-generalization-logo-ascii-35-completions-only-20250206"
+  #model_id: "ruthchy/fCodeLlama-7b-Inst-Length-Gen-Logo-Ascii_35" #plw 0.1 run_plw script # plw 0.1 pipline.py
+  #model_id: "ruthchy/fine-tune-codeLlama-2-7b-len-gen-ascii-art"
+  topk_train: 1 # no. of I/O pairs during finetuning
+  topk_prompt: 0 # no. of I/O pairs during inference in addition to the I (zero-shot prompting = 0, …)
+  top_k: 50 # Tobi set in his pipline.py
+  temperature: 1.0 # PBE used 1.0 as temp
+  max_new_tokens: 250
+  num_return_sequences: 1 # number of generated sequences (aka search budget per prompt)
+
+training:
+  prompt_loss_weight: 1.0 # 1=full sequence training - 0.0=completion only training
+  # pre-processing
+  max_seq_length: 2048  # You can try 2048 (sufficient for zero-shot prompt inc. sys-prompt), 4096, and 8192 (for few-shot prompt max-seq-length > 2048)
+  # training
+  learning_rate: 2e-4 # 2e-4, 1e-4, 5e-5, 2e-5 recommended 2e-04=2e-4 in PBE paper (smaller lr slows learning down potentially higher accuracy)
+  warmup_steps: None # 20 # 20, 100, 500, 1000 recommended 20 in PBE paper
+  warmup_ratio: 0.01 # 0.1, 0.05, 0.01 
+  lr_scheduler_type: "linear" #"cosine" # "linear" (default), "cosine", "cosine_with_restarts", "polynomial", "constant", "constant_with_warmup" # linear and cosine are usually; used cosine is used in PBE
+  train_epochs: 1
+  per_device_train_batch_size: 32
+  per_device_eval_batch_size: 32 # 4, 8, 16, 32, 64, 128, 256, 512 recommended 64 in PBE 
+  gradient_accumulation_steps: 1
+  gradient_checkpointing: true
+  # checkpointing and evaluation
+  save_steps: 500
+  eval_steps: 2
+  logging_steps: 2
+  # reproducibility
+  random_seed: 42
+  shuffle: True # whether to shuffle the training data during training
+
+lora:
+  rank: 128 # 16, 32, 64, 128 (recommended) 512 in PBE paper 
+  alpha: 128 #512
+  dropout: 0 #0.1
+  target_modules: ["q_proj", "up_proj", "down_proj"] #["q_proj", "k_proj", "v_proj", "up_proj", "down_proj", "o_proj", "gate_proj"]
+
+# the higher the rank and alpha, the more expressive the model can cause offerfitting
