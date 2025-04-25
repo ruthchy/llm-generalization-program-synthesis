@@ -7,9 +7,6 @@ Using LLMs to parse generated completions of the main pipline:
 
 The script can be run with the following command:
     python parse_pipeline_small.py --pre_dict <path_to_predictions.json>
-    
-    python parse_pipeline_small.py --pre_dict "results/length/CodeLlama/inference/copy"
-
 '''
 # Housekeeping - single GPU unsloth setup
 import os
@@ -21,9 +18,7 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 import torch
 import json
 import re
-from unsloth import is_bfloat16_supported
-from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
-
+from unsloth import FastLanguageModel, is_bfloat16_supported
 
 dtype = torch.bfloat16 if is_bfloat16_supported() else torch.float16
 
@@ -41,7 +36,7 @@ def load_predictions(inf_dir):
             predictions = json.load(f)
     return predictions
 
-def init_model(model_name = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"): 
+def init_model(model_name = "codellama/CodeLlama-7b-Instruct-hf"): #GPTTools
     """
     Initialize the model and tokenizer.
 
@@ -51,20 +46,15 @@ def init_model(model_name = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"):
     Returns:
         tuple: The loaded model and tokenizer.
     """
-    # Define the BitsAndBytesConfig for 4-bit quantization
-    quantization_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_compute_dtype=dtype
-    )
     # Load the model and tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-    model = AutoModelForCausalLM.from_pretrained(
-                model_name,
-                torch_dtype=dtype,
-                device_map="auto", 
-                quantization_config=quantization_config,
-                trust_remote_code=True,           
+    model, tokenizer = FastLanguageModel.from_pretrained(
+        model_name,
+        max_seq_length=1024,
+        dtype=dtype,
+        load_in_4bit=True,  # Optional: Use 4-bit quantization if supported
+        device_map="auto",  # Automatically map model to available GPUs
     )
+    model = FastLanguageModel.for_inference(model)
 
     return model, tokenizer
 
@@ -80,47 +70,33 @@ def extract_program(response, model, tokenizer):
     Returns:
         str: The extracted Python program.
     """
-    if hasattr(tokenizer, "apply_chat_template") and tokenizer.chat_template is not None:
-        messages = [
-            {"role": "system", "content": "You are an assistant that extracts Python programs from text."},
-            {"role": "user", "content": (
-                f"The input text may contain a description, metadata, or other non-code content before the actual program starts. Your task is to identify and extract only the Python program from the input text. Do not include any markdown formatting (e.g., ```) or additional comments. If the input text does not contain a Python program, return an empty string.\n\nHere is the input text:\n{response}\n\nExtracted Python program:"
-            )}
-        ]
-        # Format the prompt using the tokenizer's chat template
-        prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    # Define the prompt to extract the program
+    messages = [
+        {"role": "system", "content": "You are an assistant that extracts Python programs from text."},
+        {"role": "user", "content": (
+            f"The input text may contain a description, metadata, or other non-code content before the actual program starts. Your task is to identify and extract only the Python program from the input text. Do not include any markdown formatting (e.g., ```) or additional comments. If the input text does not contain a Python program, return an empty string.\n\nHere is the input text:\n{response}\n\nExtracted Python program:"
+        )}
+    ]
 
-    else:
-        instruction = "Extracts only the Python programs from the input text. Do not include any markdown formatting (e.g., ```) or additional comments. If the input text does not contain a Python program, return an empty string."
-        prompt = f"{instruction}\n\nInput:\n{response}\n\nOutput:\n"
-
+    # Format the prompt using the tokenizer's chat template
+    prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
     print(f"Prompt:\n{prompt}\n{'-' * 80}\n")
 
     # Call the LLM to extract the program
     try:
-        #tokenized_input = tokenizer(prompt, return_tensors="pt")
-        #input_ids = tokenized_input.input_ids.to(model.device)
-        #attention_mask = tokenized_input.attention_mask.to(model.device)
-        tokenized_input = tokenizer(prompt, return_tensors="pt").to(model.device)
-
-        #generated_id = model.generate(
-        #    input_ids=input_ids,
-        #    attention_mask=attention_mask,
-        #    max_new_tokens=250,
-        #    temperature=0.7,
-        #    top_k = 50,
-        #)
+        tokenized_input = tokenizer(prompt, return_tensors="pt")
+        input_ids = tokenized_input.input_ids.to(model.device)
+        attention_mask = tokenized_input.attention_mask.to(model.device)
 
         generated_id = model.generate(
-            **tokenized_input,
-            max_new_tokens=150,
-            temperature=0.5,
-            top_k=20,
-            pad_token_id=tokenizer.eos_token_id,
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            max_new_tokens=250,
+            temperature=0.7,
+            top_k = 50,
         )
         
-        #new_tokens = generated_id[0][input_ids.shape[1]:]
-        new_tokens = generated_id[0][tokenized_input.input_ids.shape[1]:]
+        new_tokens = generated_id[0][input_ids.shape[1]:]
         extracted_program = tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
 
         return extracted_program
@@ -141,16 +117,13 @@ if __name__ == "__main__":
     print(f"This prediction file is used: {pre_dict}")
 
     # Load the model and tokenizer
-    model_name = "codellama/CodeLlama-7b-Instruct-hf"# "bigcode/starcoderbase-1b" # "bigcode/tiny_starcoder_py" #"codellama/CodeLlama-7b-Instruct-hf" #"TinyLlama/TinyLlama-1.1B-Chat-v1.0" #"microsoft/phi-1" #"Salesforce/codegen-2B-mono"
-    #restricted: "bigcode/starcoderbase-1b"
-    #to big for DISK space: "bigcode/octocoder"
+    model_name = "codellama/CodeLlama-7b-Instruct-hf" #"Salesforce/codegen-2B-mono"
     model, tokenizer = init_model(model_name)
     
     # Load predictions
     predictions = load_predictions(pre_dict)
     
-    file_name = f"extracted_programs_{model_name.replace('/', '_')}.jsonl"
-    output_file = os.path.join(pre_dict, file_name)
+    output_file = os.path.join(pre_dict, "extracted_programs.jsonl")
     with open(output_file, "w") as f:
         for i, pred in enumerate(predictions):
             example_id = pred["id"] 
