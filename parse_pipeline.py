@@ -8,7 +8,7 @@ Using LLMs to parse generated completions of the main pipline:
 The script can be run with the following command:
     python parse_pipeline_small.py --pre_dict <path_to_predictions.json> --few_shot
     
-    python parse_pipeline_small.py --pre_dict "results/length/CodeLlama/inference/copy" --few_shot
+    python parse_pipeline_small.py --pre_dict "results/prediction_parsing_using_llms" --few_shot
 
 '''
 # Housekeeping - single GPU unsloth setup
