@@ -67,7 +67,7 @@ class LLMCodeEvaluator:
             self.model, self.tokenizer = None, None
 
         # Initialize DreamSim model
-        self.dsim_model, self.dsim_preprocess = dreamsim.dreamsim(pretrained=True, device=self.device)
+        self.dsim_model, self.dsim_preprocess = dreamsim.dreamsim(pretrained=True, device=self.device) # "cpu" instead of self.device if model should run on CPU instead of GPU
 
     def load_predictions(self, inf_dir):
         """
