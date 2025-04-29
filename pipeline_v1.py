@@ -38,7 +38,7 @@ import os
 os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 os.environ['UNSLOTH_RETURN_LOGITS'] = '1'  # new
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "garbage_collection_threshold:0.6,max_split_size_mb:64,expandable_segments:True" # ensure that the GPU memory is not fragmented and that PyTorch is less conservative with memory allocation
 os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8" # ensures deterministic behavior
 
 # Decide the mode in which the script should run fine-tuning and/or inference; in testing or production mode
@@ -88,12 +88,13 @@ import torch
 import wandb
 import numpy as np
 from torch.cuda import memory_summary, reset_peak_memory_stats
+#from torch.amp import autocast 
 #torch.set_default_dtype(torch.float16)
 from torch.nn import CrossEntropyLoss
 from Levenshtein import distance as levenshtein_distance
 from datasets import load_dataset, DatasetDict
 try:
-    from unsloth import FastLanguageModel, is_bfloat16_supported
+    from unsloth import FastLanguageModel, is_bfloat16_supported, UnslothTrainer
     print("Using unsloth library.")
 except ImportError:
     from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -507,8 +508,29 @@ def prepare_dataset(config: Config, tokenizer, sample_fraction = 1.0, modifier=N
         
         del tokenized["offset_mapping"]
         del examples["text"]
+        gc.collect()  # Force garbage collection to free up memory
+        torch.cuda.empty_cache()  # Clear CUDA cache
         return tokenized
-    
+
+    # Add this function to calculate and print token statistics
+    def print_token_statistics(tokenized_dataset):
+        """Prints an overview of token input sizes for train and validation datasets."""
+        pad_token_id = tokenizer.pad_token_id or tokenizer.unk_token_id  # Use <unk> if no pad_token is defined
+
+        for split in tokenized_dataset.keys():
+            token_lengths = []
+            for input_ids in tokenized_dataset[split]["input_ids"]:
+                # Exclude padding tokens
+                actual_length = sum(1 for token_id in input_ids if token_id != pad_token_id)
+                token_lengths.append(actual_length)
+
+            print(f"\n--- {split.upper()} TOKEN STATISTICS ---")
+            print(f"Max token length (without padding): {max(token_lengths)}")
+            print(f"Min token length (without padding): {min(token_lengths)}")
+            print(f"Average token length (without padding): {sum(token_lengths) / len(token_lengths):.2f}")
+            print(f"Number of examples: {len(token_lengths)}")
+            print(f"Max_seq_length parameter: {config.training.max_seq_length}")
+
     tokenized_dataset = {}
     for split in formatted_dataset.keys():
         tokenized_dataset[split] = formatted_dataset[split].map(
@@ -519,6 +541,9 @@ def prepare_dataset(config: Config, tokenizer, sample_fraction = 1.0, modifier=N
             load_from_cache_file=False
         )
     
+    # Print token statistics
+    print_token_statistics(tokenized_dataset)
+
     return tokenized_dataset
 
 # Step 4: WandB 
@@ -570,7 +595,7 @@ def prepare_compute_metrics(dataset: DatasetDict, tokenizer, evaluator):
         }
     }
 
-# uses numpy arrays (on CPU)
+    # uses numpy arrays (on CPU)
     def compute_metrics(data, split='validation'):
         # Get masks based on split
         if split == 'validation':
@@ -786,6 +811,7 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
                 with torch.no_grad():
                     outputs = model(input_ids=inputs["input_ids"],
                                     attention_mask=inputs["attention_mask"])
+                torch.cuda.empty_cache()
             else:
                 outputs = model(input_ids=inputs["input_ids"],
                                 attention_mask=inputs["attention_mask"])
@@ -832,7 +858,11 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
             # Weighted average loss
             loss = (token_losses * flat_weights).sum() / flat_weights.sum()
 
-            #print(f"End of loss computation: {debug_memory()}")
+            # Clean up
+            #del loss, logits, labels
+            #torch.cuda.empty_cache()
+            print(f"After loss computation: {torch.cuda.memory_allocated() / 1e9:.2f} GB allocated")
+            print(f"After loss computation: {torch.cuda.memory_reserved() / 1e9:.2f} GB reserved")
             return (loss, outputs) if return_outputs else loss
 
         def get_train_dataloader(self):
@@ -976,6 +1006,7 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
         per_device_train_batch_size=config.training.per_device_train_batch_size,
         per_device_eval_batch_size=config.training.per_device_train_batch_size,
         gradient_accumulation_steps=config.training.gradient_accumulation_steps,
+        #eval_accumulation_steps=1,
         remove_unused_columns=False,
         learning_rate=config.training.learning_rate,
         #warmup_steps=config.training.warmup_steps,
@@ -1011,7 +1042,6 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
         eval_dataset=dataset["validation"],
         shuffle=config.training.shuffle,
         prompt_loss_weight=config.training.prompt_loss_weight,
-        #processing_class=tokenizer,
         compute_metrics=prepare_compute_metrics(dataset, tokenizer, evaluator), 
         preprocess_logits_for_metrics=preprocess_logits_for_metrics,
         #callbacks=[EarlyStoppingCallback(early_stopping_patience=5)]
@@ -1569,6 +1599,9 @@ if __name__ == "__main__":
             # Inference with Model from Hub
             results, inf_dir = inference_from_hub(config, result_dir, inference_type=f"{wb_type}_hub_{timestamp}", sample_fraction = sample_fraction, modifier=modifier, ascii_processor=ascii_processor)
         # Evaluation
+        if model is not None:
+            del model
+            torch.cuda.empty_cache()
         metrics, summary = evaluation(inf_dir, n_completions=config.model.num_return_sequences, fork_state=config.data.use_forkstate)
         print("Pipeline completed successfully! 🎉")
 
