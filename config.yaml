@@ -16,10 +16,6 @@ data:
     block_size: 32
     crop_to_size: 512 # optional: to crop image around the center (as done in PBE)
 
-parsing:
-  ft_model_for_parsing: None # "codellama/CodeLlama-7b-Instruct-hf"
-  inf_model_for_parsing: "codellama/CodeLlama-7b-Instruct-hf"
-
 model:
   model_id: "codellama/CodeLlama-7b-Instruct-hf"
   #model_id: "deepseek-ai/deepseek-coder-6.7b-base" 
@@ -38,29 +34,29 @@ model:
 training:
   prompt_loss_weight: 1.0 # 1=full sequence training - 0.0=completion only training
   # pre-processing
-  max_seq_length: 2048  # You can try 2048 (sufficient for zero-shot prompt inc. sys-prompt), 4096, and 8192 (for few-shot prompt max-seq-length > 2048)
+  max_seq_length: 1300  # You can try (sufficient for zero-shot prompt inc. sys-prompt), 4096, and 8192 (for few-shot prompt max-seq-length > 2048)
   # training
   learning_rate: 2e-4 # 2e-4, 1e-4, 5e-5, 2e-5 recommended 2e-04=2e-4 in PBE paper (smaller lr slows learning down potentially higher accuracy)
   warmup_steps: None # 20 # 20, 100, 500, 1000 recommended 20 in PBE paper
   warmup_ratio: 0.01 # 0.1, 0.05, 0.01 
-  lr_scheduler_type: "cosine" #"cosine" # "linear" (default), "cosine", "cosine_with_restarts", "polynomial", "constant", "constant_with_warmup" # linear and cosine are usually; used cosine is used in PBE
+  lr_scheduler_type: "linear" #"cosine" # "linear" (default), "cosine", "cosine_with_restarts", "polynomial", "constant", "constant_with_warmup" # linear and cosine are usually; used cosine is used in PBE
   train_epochs: 1
-  per_device_train_batch_size: 8
-  per_device_eval_batch_size: 32 # 4, 8, 16, 32, 64, 128, 256, 512 recommended 64 in PBE 
-  gradient_accumulation_steps: 8
-  gradient_checkpointing: false
+  per_device_train_batch_size: 16
+  per_device_eval_batch_size: 16 # 4, 8, 16, 32, 64, 128, 256, 512 recommended 64 in PBE 
+  gradient_accumulation_steps: 1
+  gradient_checkpointing: true
   # checkpointing and evaluation
   save_steps: 500
-  eval_steps: 10
-  logging_steps: 10 # > 1 otherwise some metrics are not logged to wandb (e.g. comp_loss, prompt_loss, etc.)
+  eval_steps: 2
+  logging_steps: 3
   # reproducibility
   random_seed: 42
   shuffle: True # whether to shuffle the training data during training
 
 lora:
-  rank: 64 # 16, 32, 64, 128 (recommended) 512 in PBE paper 
-  alpha: 64 #512
+  rank: 512 # 16, 32, 64, 128 (recommended) 512 in PBE paper 
+  alpha: 512 #512
   dropout: 0 #0.1
-  target_modules: ["q_proj", "k_proj", "v_proj", "up_proj", "down_proj", "o_proj", "gate_proj"]
+  target_modules: ["q_proj", "k_proj", "v_proj", "o_proj", "up_proj", "down_proj", "gate_proj"]
 
 # the higher the rank and alpha, the more expressive the model can cause offerfitting

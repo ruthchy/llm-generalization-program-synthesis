@@ -11,7 +11,7 @@
 #SBATCH --partition=gpu-vram-48gb
 
 # Load necessary modules (if any)
-module load cuda/12.8 #12.1
+module load cuda/12.8
 
 # Activate conda environment
 source ~/miniconda3/etc/profile.d/conda.sh

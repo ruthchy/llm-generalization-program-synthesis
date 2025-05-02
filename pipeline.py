@@ -3,7 +3,7 @@ Steps:
     1. Load the YAML Configuration
     2. Load the Model and Tokenizer
     3. Prepare the Dataset
-    4. Wandb initalization for the fine-tuning run
+    4. Wandb initalization for the fine-tuning run 
     5. Training Preperation
     6. Training the model with custom PLW-Trainer
     7. Preparing Inference
@@ -38,7 +38,7 @@ import os
 os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 os.environ['UNSLOTH_RETURN_LOGITS'] = '1'  # new
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "garbage_collection_threshold:0.6,max_split_size_mb:64,expandable_segments:True" # ensure that the GPU memory is not fragmented and that PyTorch is less conservative with memory allocation
 os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8" # ensures deterministic behavior
 
 # Decide the mode in which the script should run fine-tuning and/or inference; in testing or production mode
@@ -50,6 +50,7 @@ parser.add_argument('--eval_inf_dir', type=str, help='Whether to only run the ev
 parser.add_argument('--sample_fraction', type=float, default=1.0, help='Fraction of dataset to use (for debugging)')
 parser.add_argument('--config', type=str, default="config.yaml", help='Path to config file')
 parser.add_argument('--wb_type', type=str, help='Added to the inference run name to distinguish between different runs')
+parser.add_argument('--model_for_parsing', type=str, default=None, help='Model to use for parsing during evaluation. Defaults to None.')
 args = parser.parse_args()
         
 fine_tune = args.fine_tune
@@ -58,39 +59,67 @@ inf_dir = args.eval_inf_dir
 sample_fraction = args.sample_fraction
 config_file = args.config
 wb_type = args.wb_type
+model_for_parsing = args.model_for_parsing
+
 
 # Ensure mutual exclusivity of fine_tune, inference_hub_model, and eval_inf_dir
 if sum([fine_tune, inference_hub_model, bool(inf_dir)]) != 1:
     raise ValueError("You must specify exactly one of the following: --fine_tune, --inference_hub_model, or --eval_inf_dir.")
 
 if fine_tune:
-    print(f"Fine-tuning model with sample_fraction={sample_fraction} and {config_file}")
+    print(f"⚙️ Fine-tuning model with sample_fraction={sample_fraction} and {config_file}")
 elif inference_hub_model:
-    print(f"Running inference with model from hub with sample_fraction={sample_fraction} and {config_file}")
+    print(f"⚙️ Running inference with model from hub with sample_fraction={sample_fraction} and {config_file}")
 else:
-    print(f"Running the evaluation on inference results in {inf_dir} and {config_file}")
+    print(f"⚙️ Running the evaluation on inference results in {inf_dir} and {config_file}")
 
 # Step 1: Load the YAML Configuration
+# Standard library imports
+import traceback
+import gc
+import hashlib # new to create the program-id while logging the detailed metrics during fine-tuning
+import json
+import random
+from datetime import datetime
+from dataclasses import dataclass, field
+from typing import List, Dict, Any, Tuple, Optional
+# Third-party imports
 import yaml
 import torch
 import wandb
-import json
 import numpy as np
-import random
-from dataclasses import dataclass, field
-from typing import List, Dict, Any, Tuple, Optional
-from datetime import datetime
-from unsloth import FastLanguageModel, is_bfloat16_supported
-from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
-from datasets import load_dataset, DatasetDict
-from transformers import TrainingArguments, Trainer, get_scheduler, EarlyStoppingCallback
-#from transformers import default_data_collator
+from torch.cuda import memory_summary, reset_peak_memory_stats
+#from torch.amp import autocast 
+#torch.set_default_dtype(torch.float16)
 from torch.nn import CrossEntropyLoss
-from bitsandbytes.optim import AdamW8bit
-
 from Levenshtein import distance as levenshtein_distance
-dtype = torch.bfloat16 if is_bfloat16_supported() else torch.float16
-print(f"Using dtype: {dtype}")
+from datasets import load_dataset, DatasetDict
+try:
+    from unsloth import FastLanguageModel, is_bfloat16_supported, UnslothTrainer
+    print("Using unsloth library.")
+except ImportError:
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    print("Unsloth not installed. Using transformers library instead.")
+from transformers import (
+    TrainingArguments, 
+    Trainer, 
+    get_scheduler, 
+    EarlyStoppingCallback, 
+    TrainerCallback, 
+    TrainerState, 
+    TrainerControl
+)
+from transformers.trainer_utils import EvalPrediction
+from bitsandbytes.optim import AdamW8bit
+#from torch.optim import AdamW
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+# Custom imports
+from __eval import LLMCodeEvaluator
+# Initialize the evaluator
+evaluator = LLMCodeEvaluator(model_for_parsing=model_for_parsing)
+
+dtype = torch.bfloat16 if is_bfloat16_supported() else torch.float16 #torch.float16
+print(f"⚙️ Using dtype: {dtype}")
 
 @dataclass
 class LoraSettings:
@@ -141,11 +170,6 @@ class DataConfig:
     mix_directions: bool
     image_to_ascii: bool
     ascii_parameters: Dict[str, Any] = field(default_factory=dict)
-
-@dataclass
-class ParsingConfig:
-    ft_model_for_parsing: Optional[str] = None  # Use model for parsing during Fine-tuning
-    inf_model_for_parsing: Optional[str] = None  # Use model for parisng during Inference
 
 @dataclass
 class PromptConfig:
@@ -238,10 +262,6 @@ class Config:
             image_to_ascii=bool(config_dict["data"]["image_to_ascii"]),
             ascii_parameters=config_dict["data"].get("ascii_parameters", {})
         )
-        self.parsing = ParsingConfig(
-            ft_model_for_parsing=str(config_dict["parsing"].get("ft_model_for_parsing", None)),
-            inf_model_for_parsing=str(config_dict["parsing"].get("inf_model_for_parsing", None))
-        )
         self.prompt = PromptConfig(
             include_sys_prompt_fn=bool(config_dict["data"]["include_sys_prompt_fn"]),
             include_sys_prompt_inf=bool(config_dict["data"]["include_sys_prompt_inf"])
@@ -296,7 +316,7 @@ def load_config(source_config: str, fine_tune: bool) -> Tuple[Config, str, str, 
     if config.training.warmup_steps is not None and config.training.warmup_ratio is not None:
         raise ValueError("Both 'warmup_steps' and 'warmup_ratio' are set. Please set only one of them.")
 
-    print(f"Loaded configuration from {source_config}\n{result_dir}")
+    print(f"⚙️ Loaded configuration from {source_config}\n{result_dir}")
     return config, timestamp, gen_type, model_type_short, result_dir
 
 def set_random_seeds(seed: int):
@@ -312,7 +332,7 @@ def set_random_seeds(seed: int):
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
         torch.use_deterministic_algorithms(True)
-    print(f"Random seed set to: {seed}")
+    print(f"🌱 Random seed set to: {seed}")
 
 # Step 2: Load the Model and Tokenizer
 def load_model_and_tokenizer(config: Config):
@@ -333,16 +353,17 @@ def load_model_and_tokenizer(config: Config):
             use_gradient_checkpointing=config.training.gradient_checkpointing,
             random_state=config.training.random_seed,
             )
-   
-    print(f"Model's max position embeddings: {model.config.max_position_embeddings}")
+
+    # Enable gradient checkpointing if specified in the config
+    if config.training.gradient_checkpointing:
+        model.gradient_checkpointing_enable()
+        print("Gradient checkpointing enabled for the model.")
+
     return  model, tokenizer
 
 # Step 3: Prepare the Dataset
-def apply_modifications(dataset, config: Config):
+def apply_modifications(dataset, config: Config, modifier=None, ascii_processor=None):
     if config.data.use_forkstate:
-        # Import the transformation logic
-        from synthetic_data.transform_data_to_forkstate_custom import transform_program
-
         def transform(example):
             if "Program" in example:
                 # Transform the Program column to use fork_state
@@ -357,8 +378,6 @@ def apply_modifications(dataset, config: Config):
         dataset = dataset.map(transform, desc="Transforming Program column with fork_state")
 
     if config.data.mix_directions:
-        from synthetic_data.__dataset_direction_modifier import DatasetDirectionModifier
-        modifier = DatasetDirectionModifier(random_seed=config.training.random_seed)
         dataset, summary_df = modifier.replace_direction(
             dataset=dataset,
             source_dir="left", 
@@ -370,19 +389,12 @@ def apply_modifications(dataset, config: Config):
         # Check if applied correctly
         print("Direction modification summary:")
         print(summary_df)
+
     if config.data.image_to_ascii:
-        from synthetic_data.__adapt_ascii_processor import AdaptiveASCIIProcessor
-        black_threshold = config.data.ascii_parameters.get("black_threshold", 128)
-        block_size = config.data.ascii_parameters.get("block_size", None)
-        crop_to_size = config.data.ascii_parameters.get("crop_to_size", None)
-        ascii_processor = AdaptiveASCIIProcessor(levels=10,
-                                                 black_threshold=black_threshold,
-                                                 block_size=block_size,
-                                                 crop_to_size=crop_to_size,drop_images=True)
         dataset = ascii_processor.process_dataset(dataset)
     return dataset
 
-def prepare_dataset(config: Config, tokenizer, sample_fraction = 1.0):
+def prepare_dataset(config: Config, tokenizer, sample_fraction = 1.0, modifier=None, ascii_processor=None):
     # Only load train and validation splits
     dataset = load_dataset(config.data.dataset_id, split=["train", "validation"])
     dataset = DatasetDict({
@@ -395,7 +407,7 @@ def prepare_dataset(config: Config, tokenizer, sample_fraction = 1.0):
         dataset["validation"] = dataset["validation"].shuffle(seed=config.training.random_seed).select(range(int(len(dataset["validation"]) * sample_fraction)))
 
     # Apply modifications
-    dataset = apply_modifications(dataset, config)
+    dataset = apply_modifications(dataset, config, modifier=modifier, ascii_processor=ascii_processor)
 
     def format_prompt(example, split_type, idx):
         """Formats a single example with the template"""
@@ -485,14 +497,36 @@ def prepare_dataset(config: Config, tokenizer, sample_fraction = 1.0):
             prompt_masks.append(prompt_mask)
             completion_masks.append(completion_mask)
         
-        tokenized["prompt_mask"] = prompt_masks
-        tokenized["completion_mask"] = completion_masks
-        tokenized["labels"] = tokenized["input_ids"].copy() # labels are grund truth
+        tokenized["prompt_mask"] = torch.tensor(prompt_masks, dtype=torch.bool)  # Store as bool 
+        tokenized["completion_mask"] = torch.tensor(completion_masks, dtype=torch.bool)  # Store as bool
+        tokenized["labels"] = torch.tensor(tokenized["input_ids"]).clone() # labels are grund truth
         
         del tokenized["offset_mapping"]
-        del examples["text"]  # Remove after tokenization
+        del examples["text"]
+        gc.collect()  # Force garbage collection to free up memory
+        torch.cuda.empty_cache()  # Clear CUDA cache
         return tokenized
-    
+
+    # Add this function to calculate and print token statistics
+    def print_token_statistics(tokenized_dataset):
+        """Prints an overview of token input sizes for train and validation datasets."""
+        pad_token_id = tokenizer.pad_token_id or tokenizer.unk_token_id  # Use <unk> if no pad_token is defined
+
+        for split in tokenized_dataset.keys():
+            token_lengths = []
+            for input_ids in tokenized_dataset[split]["input_ids"]:
+                # Exclude padding tokens
+                actual_length = sum(1 for token_id in input_ids if token_id != pad_token_id)
+                token_lengths.append(actual_length)
+
+            print(f"\n--- {split.upper()} TOKEN STATISTICS ---")
+            print(f"Max token length (without padding): {max(token_lengths)}")
+            print(f"Min token length (without padding): {min(token_lengths)}")
+            print(f"Average token length (without padding): {sum(token_lengths) / len(token_lengths):.2f}")
+            print(f"Number of examples: {len(token_lengths)}")
+            print(f"Max_seq_length parameter: {config.training.max_seq_length}")
+        print("\n")
+
     tokenized_dataset = {}
     for split in formatted_dataset.keys():
         tokenized_dataset[split] = formatted_dataset[split].map(
@@ -503,9 +537,12 @@ def prepare_dataset(config: Config, tokenizer, sample_fraction = 1.0):
             load_from_cache_file=False
         )
     
+    # Print token statistics
+    print_token_statistics(tokenized_dataset)
+
     return tokenized_dataset
 
-# Step 4: WandB 
+# Step 4: WandB and Logging
 def init_wandb(config: Config, timestamp: str, gen_type: str, model_type_short: str, wb_type: Optional[str] = None):
     """Initialize wandb with configuration"""
     # Generate a unique experiment name
@@ -539,16 +576,48 @@ def init_wandb(config: Config, timestamp: str, gen_type: str, model_type_short: 
         tags=tags
     )
 
+def log_metrics_per_example(
+    true_program, pred_program, normalized_distances, crystalbleu_scores, image_metrics, 
+    split, detailed_metrics_path, 
+    current_epoch=None, current_batch_count=None, current_eval_step=None
+):
+    log_entries = []
+    try:
+        for idx, (gt_prog, pred_prog, norm_lev, bleu, img_metrics) in enumerate(zip(true_program, pred_program, normalized_distances, crystalbleu_scores, image_metrics)):
+            # Initialize the entry dictionary
+            entry = {
+                "program_id": f"{idx}_{hashlib.md5(gt_prog.encode('utf-8')).hexdigest()}",
+                "predicted_program": pred_prog,
+                "norm_lev_dist": norm_lev,
+                "crystalbleu_score": bleu,
+                "image_metrics": img_metrics,
+            }
+            # Add split-specific context
+            if split == 'train':
+                entry["epoch"] = current_epoch
+                entry["batch_count"] = current_batch_count
+            else:
+                entry["eval_step_count"] = current_eval_step
+            log_entries.append(entry)
+    except Exception as e:
+        print(f"Error processing entry {idx}: {e}")
+
+    try:
+        with open(detailed_metrics_path, "a") as f:
+            for entry in log_entries:
+                f.write(json.dumps(entry) + "\n")
+    except Exception as e:
+        print(f"Error writing to file {detailed_metrics_path}: {e}") 
+
 # Step 5: Training Preperation
 # Custom Metrics
-from torch.nn import CrossEntropyLoss
-from Levenshtein import distance as levenshtein_distance
-from __eval import LLMCodeEvaluator
+### Initialize global counters which are used to give context in the detailed_metrics.jsonl file of the train and validation set
+current_epoch = 1 
+current_batch = 0
+current_eval_step = 0
 
-def prepare_compute_metrics(dataset: DatasetDict, tokenizer):
+def prepare_compute_metrics(dataset: DatasetDict, tokenizer, evaluator):
     """Prepare custom metrics function for Trainer"""
-    evaluator = LLMCodeEvaluator(model_for_parsing=config.parsing.ft_model_for_parsing) 
-
     val_prompt_mask = np.array([x["prompt_mask"] for x in dataset['validation']])
     val_completion_mask = np.array([x["completion_mask"] for x in dataset['validation']])
 
@@ -560,7 +629,7 @@ def prepare_compute_metrics(dataset: DatasetDict, tokenizer):
         }
     }
 
-# uses numpy arrays (on CPU)
+    # uses numpy arrays (on CPU)
     def compute_metrics(data, split='validation'):
         # Get masks based on split
         if split == 'validation':
@@ -687,7 +756,6 @@ def prepare_compute_metrics(dataset: DatasetDict, tokenizer):
                     avg_precision = np.nan
                     avg_recall = np.nan
                     avg_f1 = np.nan
-                image_metrics.clear()
             except Exception as e:
                 print(f"Error computing Image metrics: {str(e)}")
                 avg_ssim = np.nan
@@ -712,7 +780,46 @@ def prepare_compute_metrics(dataset: DatasetDict, tokenizer):
         if split == 'train':
             # Force cleanup of large arrays
             del token_preds, token_losses, labels, shift_prompt_mask, shift_comp_mask
-            
+
+        global current_epoch, current_batch, current_eval_step
+        try:
+            # Log metrics per example
+            if split == 'train':
+                current_batch += config.training.logging_steps
+                if current_batch % (len(dataset['train']) // config.training.per_device_train_batch_size) == 0:
+                    current_epoch += 1
+                detailed_metrics_path = os.path.join(result_dir, f"train_detailed_metrics.jsonl")
+                
+                log_metrics_per_example(
+                    true_program=true_program,
+                    pred_program=pred_program,
+                    normalized_distances=normalized_distances,
+                    crystalbleu_scores=crystalbleu_scores,
+                    image_metrics=image_metrics,
+                    split='train',
+                    detailed_metrics_path=detailed_metrics_path,
+                    current_epoch=current_epoch,
+                    current_batch_count=current_batch
+                )
+            elif split == 'validation':
+                current_eval_step += 1
+                detailed_metrics_path = os.path.join(result_dir, f"val_detailed_metrics.jsonl")
+                
+                log_metrics_per_example(
+                    true_program=true_program,
+                    pred_program=pred_program,
+                    normalized_distances=normalized_distances,
+                    crystalbleu_scores=crystalbleu_scores,
+                    image_metrics=image_metrics,
+                    split='validation',
+                    detailed_metrics_path=detailed_metrics_path, 
+                    current_eval_step=current_eval_step
+                )
+        except Exception as e:
+            print(f"Error logging metrics: {str(e)}")
+
+        image_metrics.clear()
+
         # Return metrics with Python native types
         return {
             'comp_loss': float(completion_loss),
@@ -739,7 +846,7 @@ def preprocess_logits_for_metrics(logits, labels):
     token_preds = logits.argmax(-1)[..., :-1]
 
     # compute per-token losses
-    loss_fct = CrossEntropyLoss(reduction="none")
+    loss_fct = CrossEntropyLoss(reduction="none", ignore_index=tokenizer.pad_token_id)
     shift_logits = logits[..., :-1, :].contiguous()
     shift_labels = labels[..., 1:].contiguous()
     token_losses = loss_fct(shift_logits.transpose(1, 2), shift_labels)
@@ -749,12 +856,9 @@ def preprocess_logits_for_metrics(logits, labels):
     return predictions
 
 # Step 6. Training the model with custom PLW-Trainer
-import transformers
-from transformers import TrainerCallback, TrainerState, TrainerControl
-
 def train_model(model, tokenizer, dataset, result_dir: str, config: Config, timestamp: str, gen_type: str, model_type_short: str, wb_type: Optional[str] = None):
     """Training loop with configurable prompt and completion weights"""
-    
+
     # Only if set True in config logging to wandb will be enabled
     if config.logging.use_wandb:
         init_wandb(config, timestamp, gen_type, model_type_short, wb_type)
@@ -774,9 +878,14 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
             # Debug: Check memory before forward pass
             #print(f"Before forward pass: {torch.cuda.memory_allocated() / 1e9:.2f} GB allocated")
             #print(f"Before forward pass: {torch.cuda.memory_reserved() / 1e9:.2f} GB reserved")
-        
-            outputs = model(input_ids=inputs["input_ids"],
-                            attention_mask=inputs["attention_mask"])
+            if not model.training:
+                with torch.no_grad():
+                    outputs = model(input_ids=inputs["input_ids"],
+                                    attention_mask=inputs["attention_mask"])
+                torch.cuda.empty_cache()
+            else:
+                outputs = model(input_ids=inputs["input_ids"],
+                                attention_mask=inputs["attention_mask"])
             # Debug: Check memory after forward pass
             #print(f"After forward pass: {torch.cuda.memory_allocated() / 1e9:.2f} GB allocated")
             #print(f"After forward pass: {torch.cuda.memory_reserved() / 1e9:.2f} GB reserved")
@@ -784,25 +893,45 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
             logits = outputs.get("logits")
             labels = inputs.pop("labels")
 
-            # Compute per-token weights
-            weights = self.prompt_loss_weight * inputs["prompt_mask"] + inputs["completion_mask"]
+            # Optimize weights computation
+            weights = torch.where(
+                inputs["completion_mask"].bool(),
+                torch.tensor(1.0, dtype=logits.dtype, device=logits.device),
+                torch.tensor(self.prompt_loss_weight, dtype=logits.dtype, device=logits.device)
+            )
 
-            # Shift logits and labels for next-token prediction
+            # Shift for next-token prediction
             shift_logits = logits[..., :-1, :].contiguous()
             shift_labels = labels[..., 1:].contiguous()
             shift_weights = weights[..., 1:].contiguous()
 
-            # Move tensors to correct device
-            shift_labels = shift_labels.to(shift_logits.device)
-            shift_weights = shift_weights.to(shift_logits.device)
+            # Debug: Before loss
+            #print(f"Before loss computation: {torch.cuda.memory_allocated() / 1e9:.2f} GB allocated")
+            #print(f"Before loss computation: {torch.cuda.memory_reserved() / 1e9:.2f} GB reserved")
 
-            # Compute per-token loss
-            loss_fct = CrossEntropyLoss(reduction="none")
-            token_losses = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
+            # Flatten tensors
+            B, T, V = shift_logits.size()
+            flat_logits = shift_logits.view(-1, V)       # [(B*T), V]
+            flat_labels = shift_labels.view(-1)          # [(B*T)]
+            flat_weights = shift_weights.view(-1)        # [(B*T)]
 
-            # Compute weighted average of losses
-            loss = (token_losses.float() @ shift_weights.view(-1).float()) / shift_weights.sum()
+            # Compute loss
+            loss_fct = CrossEntropyLoss(reduction="none", ignore_index=tokenizer.pad_token_id)
+            token_losses = loss_fct(flat_logits, flat_labels)  # [(B*T)]
 
+            # Mask pad tokens
+            mask = flat_labels != tokenizer.pad_token_id
+            token_losses = token_losses[mask]
+            flat_weights = flat_weights[mask]
+
+            # Weighted average loss
+            loss = (token_losses * flat_weights).sum() / flat_weights.sum()
+
+            # Clean up
+            #del loss, logits, labels
+            #torch.cuda.empty_cache()
+            #print(f"After loss computation: {torch.cuda.memory_allocated() / 1e9:.2f} GB allocated")
+            #print(f"After loss computation: {torch.cuda.memory_reserved() / 1e9:.2f} GB reserved")
             return (loss, outputs) if return_outputs else loss
 
         def get_train_dataloader(self):
@@ -892,7 +1021,6 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
                         predictions = outputs.logits.argmax(-1)
                             
                     # Create EvalPrediction object
-                    from transformers.trainer_utils import EvalPrediction
                     eval_prediction = EvalPrediction(
                         predictions=predictions,
                         label_ids=batch["labels"]
@@ -918,7 +1046,6 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
                     
             except Exception as e:
                 print(f"Error in metrics callback: {e}")
-                import traceback
                 traceback.print_exc()
             finally:
                 # Always reset the flag, even if an error occurred
@@ -934,7 +1061,6 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
                 if 'eval_prediction' in locals():
                     del eval_prediction
                     
-                import gc
                 gc.collect()
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
@@ -949,6 +1075,7 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
         per_device_train_batch_size=config.training.per_device_train_batch_size,
         per_device_eval_batch_size=config.training.per_device_train_batch_size,
         gradient_accumulation_steps=config.training.gradient_accumulation_steps,
+        #eval_accumulation_steps=1,
         remove_unused_columns=False,
         learning_rate=config.training.learning_rate,
         #warmup_steps=config.training.warmup_steps,
@@ -959,8 +1086,8 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
         save_steps=config.training.save_steps,
         save_strategy="steps",
         eval_strategy="steps",
-        fp16=not is_bfloat16_supported(),
-        bf16=is_bfloat16_supported(),
+        fp16=not is_bfloat16_supported(), #True,
+        bf16=is_bfloat16_supported(), #False,
         tf32=True,              # bc set in run_plw.py
         seed=config.training.random_seed, 
         report_to=report_to,    # dynamic wandb reporting
@@ -984,8 +1111,7 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
         eval_dataset=dataset["validation"],
         shuffle=config.training.shuffle,
         prompt_loss_weight=config.training.prompt_loss_weight,
-        #processing_class=tokenizer,
-        compute_metrics=prepare_compute_metrics(dataset, tokenizer),
+        compute_metrics=prepare_compute_metrics(dataset, tokenizer, evaluator), 
         preprocess_logits_for_metrics=preprocess_logits_for_metrics,
         #callbacks=[EarlyStoppingCallback(early_stopping_patience=5)]
     )
@@ -1008,7 +1134,7 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
         eval_dataset=dataset["validation"],
         train_dataset=dataset["train"],
         tokenizer=tokenizer,
-        compute_metrics_fn=prepare_compute_metrics(dataset, tokenizer),
+        compute_metrics_fn=prepare_compute_metrics(dataset, tokenizer, evaluator),
         preprocess_fn=preprocess_logits_for_metrics,
         logging_steps=config.training.logging_steps
     ))
@@ -1040,7 +1166,6 @@ def clear_training_memory(dataset=None):
         del dataset
     
     # Clear Python memory
-    import gc
     gc.collect()
     
     # Clear CUDA cache
@@ -1081,7 +1206,7 @@ def init_wandb_for_inf(config: Config, model_id: str, inference_type: str):
     )
 
 # Step 8.1: Inference using the recently fine-tuned model
-def inference(model, tokenizer, config: Config, result_dir: str, inference_type: str, sample_fraction = 1.0):
+def inference(model, tokenizer, config: Config, result_dir: str, inference_type: str, sample_fraction = 1.0, modifier=None, ascii_processor=None):
     # Initialize WandB for inference
     if config.logging.use_wandb:
         model_id = config.model.model_id.split("/")[-1]
@@ -1094,7 +1219,6 @@ def inference(model, tokenizer, config: Config, result_dir: str, inference_type:
     model.eval()  # model in evaluation mode (PyTorch)
     
     try:
-        from unsloth import FastLanguageModel
         model = FastLanguageModel.for_inference(model)
         print("Using Unsloth's optimized inference")
     except Exception as e:
@@ -1106,7 +1230,7 @@ def inference(model, tokenizer, config: Config, result_dir: str, inference_type:
         dataset = dataset.shuffle(seed=config.training.random_seed).select(range(int(len(dataset) * sample_fraction)))
 
     # Apply modifications
-    dataset = apply_modifications(dataset, config)
+    dataset = apply_modifications(dataset, config, modifier=modifier, ascii_processor=ascii_processor)
 
     results = []
     
@@ -1257,7 +1381,7 @@ def inference(model, tokenizer, config: Config, result_dir: str, inference_type:
     return results, inf_dir
 
 # Step 8.2: Inference using model from hub
-def inference_from_hub(config: Config, result_dir: str, inference_type: str, sample_fraction = 1.0):
+def inference_from_hub(config: Config, result_dir: str, inference_type: str, sample_fraction = 1.0, modifier=None, ascii_processor=None):
     """
     Runs inference using a model loaded directly from the Hugging Face Hub.
     
@@ -1279,7 +1403,6 @@ def inference_from_hub(config: Config, result_dir: str, inference_type: str, sam
 
     # Load model and tokenizer from Hub
     try:
-        from unsloth import FastLanguageModel
         model, tokenizer = FastLanguageModel.from_pretrained(
             config.model.model_id,
             max_seq_length=config.training.max_seq_length,  # allows longer token seq. needed for few-shot prompting (as the default set by unsloth)
@@ -1291,7 +1414,6 @@ def inference_from_hub(config: Config, result_dir: str, inference_type: str, sam
         print(f"Loaded model {config.model.model_id} using Unsloth's optimized inference")
     except Exception as e:
         print(f"Could not load with Unsloth, falling back to HF Transformers: {e}")
-        from transformers import AutoModelForCausalLM, AutoTokenizer
         tokenizer = AutoTokenizer.from_pretrained(config.model.model_id)
         model = AutoModelForCausalLM.from_pretrained(
             config.model.model_id,
@@ -1306,11 +1428,11 @@ def inference_from_hub(config: Config, result_dir: str, inference_type: str, sam
         dataset = dataset.shuffle(seed=config.training.random_seed).select(range(int(len(dataset) * sample_fraction)))
     
     # Apply modifications
-    dataset = apply_modifications(dataset, config)
+    dataset = apply_modifications(dataset, config, modifier=modifier, ascii_processor=ascii_processor)
 
     if config.model.topk_prompt > 0:  # few-shot inference
         dataset_ex = load_dataset(config.data.dataset_id)["train"]
-        dataset_ex = apply_modifications(dataset_ex, config)
+        dataset_ex = apply_modifications(dataset_ex, config, modifier=modifier, ascii_processor=ascii_processor)
     else:                       # zero-shot inference
         dataset_ex = None
 
@@ -1494,13 +1616,8 @@ def evaluation(inf_dir: str, n_completions: int, fork_state: bool = False):
         
     Returns:
         tuple: (metrics, summary)
-    """
-    from __eval import LLMCodeEvaluator
-    
+    """    
     print(f"Starting evaluation on predictions in {inf_dir}")
-    
-    # Initialize the evaluator
-    evaluator = LLMCodeEvaluator(model_for_parsing=config.parsing.inf_model_for_parsing)
     
     try:
         # Run the evaluation pipeline
@@ -1509,32 +1626,54 @@ def evaluation(inf_dir: str, n_completions: int, fork_state: bool = False):
         
     except Exception as e:
         print(f"Error during evaluation: {str(e)}")
-        import traceback
         traceback.print_exc()
         return None, None
 
 # MAIN
 if __name__ == "__main__":
     try:
+        # Load configuration
         config, timestamp, gen_type, model_type_short, result_dir = load_config(config_file, fine_tune)
+        # Import and initalize components based on the configuration
+        modifier = None
+        ascii_processor = None
+        if config.data.use_forkstate:
+            from synthetic_data.transform_data_to_forkstate_custom import transform_program
+        if config.data.mix_directions:
+            from synthetic_data.__dataset_direction_modifier import DatasetDirectionModifier
+            modifier = DatasetDirectionModifier(random_seed=config.training.random_seed)
+        if config.data.image_to_ascii:
+            from synthetic_data.__adapt_ascii_processor import AdaptiveASCIIProcessor
+            black_threshold = config.data.ascii_parameters.get("black_threshold", 128)
+            block_size = config.data.ascii_parameters.get("block_size", None)
+            crop_to_size = config.data.ascii_parameters.get("crop_to_size", None)
+            ascii_processor = AdaptiveASCIIProcessor(levels=10,
+                                                        black_threshold=black_threshold,
+                                                        block_size=block_size,
+                                                        crop_to_size=crop_to_size,drop_images=True
+                                                    )
+        # Set random seed for reproducibility
         set_random_seeds(config.training.random_seed)
+
         if fine_tune:
             # Prep
             model, tokenizer = load_model_and_tokenizer(config)
-            dataset = prepare_dataset(config, tokenizer, sample_fraction = sample_fraction) 
+            dataset = prepare_dataset(config, tokenizer, sample_fraction = sample_fraction, modifier=modifier, ascii_processor=ascii_processor) 
             # Training
             model = train_model(model, tokenizer, dataset, result_dir, config, timestamp, gen_type, model_type_short, wb_type)
             clear_training_memory(dataset) # Free up memory after training
             # Inference after Finetuning
-            results, inf_dir = inference(model, tokenizer, config, result_dir, inference_type=f"{wb_type}_{timestamp}", sample_fraction = sample_fraction)
+            results, inf_dir = inference(model, tokenizer, config, result_dir, inference_type=f"{wb_type}_{timestamp}", sample_fraction = sample_fraction, modifier=modifier, ascii_processor=ascii_processor)
         elif inference_hub_model:
             # Inference with Model from Hub
-            results, inf_dir = inference_from_hub(config, result_dir, inference_type=f"{wb_type}_hub_{timestamp}", sample_fraction = sample_fraction)
+            results, inf_dir = inference_from_hub(config, result_dir, inference_type=f"{wb_type}_hub_{timestamp}", sample_fraction = sample_fraction, modifier=modifier, ascii_processor=ascii_processor)
         # Evaluation
+        if model is not None:
+            del model
+            torch.cuda.empty_cache()
         metrics, summary = evaluation(inf_dir, n_completions=config.model.num_return_sequences, fork_state=config.data.use_forkstate)
         print("Pipeline completed successfully! 🎉")
 
     except Exception as e:
         print(f"An error occurred: {e}")
-        import traceback
         traceback.print_exc()

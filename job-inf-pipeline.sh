@@ -11,7 +11,7 @@
 #SBATCH --partition=gpu-vram-48gb
 
 # Load necessary modules (if any)
-module load cuda/12.8 #12.1
+module load cuda/12.8
 
 # Activate conda environment
 source ~/miniconda3/etc/profile.d/conda.sh
@@ -21,5 +21,6 @@ conda activate thesis_env
 python pipeline.py \
     --inference_hub_model \
     --sample_fraction 1.0 \
-    --config "config_rep.yaml" \
-    --wb_type "PBE_ft"
+    --config "config.yaml" \
+    --wb_type "PBE_baseline_hub" \
+    --model_for_parsing None

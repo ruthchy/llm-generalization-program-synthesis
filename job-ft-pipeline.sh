@@ -3,7 +3,7 @@
 #SBATCH --job-name=job-ft-pipeline.sh
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=5
-#SBATCH --mem=100G
+#SBATCH --mem=50G
 #SBATCH --mail-user=priscilla.ruth.chyrva@students.uni-mannheim.de
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --gres=gpu:1
@@ -18,9 +18,9 @@ source ~/miniconda3/etc/profile.d/conda.sh
 conda activate thesis_env
 
 # Run your Python script
-python pipeline_v1.py \
+python pipeline.py \
     --fine_tune \
-    --sample_fraction 0.1 \
-    --config "config_copy.yaml" \
-    --wb_type "test_OOM" \
+    --sample_fraction 1.0 \
+    --config "config.yaml" \
+    --wb_type "test" \
     --model_for_parsing None
