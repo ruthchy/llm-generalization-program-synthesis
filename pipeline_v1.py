@@ -3,7 +3,7 @@ Steps:
     1. Load the YAML Configuration
     2. Load the Model and Tokenizer
     3. Prepare the Dataset
-    4. Wandb initalization for the fine-tuning run
+    4. Wandb initalization for the fine-tuning run 
     5. Training Preperation
     6. Training the model with custom PLW-Trainer
     7. Preparing Inference
@@ -67,16 +67,17 @@ if sum([fine_tune, inference_hub_model, bool(inf_dir)]) != 1:
     raise ValueError("You must specify exactly one of the following: --fine_tune, --inference_hub_model, or --eval_inf_dir.")
 
 if fine_tune:
-    print(f"Fine-tuning model with sample_fraction={sample_fraction} and {config_file}")
+    print(f"⚙️ Fine-tuning model with sample_fraction={sample_fraction} and {config_file}")
 elif inference_hub_model:
-    print(f"Running inference with model from hub with sample_fraction={sample_fraction} and {config_file}")
+    print(f"⚙️ Running inference with model from hub with sample_fraction={sample_fraction} and {config_file}")
 else:
-    print(f"Running the evaluation on inference results in {inf_dir} and {config_file}")
+    print(f"⚙️ Running the evaluation on inference results in {inf_dir} and {config_file}")
 
 # Step 1: Load the YAML Configuration
 # Standard library imports
 import traceback
 import gc
+import hashlib # new to create the program-id while logging the detailed metrics during fine-tuning
 import json
 import random
 from datetime import datetime
@@ -118,7 +119,7 @@ from __eval import LLMCodeEvaluator
 evaluator = LLMCodeEvaluator(model_for_parsing=model_for_parsing)
 
 dtype = torch.bfloat16 if is_bfloat16_supported() else torch.float16 #torch.float16
-print(f"Using dtype: {dtype}")
+print(f"⚙️ Using dtype: {dtype}")
 
 @dataclass
 class LoraSettings:
@@ -315,7 +316,7 @@ def load_config(source_config: str, fine_tune: bool) -> Tuple[Config, str, str, 
     if config.training.warmup_steps is not None and config.training.warmup_ratio is not None:
         raise ValueError("Both 'warmup_steps' and 'warmup_ratio' are set. Please set only one of them.")
 
-    print(f"Loaded configuration from {source_config}\n{result_dir}")
+    print(f"⚙️ Loaded configuration from {source_config}\n{result_dir}")
     return config, timestamp, gen_type, model_type_short, result_dir
 
 def set_random_seeds(seed: int):
@@ -331,13 +332,7 @@ def set_random_seeds(seed: int):
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
         torch.use_deterministic_algorithms(True)
-    print(f"Random seed set to: {seed}")
-
-# DEBUG helper function to check memory usage
-def debug_memory():
-    reset_peak_memory_stats()
-    print(memory_summary())
-
+    print(f"🌱 Random seed set to: {seed}")
 
 # Step 2: Load the Model and Tokenizer
 def load_model_and_tokenizer(config: Config):
@@ -530,6 +525,7 @@ def prepare_dataset(config: Config, tokenizer, sample_fraction = 1.0, modifier=N
             print(f"Average token length (without padding): {sum(token_lengths) / len(token_lengths):.2f}")
             print(f"Number of examples: {len(token_lengths)}")
             print(f"Max_seq_length parameter: {config.training.max_seq_length}")
+        print("\n")
 
     tokenized_dataset = {}
     for split in formatted_dataset.keys():
@@ -546,7 +542,7 @@ def prepare_dataset(config: Config, tokenizer, sample_fraction = 1.0, modifier=N
 
     return tokenized_dataset
 
-# Step 4: WandB 
+# Step 4: WandB and Logging
 def init_wandb(config: Config, timestamp: str, gen_type: str, model_type_short: str, wb_type: Optional[str] = None):
     """Initialize wandb with configuration"""
     # Generate a unique experiment name
@@ -580,8 +576,46 @@ def init_wandb(config: Config, timestamp: str, gen_type: str, model_type_short: 
         tags=tags
     )
 
+def log_metrics_per_example(
+    true_program, pred_program, normalized_distances, crystalbleu_scores, image_metrics, 
+    split, detailed_metrics_path, 
+    current_epoch=None, current_batch_count=None, current_eval_step=None
+):
+    log_entries = []
+    try:
+        for idx, (gt_prog, pred_prog, norm_lev, bleu, img_metrics) in enumerate(zip(true_program, pred_program, normalized_distances, crystalbleu_scores, image_metrics)):
+            # Initialize the entry dictionary
+            entry = {
+                "program_id": f"{idx}_{hashlib.md5(gt_prog.encode('utf-8')).hexdigest()}",
+                "predicted_program": pred_prog,
+                "norm_lev_dist": norm_lev,
+                "crystalbleu_score": bleu,
+                "image_metrics": img_metrics,
+            }
+            # Add split-specific context
+            if split == 'train':
+                entry["epoch"] = current_epoch
+                entry["batch_count"] = current_batch_count
+            else:
+                entry["eval_step_count"] = current_eval_step
+            log_entries.append(entry)
+    except Exception as e:
+        print(f"Error processing entry {idx}: {e}")
+
+    try:
+        with open(detailed_metrics_path, "a") as f:
+            for entry in log_entries:
+                f.write(json.dumps(entry) + "\n")
+    except Exception as e:
+        print(f"Error writing to file {detailed_metrics_path}: {e}") 
+
 # Step 5: Training Preperation
 # Custom Metrics
+### Initialize global counters which are used to give context in the detailed_metrics.jsonl file of the train and validation set
+current_epoch = 1 
+current_batch = 0
+current_eval_step = 0
+
 def prepare_compute_metrics(dataset: DatasetDict, tokenizer, evaluator):
     """Prepare custom metrics function for Trainer"""
     val_prompt_mask = np.array([x["prompt_mask"] for x in dataset['validation']])
@@ -722,7 +756,6 @@ def prepare_compute_metrics(dataset: DatasetDict, tokenizer, evaluator):
                     avg_precision = np.nan
                     avg_recall = np.nan
                     avg_f1 = np.nan
-                image_metrics.clear()
             except Exception as e:
                 print(f"Error computing Image metrics: {str(e)}")
                 avg_ssim = np.nan
@@ -747,7 +780,46 @@ def prepare_compute_metrics(dataset: DatasetDict, tokenizer, evaluator):
         if split == 'train':
             # Force cleanup of large arrays
             del token_preds, token_losses, labels, shift_prompt_mask, shift_comp_mask
-            
+
+        global current_epoch, current_batch, current_eval_step
+        try:
+            # Log metrics per example
+            if split == 'train':
+                current_batch += config.training.logging_steps
+                if current_batch % (len(dataset['train']) // config.training.per_device_train_batch_size) == 0:
+                    current_epoch += 1
+                detailed_metrics_path = os.path.join(result_dir, f"train_detailed_metrics.jsonl")
+                
+                log_metrics_per_example(
+                    true_program=true_program,
+                    pred_program=pred_program,
+                    normalized_distances=normalized_distances,
+                    crystalbleu_scores=crystalbleu_scores,
+                    image_metrics=image_metrics,
+                    split='train',
+                    detailed_metrics_path=detailed_metrics_path,
+                    current_epoch=current_epoch,
+                    current_batch_count=current_batch
+                )
+            elif split == 'validation':
+                current_eval_step += 1
+                detailed_metrics_path = os.path.join(result_dir, f"val_detailed_metrics.jsonl")
+                
+                log_metrics_per_example(
+                    true_program=true_program,
+                    pred_program=pred_program,
+                    normalized_distances=normalized_distances,
+                    crystalbleu_scores=crystalbleu_scores,
+                    image_metrics=image_metrics,
+                    split='validation',
+                    detailed_metrics_path=detailed_metrics_path, 
+                    current_eval_step=current_eval_step
+                )
+        except Exception as e:
+            print(f"Error logging metrics: {str(e)}")
+
+        image_metrics.clear()
+
         # Return metrics with Python native types
         return {
             'comp_loss': float(completion_loss),
@@ -786,7 +858,7 @@ def preprocess_logits_for_metrics(logits, labels):
 # Step 6. Training the model with custom PLW-Trainer
 def train_model(model, tokenizer, dataset, result_dir: str, config: Config, timestamp: str, gen_type: str, model_type_short: str, wb_type: Optional[str] = None):
     """Training loop with configurable prompt and completion weights"""
-    
+
     # Only if set True in config logging to wandb will be enabled
     if config.logging.use_wandb:
         init_wandb(config, timestamp, gen_type, model_type_short, wb_type)
@@ -804,9 +876,8 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
 
         def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None): # num_items_in_batch(batch_size*gradient_accumulation_steps) not used
             # Debug: Check memory before forward pass
-            print(f"Before forward pass: {torch.cuda.memory_allocated() / 1e9:.2f} GB allocated")
-            print(f"Before forward pass: {torch.cuda.memory_reserved() / 1e9:.2f} GB reserved")
-            #print(f"Before forward pass DEBUG func: {debug_memory()}")
+            #print(f"Before forward pass: {torch.cuda.memory_allocated() / 1e9:.2f} GB allocated")
+            #print(f"Before forward pass: {torch.cuda.memory_reserved() / 1e9:.2f} GB reserved")
             if not model.training:
                 with torch.no_grad():
                     outputs = model(input_ids=inputs["input_ids"],
@@ -816,9 +887,8 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
                 outputs = model(input_ids=inputs["input_ids"],
                                 attention_mask=inputs["attention_mask"])
             # Debug: Check memory after forward pass
-            print(f"After forward pass: {torch.cuda.memory_allocated() / 1e9:.2f} GB allocated")
-            print(f"After forward pass: {torch.cuda.memory_reserved() / 1e9:.2f} GB reserved")
-            #print(f"After forward pass DEBUG func: {debug_memory()}")
+            #print(f"After forward pass: {torch.cuda.memory_allocated() / 1e9:.2f} GB allocated")
+            #print(f"After forward pass: {torch.cuda.memory_reserved() / 1e9:.2f} GB reserved")
         
             logits = outputs.get("logits")
             labels = inputs.pop("labels")
@@ -836,9 +906,8 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
             shift_weights = weights[..., 1:].contiguous()
 
             # Debug: Before loss
-            print(f"Before loss computation: {torch.cuda.memory_allocated() / 1e9:.2f} GB allocated")
-            print(f"Before loss computation: {torch.cuda.memory_reserved() / 1e9:.2f} GB reserved")
-            #print(f"Before loss computation DEBUG func: {debug_memory()}")
+            #print(f"Before loss computation: {torch.cuda.memory_allocated() / 1e9:.2f} GB allocated")
+            #print(f"Before loss computation: {torch.cuda.memory_reserved() / 1e9:.2f} GB reserved")
 
             # Flatten tensors
             B, T, V = shift_logits.size()
@@ -861,8 +930,8 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
             # Clean up
             #del loss, logits, labels
             #torch.cuda.empty_cache()
-            print(f"After loss computation: {torch.cuda.memory_allocated() / 1e9:.2f} GB allocated")
-            print(f"After loss computation: {torch.cuda.memory_reserved() / 1e9:.2f} GB reserved")
+            #print(f"After loss computation: {torch.cuda.memory_allocated() / 1e9:.2f} GB allocated")
+            #print(f"After loss computation: {torch.cuda.memory_reserved() / 1e9:.2f} GB reserved")
             return (loss, outputs) if return_outputs else loss
 
         def get_train_dataloader(self):
