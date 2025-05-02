@@ -1,6 +1,7 @@
 hyperparameter_grid:
   learning_rate: [2e-4, 1e-4, 2e-5]
-  per_device_train_batch_size: [8, 16, 32] # I added 8 instead of 64
+  learning_rate_scheduler: ["linear", "cosine"]
+  per_device_train_batch_size: [8, 16]
   lora_rank: [128, 512]
   lora_alpha: [128, 512]
 

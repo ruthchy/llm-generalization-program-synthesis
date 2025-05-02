@@ -35,6 +35,7 @@ def create_config_for_run(base_config_path, hp_params, output_path="config_temp.
     
     # Update config with hyperparameters
     config['training']['learning_rate'] = hp_params['learning_rate']
+    config['training']['learning_rate_scheduler'] = hp_params['learning_rate_scheduler']
     config['training']['per_device_train_batch_size'] = hp_params['per_device_train_batch_size']
     config['lora']['rank'] = hp_params['lora_rank']
     config['lora']['alpha'] = hp_params['lora_alpha']
@@ -262,6 +263,7 @@ def objective(trial):
     # Suggest hyperparameters
     params = {
         "learning_rate": trial.suggest_categorical("learning_rate", hp_space["learning_rate"]),
+        "learning_rate_scheduler": trial.suggest_categorical("learning_rate_scheduler", hp_space["learning_rate_scheduler"]),
         "per_device_train_batch_size": trial.suggest_categorical("per_device_train_batch_size", hp_space["per_device_train_batch_size"]),
         "lora_rank": trial.suggest_categorical("lora_rank", hp_space["lora_rank"]),
         "lora_alpha": trial.suggest_categorical("lora_alpha", hp_space["lora_alpha"]),
