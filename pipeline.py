@@ -1668,7 +1668,7 @@ if __name__ == "__main__":
             # Inference with Model from Hub
             results, inf_dir = inference_from_hub(config, result_dir, inference_type=f"{wb_type}_hub_{timestamp}", sample_fraction = sample_fraction, modifier=modifier, ascii_processor=ascii_processor)
         # Evaluation
-        if model is not None:
+        if 'model' in locals() and model is not None:
             del model
             torch.cuda.empty_cache()
         metrics, summary = evaluation(inf_dir, n_completions=config.model.num_return_sequences, fork_state=config.data.use_forkstate)
