@@ -2,7 +2,7 @@ logging:
   use_wandb: True
 
 data: 
-  dataset_id: "ruthchy/length-gen-logo-image" # "ruthchy/length-gen-logo-ascii_35" # "ruthchy/mix-match-gen-logo-image"
+  dataset_id: "ruthchy/syn-length-gen-logo-image" 
   use_forkstate: False # forkestate instead of embed() function 
   include_desc: False
   include_ascii: True
@@ -18,12 +18,7 @@ data:
 
 model:
   model_id: "codellama/CodeLlama-7b-Instruct-hf"
-  #model_id: "deepseek-ai/deepseek-coder-6.7b-base" 
-  # already finetuned on logo data => inference only models
   #model_id: "xu3kev/deepseekcoder-7b-logo-pbe" 
-  #model_id: "ruthchy/fine-tune-CodeLlama-7b-Instruct-sem-len-generalization-logo-ascii-35-completions-only-20250206"
-  #model_id: "ruthchy/fCodeLlama-7b-Inst-Length-Gen-Logo-Ascii_35" #plw 0.1 run_plw script # plw 0.1 pipline.py
-  #model_id: "ruthchy/fine-tune-codeLlama-2-7b-len-gen-ascii-art"
   topk_train: 1 # no. of I/O pairs during finetuning
   topk_prompt: 0 # no. of I/O pairs during inference in addition to the I (zero-shot prompting = 0, …)
   top_k: 50 # Tobi set in his pipline.py
@@ -43,12 +38,12 @@ training:
   train_epochs: 1
   per_device_train_batch_size: 16
   per_device_eval_batch_size: 16 # 4, 8, 16, 32, 64, 128, 256, 512 recommended 64 in PBE 
-  gradient_accumulation_steps: 1
+  gradient_accumulation_steps: 4
   gradient_checkpointing: true
   # checkpointing and evaluation
-  save_steps: 500
+  save_steps: 320 # needs to be a round multiple of the evaluation steps
   eval_steps: 2
-  logging_steps: 3
+  logging_steps: 2
   # reproducibility
   random_seed: 42
   shuffle: True # whether to shuffle the training data during training
@@ -57,6 +52,8 @@ lora:
   rank: 512 # 16, 32, 64, 128 (recommended) 512 in PBE paper 
   alpha: 512 #512
   dropout: 0 #0.1
-  target_modules: ["q_proj", "k_proj", "v_proj", "o_proj", "up_proj", "down_proj", "gate_proj"]
+  target_modules: ["q_proj", "k_proj", "v_proj", "o_proj", "up_proj", "down_proj"]
+  #["q_proj", "k_proj", "v_proj", "o_proj", "up_proj", "down_proj", "gate_proj"]
+  
 
 # the higher the rank and alpha, the more expressive the model can cause offerfitting
