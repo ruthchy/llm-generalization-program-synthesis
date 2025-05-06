@@ -1,14 +1,30 @@
 '''
 This script needs to be run inside a batch job or an interactive job with a certain amount of memory allocated.
+
+# Usage:
+- For semantic length:
+    python main_unbiased_test.py --length_type semantic
+- For syntactic length:
+    python main_unbiased_test.py --length_type syntactic
 '''
+import argparse
 import os
 import pandas as pd
 import gc
-from datasets import load_dataset, Dataset
+from datasets import load_dataset, Dataset, load_dataset_builder
 from _1_logo_pseudo_code_generator import generateLOGOPseudoCode
 from _2_sampler import LOGOProgramSampler
-from _6_length import Length
 from main_length_gen import generate_synthetic_data, generateLOGOPseudoCode
+
+parser = argparse.ArgumentParser(description='Generate unbiased test datasets.')
+parser.add_argument("--length_type", choices=["semantic", "syntactic"], required=True,
+                        help="Specify whether to use semantic or syntactic length.")
+args = parser.parse_args()
+length_type = args.length_type
+if length_type == "semantic":
+    from _6_sem_length import SemLength
+if length_type == "syntactic":
+    from _6_syn_length import SynLength
 
 def generate_valid_synthetic_data(combined_dataset, threshold, required_samples):
     """
@@ -24,7 +40,10 @@ def generate_valid_synthetic_data(combined_dataset, threshold, required_samples)
     """
     generator = generateLOGOPseudoCode()
     sampler = LOGOProgramSampler(generator, combined_dataset)
-    length_calculator = Length()
+    if length_type == "semantic":
+        length = SemLength()
+    if length_type == "syntactic":
+        length = SynLength()
     valid_synthetic_data = []
 
     while len(valid_synthetic_data) < required_samples:
@@ -34,7 +53,7 @@ def generate_valid_synthetic_data(combined_dataset, threshold, required_samples)
         synthetic_data = pd.DataFrame(synthetic_data, columns=['Description', 'Program'])
 
         # Calculate lengths and filter programs below the threshold
-        synthetic_data['Length'] = synthetic_data['Program'].apply(length_calculator.calc_length)
+        synthetic_data['Length'] = synthetic_data['Program'].apply(length.calc_length)
         valid_batch = synthetic_data[synthetic_data['Length'] <= threshold]
         print(f"Filtered down to {len(valid_batch)} valid programs...")
 
@@ -51,7 +70,13 @@ def generate_valid_synthetic_data(combined_dataset, threshold, required_samples)
 # MAIN
 if __name__ == "__main__":
     # Step 1: Load the dataset
-    dataset_name = "ruthchy/length-gen-logo-image"
+    if length_type == "semantic":
+        dataset_name = "ruthchy/sem-length-gen-logo-image"
+        hub_name = "ruthchy/sem-length-gen-logo-image-unbiased-test"
+    if length_type == "syntactic":
+        dataset_name = "ruthchy/syn-length-gen-logo-image"
+        hub_name = "ruthchy/syn-length-gen-logo-image-unbiased-test"
+
     print(f"Loading dataset: {dataset_name}")
     ds = load_dataset(dataset_name)
 
@@ -64,14 +89,18 @@ if __name__ == "__main__":
     print(f"Combined dataset size: {len(combined_dataset)}")
 
     # Step 3: Determine the threshold (shortest program length in the current test set)
-    length_calculator = Length()
+    if length_type == "semantic":
+        length = SemLength()
+    if length_type == "syntactic":
+        length = SynLength()
     ds['test'] = ds['test'].to_pandas()  # Convert to pandas DataFrame for easier manipulation
-    ds['test']['Length'] = ds['test']['Program'].apply(length_calculator.calc_length)
+    ds['test']['Length'] = ds['test']['Program'].apply(length.calc_length)
     threshold = ds['test']['Length'].min()
     print(f"Threshold (shortest program length in test set): {threshold}")
 
-    # Step 4: Generate exactly 997 valid synthetic programs
-    required_samples = 997  # Desired number of new programs
+    # Step 4: Generate exactly the number of required valid synthetic programs
+    builder = load_dataset_builder(dataset_name)
+    required_samples = builder.info.splits["test"].num_examples  # Dynamically determine the size of the original test set
     valid_synthetic_data = generate_valid_synthetic_data(combined_dataset, threshold, required_samples)
 
     print(f"Generated {len(valid_synthetic_data)} valid synthetic programs.")
@@ -93,6 +122,5 @@ if __name__ == "__main__":
     del valid_synthetic_data
     gc.collect()
 
-    push_to_hub = True  # Change to True if you want to upload
-    hub_name = "ruthchy/length-gen-logo-image-unbiased-test" 
+    push_to_hub = True  # Change to True if you want to upload 
     ds = parser.wrapper_parse_and_generate_image(ds, push_to_hub=push_to_hub, hub_name=hub_name)

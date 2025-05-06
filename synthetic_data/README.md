@@ -36,7 +36,6 @@ This repository contains scripts to generate synthetic datasets for different ge
 
 ## Usage
 
-
 ```bash
 # Generate a dataset split by length with the "zoomed in" ASCII representation
 python synthetic_data/main_length_gen.py \
@@ -67,6 +66,10 @@ python synthetic_data/main_length_gen.py \
 # Using the privously generated length dataset with the "zoomed in" ASCII representation to generate the same dataset with the image column which can later within the pipeline be transformed to various other ASCII representations 
 # here are no convinient args added so the file has to be modified. Check the script itself to see how (create_dataset_with_image_column = True and apply_ascii_transformation = False and set the correct hf-dataset-ids)
 python synthetic_data/pyturtle_adapt_ascii.py
+
+# Generate the unbiased-length test set based on the length-image dataset:
+python synthetic_data/main_unbiased_test.py --length_type syntactic 
+python synthetic_data/main_unbiased_test.py --length_type semantic
 
 # Generate the dataset by mix and match generalization criterion
 python synthetic_data/main_mix_match_gen.py
