@@ -16,10 +16,14 @@ This repository contains scripts to generate synthetic datasets for different ge
   - `_4_logo_graphic_generator_v1.py`: First version of the graphic generator.
   - `_4_logo_graphic_generator_v2.py`: Second version of the graphic generator.
   - `_5_ascii_processor.py`: Processes images into ASCII art representations.
-  - `_6_length.py`: Calculates syntactic length of programs.
+  - `_6_sem_length.py`: Calculates semantic length of programs (unrolled pogram length).
+  - `_6_syn_length.py`: Calculates syntactic length of programs (rolled program length).
+
 
 - **Utility Scripts**
-  - `pyturtle_adapt_ascii.py`: Transforms datasets with ASCII-Art columns to include Image columns instead.
+  - `pyturtle_adapt_ascii.py`: The scirpt can be used in two ways:
+    1. To transforms datasets with ASCII-Art columns to include Image columns instead. By setting: create_dataset_with_image_column = True
+    2. To apply a ASCII-Art transformation to Image column By setting: apply_ascii_transformation = False
   - `__parser_pyturtle_pc.py`: Parser for working with PyTurtle for image generation.
   - `__adapt_ascii_processor.py`: Applies adaptive ASCII transformation.
   - `__dataset_direction_modifier.py`: Modifies a percentage of programs to use right() instead of left() (or vice versa).
@@ -52,15 +56,17 @@ python synthetic_data/main_length_gen.py \
     --split-by syn_length \
     --save-hf
 
-# Using existing synthetic data and splitting by execution time length
+# Using existing synthetic data and splitting by execution time length 
+#(archived - not used in the thesis)
 python synthetic_data/main_length_gen.py \
     --synthetic-path synthetic_data/data/my_synthetic_data.jsonl \  # optional: if not set default synthetic data (synthetic_data_20250120143151.jsonl) is used 
     --process-ascii \
     --split-by execution_time \
     --save-hf
 
-# Using the privously generated length dataset with the "zoomed in" ASCII representation to generate the same dataset with the image column which can later in the pipeline be transformed to various other ASCII representations
-
+# Using the privously generated length dataset with the "zoomed in" ASCII representation to generate the same dataset with the image column which can later within the pipeline be transformed to various other ASCII representations 
+# here are no convinient args added so the file has to be modified. Check the script itself to see how (create_dataset_with_image_column = True and apply_ascii_transformation = False and set the correct hf-dataset-ids)
+python synthetic_data/pyturtle_adapt_ascii.py
 
 # Generate the dataset by mix and match generalization criterion
 python synthetic_data/main_mix_match_gen.py
