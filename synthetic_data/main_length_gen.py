@@ -15,7 +15,10 @@ The script performs the following steps:
     --process-ascii: Flag to process ASCII data for both datasets.
     --blocks: Number of blocks for ASCII processing (default is 35).
 6. Split data by length or execution time length (optional):
-    --split-by: "length" or "execution_time" to specify the type of split.
+    --split-by: "syn_length", "sem_length" or "execution_time" to specify the type of split. 
+        syn_length: Syntactic length (rolled program length).
+        sem_length: Semantic length (unrolled program length).
+        execution_time: Execution time length. (is archived and not used in the thesis)
 7. Save data to Hugging Face Hub (optional):
     --save-hf: Flag to save data to Hugging Face Hub.
 
@@ -33,10 +36,16 @@ Usage:
             --interpreter-version 1 \
         --process-ascii \
             --blocks 35 \
-        --split-by length \
+        --split-by sem_length \
         --save-hf
 
     # Or use existing synthetic data:
+    python synthetic_data/main_length_gen.py \
+        --synthetic-path synthetic_data/data/my_synthetic_data.jsonl \
+        --process-ascii \
+        --split-by syn_length \
+        --save-hf
+
     python synthetic_data/main_length_gen.py \
         --synthetic-path synthetic_data/data/my_synthetic_data.jsonl \
         --process-ascii \
@@ -53,7 +62,8 @@ from _3_executable_logo_primitives import ReGALLOGOPrimitives
 from _4_logo_graphic_generator_v1 import PseudoProgramInterpreter as PseudoProgramInterpreter_v1
 from _4_logo_graphic_generator_v2 import PseudoProgramInterpreter as PseudoProgramInterpreter_v2
 from _5_ascii_processor import ASCIIProcessor
-from _6_length import Length
+from _6_sem_length import SemLength
+from _6_syn_length import SynLength
 from archive._6_execution_time_length import ExecutionTimeLength
 from datasets import Dataset, DatasetDict
 
@@ -158,18 +168,23 @@ def split_data_by_length(df_all_syn, split_by):
         tuple: (train_data, validation_data, test_data) DataFrames
     """
     # Apply appropriate length calculation based on split type
-    if split_by == "length":
-        print("Calculating length lengths...")
-        syn_length = Length()
+    if split_by == "syn_length":
+        print("Calculating syntactic length (rolled program length)...")
+        syn_length = SynLength()
         df_all_syn['Length'] = df_all_syn['Program'].apply(syn_length.calc_length)
+        length_column = 'Length'
+    elif split_by == "sem_length":
+        print("Calculating semantic length (unrolled program length)...")
+        sem_length = SemLength()
+        df_all_syn['Length'] = df_all_syn['Program'].apply(sem_length.calc_length)
         length_column = 'Length'
     elif split_by == "execution_time":
         print("Calculating execution time lengths...")
-        sem_length = ExecutionTimeLength(timeout=5, num_runs=1)
-        df_all_syn['Length'] = df_all_syn['Program'].apply(sem_length.calc_execution_time)
+        ex_length = ExecutionTimeLength(timeout=5, num_runs=1)
+        df_all_syn['Length'] = df_all_syn['Program'].apply(ex_length.calc_execution_time)
         length_column = 'Length'
     else:
-        raise ValueError(f"Invalid split_by value: {split_by}. Must be 'length' or 'execution_time'.")
+        raise ValueError(f"Invalid split_by value: {split_by}. Must be 'syn_length', 'sem_length' or 'execution_time'.")
     
     # Sort by the calculated length
     df_all_syn = df_all_syn.sort_values(by=length_column).reset_index(drop=True)
@@ -177,16 +192,34 @@ def split_data_by_length(df_all_syn, split_by):
     # Determine the split index (10% for test)
     test_start_id = int(len(df_all_syn) * 0.9)
     # Ensure we don't split in the middle of examples with the same length
+    # --- Move forward ---
+    forward_id = test_start_id
     while (
-        test_start_id < len(df_all_syn) and 
-        df_all_syn.loc[test_start_id, length_column] == df_all_syn.loc[test_start_id - 1, length_column]
+        forward_id < len(df_all_syn) and 
+        df_all_syn.loc[forward_id, length_column] == df_all_syn.loc[forward_id - 1, length_column]
     ):
-        test_start_id += 1
+        forward_id += 1
+    forward_test_size = len(df_all_syn) - forward_id
     
-    # Create train and test splits
-    train_data = df_all_syn.iloc[:test_start_id]
-    test_data = df_all_syn.iloc[test_start_id:]
-    
+    # --- Move backward ---
+    backward_id = test_start_id
+    while (
+        backward_id > 0 and 
+        df_all_syn.loc[backward_id, length_column] == df_all_syn.loc[backward_id - 1, length_column]
+    ):
+        backward_id -= 1
+    backward_test_size = len(df_all_syn) - backward_id
+
+    # --- Pick the one closer to ideal 10% size ---
+    if abs(forward_test_size - test_start_id) < abs(backward_test_size - test_start_id):
+        # Create train and test splits
+        train_data = df_all_syn.iloc[:forward_id]
+        test_data = df_all_syn.iloc[forward_id:]
+    else:
+        # Create train and test splits
+        train_data = df_all_syn.iloc[:backward_id]
+        test_data = df_all_syn.iloc[backward_id:]
+
     # Create a validation dataset from the training data with the same size as the test set
     rs = 42  # Fixed random seed for reproducibility
     length = int(len(test_data))
@@ -214,8 +247,9 @@ def save_to_hf_hub(train_data, validation_data, test_data, args):
         split: create_dataset(df)  
         for split, df in zip(["train", "validation", "test"], [train_data, validation_data, test_data])
     })
-    
-    dataset_dict.push_to_hub(f"ruthchy/{args.split_by}-length-gen-logo-data-desc-ascii_{BLOCKS}", private=False)
+
+    split_by_short = args.split_by.split("_")[0]
+    dataset_dict.push_to_hub(f"ruthchy/{split_by_short}-length-gen-logo-data-desc-ascii_{BLOCKS}", private=False)
 
 def main(args):
     path()  # Set the working directory before anything else to master-thesis directory
@@ -291,7 +325,7 @@ if __name__ == "__main__":
     parser.add_argument("--interpreter-version", type=int, default=1, help="Interpreter version (1 or 2).")
     parser.add_argument("--process-ascii", action="store_true", help="Process ASCII data for both datasets.")
     parser.add_argument("--blocks", type=int, default=BLOCKS, help="Number of blocks for ASCII processing.")
-    parser.add_argument("--split-by", choices=["length", "execution_time"], help="Split data by length or execution_time length.")
+    parser.add_argument("--split-by", choices=["syn_length", "sem_length", "execution_time"], help="Split data by syn_length, sem_length or execution_time length.")
     parser.add_argument("--save-hf", action="store_true", help="Save data to Hugging Face Hub.")
     args = parser.parse_args()
     BLOCKS = args.blocks  # Update global BLOCKS variable if specified

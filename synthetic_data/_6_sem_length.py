@@ -1,6 +1,6 @@
 import re
 
-class Length:
+class SemLength:
     def __init__(self):
         pass
 

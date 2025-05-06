@@ -34,7 +34,7 @@ This repository contains scripts to generate synthetic datasets for different ge
 
 
 ```bash
-# Generate a dataset split by length
+# Generate a dataset split by length with the "zoomed in" ASCII representation
 python synthetic_data/main_length_gen.py \
     --generate-synthetic \
     --target-size 10000 \
@@ -42,7 +42,14 @@ python synthetic_data/main_length_gen.py \
     --interpreter-version 1 \
     --process-ascii \
     --blocks 35 \
-    --split-by length \
+    --split-by sem_length \
+    --save-hf
+
+# Using existing synthetic data and splitting by execution time length
+python synthetic_data/main_length_gen.py \
+    --synthetic-path synthetic_data/data/my_synthetic_data.jsonl \  # optional: if not set default synthetic data (synthetic_data_20250120143151.jsonl) is used 
+    --process-ascii \
+    --split-by syn_length \
     --save-hf
 
 # Using existing synthetic data and splitting by execution time length
@@ -51,6 +58,9 @@ python synthetic_data/main_length_gen.py \
     --process-ascii \
     --split-by execution_time \
     --save-hf
+
+# Using the privously generated length dataset with the "zoomed in" ASCII representation to generate the same dataset with the image column which can later in the pipeline be transformed to various other ASCII representations
+
 
 # Generate the dataset by mix and match generalization criterion
 python synthetic_data/main_mix_match_gen.py
