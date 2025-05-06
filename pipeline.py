@@ -175,7 +175,11 @@ class DataConfig:
 class PromptConfig:
     include_sys_prompt_fn: bool = False
     include_sys_prompt_inf: bool = False
-    _system_prompt: str = """Your task is to draw simple black and white graphics with the custom library. DO NOT USE THE BUILT-IN TURTLE LIBRARY.
+    use_forkstate: bool = False
+    _system_prompt: str = field(init=False)
+
+    def __post_init__(self):
+        base_sys_prompt = """Your task is to draw simple black and white graphics with the custom library. DO NOT USE THE BUILT-IN TURTLE LIBRARY.
 You will use a custom turtle library, similar to the built-in library, which is sufficient for all tasks.
 
 Here are all the available functions in the custom turtle library:
@@ -186,8 +190,16 @@ Here are all the available functions in the custom turtle library:
 - pendown(): start drawing
 - teleport(x, y, theta): move to position (x, y) with angle theta
 - heading(): get the current angle of the turtle
-- isdown(): check if the pen is down
+- isdown(): check if the pen is down"""
+
+        if self.use_forkstate:
+            embed_fork_exp = """
+- with fork_state(): a context manager that runs the code in the block using the current context and restores the original state afterwards. Allows you to nest programs. Internally, fork_state saves the turtle state (is_down, x, y, heading), executes the block, then restores the original state."""
+        else:
+            embed_fork_exp = """
 - embed(program, local vars): runs the code in program using the current context and teleports back to the original position. Allows you to nest programs. Implementationally, embed gets the turtle state (is down, x, y, heading), executes program, then returns to the original state."""
+        self._system_prompt = base_sys_prompt + embed_fork_exp
+
     
     @property
     def system_prompt(self) -> str:
@@ -264,7 +276,8 @@ class Config:
         )
         self.prompt = PromptConfig(
             include_sys_prompt_fn=bool(config_dict["data"]["include_sys_prompt_fn"]),
-            include_sys_prompt_inf=bool(config_dict["data"]["include_sys_prompt_inf"])
+            include_sys_prompt_inf=bool(config_dict["data"]["include_sys_prompt_inf"]),
+            use_forkstate=self.data.use_forkstate
         )
 
 def load_config(source_config: str, fine_tune: bool) -> Tuple[Config, str, str, str, str]:
