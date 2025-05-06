@@ -5,6 +5,7 @@ import sys
 import subprocess
 import time
 import wandb
+from datasets import load_dataset_builder
 from datetime import datetime
 import optuna
 from optuna.samplers import TPESampler
@@ -27,6 +28,12 @@ def load_hyperparameter_space(file_path="hyperparameter_grid.yaml"):
     with open(file_path, 'r') as f:
         return yaml.safe_load(f)
 
+def get_dataset_split_length(dataset_id, split="train"):
+    """Get the number of examples in a specific split of a dataset from Hugging Face."""
+    builder = load_dataset_builder(dataset_id)
+    return builder.info.splits[split].num_examples
+
+
 def create_config_for_run(base_config_path, hp_params, output_path="config_temp.yaml"):
     """Create a temporary config file with current hyperparameters."""
     # Load base config
@@ -43,7 +50,22 @@ def create_config_for_run(base_config_path, hp_params, output_path="config_temp.
     # Test mode: reduce epochs
     if TEST_MODE:
         config['training']['train_epochs'] = 1
-        
+    
+    # Dynamically adjust evaluation, logging and save steps based to keep them relative
+    dataset_id = config['data']['dataset_id']
+    train_length = get_dataset_split_length(dataset_id, split="train") 
+    train_length = train_length * config['training']['train_epochs']
+    effective_batch_size = hp_params['per_device_train_batch_size'] * config["training"]["gradient_accumulation_steps"] 
+    steps_per_epoch = train_length // effective_batch_size
+
+    eval_steps = max(1, steps_per_epoch // 10)  # Evaluate ten times
+    save_steps = (steps_per_epoch // eval_steps) * eval_steps
+    save_steps = max(eval_steps, save_steps) # Ensure one save per epoch which is a round multiple of eval_steps
+    
+    config['training']['save_steps'] = save_steps
+    config['training']['eval_steps'] = eval_steps
+    config['training']['logging_steps'] = max(1, steps_per_epoch // 10)  # Log ten times per epoch
+
     # Save updated config
     with open(output_path, 'w') as f:
         yaml.dump(config, f)

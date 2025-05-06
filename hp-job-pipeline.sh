@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=hp-tuning
+#SBATCH --job-name=hp-job-pipeline
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=10
 #SBATCH --mem=100G
@@ -25,7 +25,7 @@ if [ -f "hp_tuning_completed.marker" ]; then
 fi
 
 # Set the number of trials and timeout for Optuna
-N_TRIALS=25
+N_TRIALS=24
 TIMEOUT=$((48 * 60 * 60)) # Calculate timeout in seconds (48 hours) can also be set to None (no timeout, just n_trails will limit duration
 
 # Run hyperparameter tuning script
