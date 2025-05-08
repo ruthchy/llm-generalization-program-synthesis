@@ -35,12 +35,15 @@ Examples:
         python look_up/workflow.py --dataset ruthchy/syn-length-gen-logo-image --plot_elbow --plot_silhouette --n_clusters 10
 
     3. Perform clustering with a specified number of clusters:
-        python look_up/workflow.py --dataset ruthchy/syn-length-gen-logo-image --n_clusters 10
+        python look_up/workflow.py --dataset ruthchy/syn-length-gen-logo-image --n_clusters 5
 
 Notes:
     - If no plotting options (`--plot_dendrogram_only`, `--plot_elbow`, `--plot_silhouette`) are specified, the script defaults to applying the clustering algorithm.
     - The script validates that the number of embeddings matches the number of examples in the dataset.
     - Subsampling is applied for dendrograms if the number of embeddings exceeds 500 to improve readability.
+
+Documentation of the final cluster n choosen for each of the datesest
+- ruthchy/syn-length-gen-logo-image: 5 (2 would be the best choice but 5 offers more granularity and seems resonable)
 '''
 import argparse
 import os
@@ -229,6 +232,7 @@ def apply_clustering(embeddings_array, all_descriptions, n_clusters, base_dir, d
 
     clusters = {}
     for idx, label in enumerate(clustering.labels_):
+        label = int(label) 
         if label not in clusters:
             clusters[label] = []
         clusters[label].append(all_descriptions[idx])
