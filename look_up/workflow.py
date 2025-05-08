@@ -69,9 +69,15 @@ def load_or_compute_dataset_embeddings(dataset_id, base_dir, client):
             print(f"Processing split: {split}")
             descriptions = dataset[split]['Description']
             split_embeddings = {}
-            for desc in descriptions:
-                response = client.embeddings.create(input=desc, model="text-embedding-ada-002")
-                split_embeddings[desc] = response.data[0].embedding
+            for idx, desc in enumerate(descriptions):
+                prep_desc = desc.replace(" ", "_")
+                unique_key = f"{idx}_{prep_desc}"  # unique key: desc prefixing by index
+                try:
+                    response = client.embeddings.create(input=desc,
+                    model="text-embedding-ada-002")
+                    split_embeddings[unique_key] = response.data[0].embedding
+                except Exception as e:
+                    print(f"Error processing description with key {unique_key}: {e}")
             embeddings[split] = split_embeddings
 
         with open(embedding_file, 'w') as f:
