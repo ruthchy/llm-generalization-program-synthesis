@@ -1,35 +1,59 @@
 '''
 Implementation of the Preprocessing for the Few-Shot Examples
-1. Load the dataset
-2. Compute and store the set of Embeddings based on the Description column
-    - Use OpenAI's ada embedding model
-    - Note: to run the code when the embeddings are not already computed for the dataset you pass the HF-id via the --dataset argument, you need to pass your OpenAI API key 
-    for example using a yaml-file (named: open_ai_key.yaml in the look_up folder) which contains: 
-        openai_api_key: <sk-...>
-3. Cluster the embeddings using Ward’s clustering algorithm (Ward Jr, 1963)
-    - Optional: Plot the dendrogram to find the optimal number of clusters 
-    - Optional: If the number of clusters is knonw one can specify it via the --n_clusters argument
-    - the tree of related examples
-    - I think the few-shot examples should be choosen from the cluster given certain criteria as being from train or validation set and if there is a criteria such as being a snowflake or a sequence then this should guide the selection
-    - (in the ReGAL paper the next steps would be to topologically sorted and grouped all entries into k batches (ReGAL paper k=5))
+
+1. Load the dataset:
+    - The dataset is loaded using the Huggingface `datasets` library.
+    - The dataset ID is passed via the `--dataset` argument.
+
+2. Compute and store the set of embeddings based on the Description column:
+    - Uses OpenAI's `text-embedding-ada-002` model to compute embeddings.
+    - Requires an OpenAI API key, which is loaded from a YAML file (`open_ai_key.yaml`) in the `look_up` folder.
+    - The embeddings are saved as a JSON file in the `look_up/embeddings` folder.
+    - Prints a validation table displaying the number of embeddings matches the number of examples in the dataset for each split (train, validation, test).
+
+
+3. Analyze the embeddings:
+    - Dendrogram: Visualize hierarchical clustering to determine the relationships between examples.
+    - Elbow Method: Determine the optimal number of clusters by analyzing the within-cluster sum of squares (WCSS).
+    - Silhouette Scores: Evaluate clustering quality for different numbers of clusters.
+
+4. Cluster the embeddings:
+    - Uses Ward’s hierarchical clustering algorithm (Ward Jr, 1963).
+    - The number of clusters can be specified via the `--n_clusters` argument.
+    - Saves the clustering results as a JSON file in the `look_up` folder.
 
 Usage:
-python look_up/workflow.py --dataset <dataset_id> --plot_dendrogram_only
-python look_up/workflow.py --dataset <dataset_id> --n_clusters <n_clusters>
-Example:
-python look_up/workflow.py --dataset ruthchy/syn-length-gen-logo-image --plot_dendrogram_only
+    python look_up/workflow.py --dataset <dataset_id> --plot_dendrogram_only
+    python look_up/workflow.py --dataset <dataset_id> --plot_elbow --plot_silhouette --n_clusters <n_clusters>
+    python look_up/workflow.py --dataset <dataset_id> --n_clusters <n_clusters>
+
+Examples:
+    1. Generate a dendrogram to determine the range of clusters:
+        python look_up/workflow.py --dataset ruthchy/syn-length-gen-logo-image --plot_dendrogram_only
+
+    2. Generate the elbow method and silhouette score plots:
+        python look_up/workflow.py --dataset ruthchy/syn-length-gen-logo-image --plot_elbow --plot_silhouette --n_clusters 7
+
+    3. Perform clustering with a specified number of clusters:
+        python look_up/workflow.py --dataset ruthchy/syn-length-gen-logo-image --n_clusters 7
+
+Notes:
+    - If no plotting options (`--plot_dendrogram_only`, `--plot_elbow`, `--plot_silhouette`) are specified, the script defaults to applying the clustering algorithm.
+    - The script validates that the number of embeddings matches the number of examples in the dataset.
+    - Subsampling is applied for dendrograms if the number of embeddings exceeds 500 to improve readability.
 '''
 import argparse
 import os
 import json
 import yaml
 import numpy as np
-from sklearn.cluster import AgglomerativeClustering
+from sklearn.cluster import AgglomerativeClustering, KMeans
+from sklearn.metrics import silhouette_score
 from scipy.cluster.hierarchy import linkage, dendrogram
 from datasets import load_dataset  # Huggingface datasets
 from openai import OpenAI
 import matplotlib.pyplot as plt
-
+import random
 
 def get_base_dir():
     """Get the base directory of the master-thesis project."""
@@ -83,6 +107,12 @@ def load_or_compute_dataset_embeddings(dataset_id, base_dir, client):
         with open(embedding_file, 'w') as f:
             json.dump(embeddings, f)
         print(f"Embeddings saved to {embedding_file}")
+    # Controll all examples have been processed
+    print("--- Comparison: Number of exampels and embeddings per split ---")
+    for split in dataset:
+        print(f"Number of examples in {split}: {len(dataset[split])}")
+        print(f"Number of embeddings in {split}: {len(embeddings.get(split, {}))}")
+    print("-------------------------------------------------------------")    
 
     return embeddings
 
@@ -104,11 +134,8 @@ def plot_dendrogram(embeddings_array, all_descriptions, base_dir, dataset_id):
     plt.close()
     print(f"Dendrogram saved to {dendrogram_path}")
 
-def apply_clustering(embeddings, n_clusters, base_dir, dataset_id, plot_dendrogram_only=False):
-    """Apply clustering and save the results."""
-    print("Applying clustering algorithm...")
-
-    # Flatten embeddings and descriptions
+def prep_embeddings(embeddings):
+    """Prepare embeddings for clustering by flattening the dictionary."""
     all_embeddings = []
     all_descriptions = []
     for split, split_embeddings in embeddings.items():
@@ -117,11 +144,81 @@ def apply_clustering(embeddings, n_clusters, base_dir, dataset_id, plot_dendrogr
             all_descriptions.append(f"{split}_{desc}")
 
     embeddings_array = np.array(all_embeddings)
+    return embeddings_array, all_descriptions
 
-    if args.plot_dendrogram_only:
-        plot_dendrogram(embeddings_array, all_descriptions, base_dir, dataset_id)
-        return
+def plot_dendrogram(embeddings_array, all_descriptions, base_dir, dataset_id, max_samples=500):
+    """Plot and save the dendrogram with optional subsampling."""
+    if len(embeddings_array) > max_samples:
+        print(f"Subsampling to {max_samples} samples for dendrogram...")
+        indices = random.sample(range(len(embeddings_array)), max_samples)
+        embeddings_array = embeddings_array[indices]
+        all_descriptions = [all_descriptions[i] for i in indices]
 
+    print("Find the optimal number of clusters using a Dendrogram...")
+    Z = linkage(embeddings_array, method='ward', optimal_ordering=True)
+
+    plt.figure(figsize=(12, 6))
+    dendrogram(
+        Z, 
+        labels=all_descriptions,
+        leaf_rotation=90,
+        truncate_mode='level',  # Truncate the dendrogram
+        p=15  # Number of levels or clusters to show
+    )
+    plt.title('Dendrogram (Ward Linkage)')
+    plt.xlabel('Descriptions')
+    plt.ylabel('Distance')
+
+    dendrogram_path = os.path.join(base_dir, f"look_up/dendrogram_{(dataset_id.split('/')[-1])}.png")
+    plt.tight_layout()
+    plt.savefig(dendrogram_path)
+    plt.close()
+    print(f"Dendrogram saved to {dendrogram_path}")
+
+def plot_elbow_method(embeddings_array, base_dir, dataset_id, max_clusters=10):
+    """Plot the elbow method to determine the optimal number of clusters."""
+    print("Computing the elbow method for up to {max_clusters} clusters...")
+    wcss = []
+    for n_clusters in range(1, max_clusters + 1):
+        kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+        kmeans.fit(embeddings_array)
+        wcss.append(kmeans.inertia_)
+
+    plt.figure(figsize=(8, 5))
+    plt.plot(range(1, max_clusters + 1), wcss, marker='o')
+    plt.title('Elbow Method')
+    plt.xlabel('Number of Clusters')
+    plt.ylabel('WCSS')
+    elbow_path = os.path.join(base_dir, f"look_up/elbow_{(dataset_id.split('/')[-1])}.png")
+    plt.tight_layout()
+    plt.savefig(elbow_path)
+    plt.close()
+    print(f"Elbow plot saved to {elbow_path}")
+
+def plot_silhouette_scores(embeddings_array, base_dir, dataset_id, max_clusters=10):
+    """Plot silhouette scores for different numbers of clusters."""
+    print("Computing silhouette scores for up to {max_clusters} clusters...")
+    silhouette_scores = []
+    for n_clusters in range(2, max_clusters + 1):  # Silhouette score requires at least 2 clusters
+        clustering = AgglomerativeClustering(linkage='ward', n_clusters=n_clusters)
+        labels = clustering.fit_predict(embeddings_array)
+        score = silhouette_score(embeddings_array, labels)
+        silhouette_scores.append(score)
+
+    plt.figure(figsize=(8, 5))
+    plt.plot(range(2, max_clusters + 1), silhouette_scores, marker='o')
+    plt.title('Silhouette Scores')
+    plt.xlabel('Number of Clusters')
+    plt.ylabel('Silhouette Score')
+    silhouette_path = os.path.join(base_dir, f"look_up/silhouette_{(dataset_id.split('/')[-1])}.png")
+    plt.tight_layout()
+    plt.savefig(silhouette_path)
+    plt.close()
+    print(f"Silhouette plot saved to {silhouette_path}")
+
+def apply_clustering(embeddings_array, all_descriptions, n_clusters, base_dir, dataset_id):
+    """Apply clustering and save the results."""
+    print("Applying clustering algorithm...")
     print(f"Using specified number of clusters: {n_clusters}")
     clustering = AgglomerativeClustering(linkage='ward', n_clusters=n_clusters)
     clustering.fit(embeddings_array)
@@ -142,14 +239,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Few-Shot Examples Preprocessing')
     parser.add_argument('--dataset', type=str, help='Huggingface dataset name')
     parser.add_argument('--plot_dendrogram_only', action='store_true', help='Only plot the dendrogram without clustering')
+    parser.add_argument('--plot_elbow', action='store_true', help='Plot the elbow method to determine the optimal number of clusters')
+    parser.add_argument('--plot_silhouette', action='store_true', help='Plot silhouette scores to evaluate clustering')
     parser.add_argument('--n_clusters', type=int, default=None, help='The number of clusters to form')
     args = parser.parse_args()
-    if not args.plot_dendrogram_only and n_clusters is None:
+    if not args.plot_dendrogram_only and args.plot_elbow and args.plot_silhouette and n_clusters is None:
         raise ValueError("Please specify the number of clusters using --n_clusters.")
 
     dataset_id = args.dataset
     n_clusters = args.n_clusters
-    plot_dendrogram_only = args.plot_dendrogram_only
 
     # Set up path and load OpenAI API key
     base_dir = get_base_dir()
@@ -158,5 +256,21 @@ if __name__ == "__main__":
     # Step 1: Compute or load dataset embeddings
     embeddings = load_or_compute_dataset_embeddings(dataset_id, base_dir, client)
 
-    # Step 2: Apply clustering algorithm
-    apply_clustering(embeddings, n_clusters, base_dir, dataset_id, plot_dendrogram_only)
+    # Step 2: Plot dendrogram, elbow method, or silhouette scores
+    embeddings_array, all_descriptions = prep_embeddings(embeddings)
+    
+    if args.plot_dendrogram_only or args.plot_elbow or args.plot_silhouette:
+        print("Generating visual aids to determine the optimal number of clusters...")
+        if args.plot_dendrogram_only:
+            # Plot dendrogram only
+            print("Plotting dendrogram...")
+            plot_dendrogram(embeddings_array, all_descriptions, base_dir, dataset_id)
+        if args.plot_elbow:
+            print("Plotting elbow method...")
+            plot_elbow_method(embeddings_array, base_dir, dataset_id, max_clusters=n_clusters)
+        if args.plot_silhouette:
+            print("Plotting silhouette scores...")
+            plot_silhouette_scores(embeddings_array, base_dir, dataset_id, max_clusters=n_clusters)
+    else:
+        # Step 3: Apply clustering algorithm
+        apply_clustering(embeddings_array, all_descriptions, n_clusters, base_dir, dataset_id)
