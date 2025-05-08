@@ -32,3 +32,6 @@ models/**/*
 # Ignore macOS system files
 .DS_Store
 **/.DS_Store
+
+# Ignore key files
+look_up/open_ai_key.yamllook_up/embeddings/embed_syn-length-gen-logo-image.json

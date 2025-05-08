@@ -32,10 +32,10 @@ Examples:
         python look_up/workflow.py --dataset ruthchy/syn-length-gen-logo-image --plot_dendrogram_only
 
     2. Generate the elbow method and silhouette score plots:
-        python look_up/workflow.py --dataset ruthchy/syn-length-gen-logo-image --plot_elbow --plot_silhouette --n_clusters 7
+        python look_up/workflow.py --dataset ruthchy/syn-length-gen-logo-image --plot_elbow --plot_silhouette --n_clusters 10
 
     3. Perform clustering with a specified number of clusters:
-        python look_up/workflow.py --dataset ruthchy/syn-length-gen-logo-image --n_clusters 7
+        python look_up/workflow.py --dataset ruthchy/syn-length-gen-logo-image --n_clusters 10
 
 Notes:
     - If no plotting options (`--plot_dendrogram_only`, `--plot_elbow`, `--plot_silhouette`) are specified, the script defaults to applying the clustering algorithm.
@@ -79,6 +79,8 @@ def load_or_compute_dataset_embeddings(dataset_id, base_dir, client):
     embeddings_folder = os.path.join(base_dir, "look_up/embeddings")
     embedding_file = os.path.join(embeddings_folder, f"embed_{(dataset_id.split('/')[-1])}.json")
 
+    dataset = load_dataset(dataset_id)
+
     if os.path.exists(embedding_file):
         print(f"Embeddings for dataset {dataset_id} found. Loading embeddings...")
         with open(embedding_file, 'r') as f:
@@ -86,7 +88,6 @@ def load_or_compute_dataset_embeddings(dataset_id, base_dir, client):
     else:
         print(f"Embeddings for dataset {dataset_id} not found. Computing embeddings...")
         os.makedirs(embeddings_folder, exist_ok=True)
-        dataset = load_dataset(dataset_id)
         embeddings = {}
 
         for split in dataset.keys():
@@ -107,33 +108,17 @@ def load_or_compute_dataset_embeddings(dataset_id, base_dir, client):
         with open(embedding_file, 'w') as f:
             json.dump(embeddings, f)
         print(f"Embeddings saved to {embedding_file}")
+
     # Controll all examples have been processed
-    print("--- Comparison: Number of exampels and embeddings per split ---")
+    print("\n--- Comparison: Number of exampels and embeddings per split ---")
     for split in dataset:
         print(f"Number of examples in {split}: {len(dataset[split])}")
         print(f"Number of embeddings in {split}: {len(embeddings.get(split, {}))}")
-    print("-------------------------------------------------------------")    
+    print("---------------------------------------------------------------\n")    
 
     return embeddings
 
 # Step 3: Apply clustering algorithm
-def plot_dendrogram(embeddings_array, all_descriptions, base_dir, dataset_id):
-    """Plot and save the dendrogram."""
-    print("Find the optimal number of clusters using a Dendrogram...")
-    Z = linkage(embeddings_array, method='ward', optimal_ordering=True)
-
-    plt.figure(figsize=(12, 6))
-    dendrogram(Z, labels=all_descriptions, leaf_rotation=90)
-    plt.title('Dendrogram (Ward Linkage)')
-    plt.xlabel('Descriptions')
-    plt.ylabel('Distance')
-
-    dendrogram_path = os.path.join(base_dir, f"look_up/dendrogram_{(dataset_id.split('/')[-1])}.png")
-    plt.tight_layout()
-    plt.savefig(dendrogram_path)
-    plt.close()
-    print(f"Dendrogram saved to {dendrogram_path}")
-
 def prep_embeddings(embeddings):
     """Prepare embeddings for clustering by flattening the dictionary."""
     all_embeddings = []
@@ -153,11 +138,21 @@ def plot_dendrogram(embeddings_array, all_descriptions, base_dir, dataset_id, ma
         indices = random.sample(range(len(embeddings_array)), max_samples)
         embeddings_array = embeddings_array[indices]
         all_descriptions = [all_descriptions[i] for i in indices]
+    
+    # Assign specific colors to splits
+    color_map = {
+        "train": "#00334f",  # Dark Denim Blue
+        "validation": "#57a9d4",  # Hoeth Blue
+        "test": "#8B0000"  # Dark Red
+    }
+
+    splits = [desc.split('_')[0] for desc in all_descriptions]
+    colors = [color_map[split] for split in splits]
 
     print("Find the optimal number of clusters using a Dendrogram...")
     Z = linkage(embeddings_array, method='ward', optimal_ordering=True)
 
-    plt.figure(figsize=(12, 6))
+    plt.figure(figsize=(24, 12))
     dendrogram(
         Z, 
         labels=all_descriptions,
@@ -165,6 +160,15 @@ def plot_dendrogram(embeddings_array, all_descriptions, base_dir, dataset_id, ma
         truncate_mode='level',  # Truncate the dendrogram
         p=15  # Number of levels or clusters to show
     )
+    ax = plt.gca()
+    x_labels = ax.get_xticklabels()
+    for label in x_labels:
+        split = label.get_text().split('_')[0]
+        label.set_color(color_map[split])
+    handles = [plt.Line2D([0], [0], marker='o', color='w', label=split,
+                        markerfacecolor=color, markersize=10)
+            for split, color in color_map.items()]
+    plt.legend(handles=handles, title="Splits", loc='upper right', bbox_to_anchor=(1.15, 1))
     plt.title('Dendrogram (Ward Linkage)')
     plt.xlabel('Descriptions')
     plt.ylabel('Distance')
@@ -177,7 +181,7 @@ def plot_dendrogram(embeddings_array, all_descriptions, base_dir, dataset_id, ma
 
 def plot_elbow_method(embeddings_array, base_dir, dataset_id, max_clusters=10):
     """Plot the elbow method to determine the optimal number of clusters."""
-    print("Computing the elbow method for up to {max_clusters} clusters...")
+    print(f"Computing the elbow method for up to {max_clusters} clusters...")
     wcss = []
     for n_clusters in range(1, max_clusters + 1):
         kmeans = KMeans(n_clusters=n_clusters, random_state=42)
@@ -197,7 +201,7 @@ def plot_elbow_method(embeddings_array, base_dir, dataset_id, max_clusters=10):
 
 def plot_silhouette_scores(embeddings_array, base_dir, dataset_id, max_clusters=10):
     """Plot silhouette scores for different numbers of clusters."""
-    print("Computing silhouette scores for up to {max_clusters} clusters...")
+    print(f"Computing silhouette scores for up to {max_clusters} clusters...")
     silhouette_scores = []
     for n_clusters in range(2, max_clusters + 1):  # Silhouette score requires at least 2 clusters
         clustering = AgglomerativeClustering(linkage='ward', n_clusters=n_clusters)
@@ -243,7 +247,7 @@ if __name__ == "__main__":
     parser.add_argument('--plot_silhouette', action='store_true', help='Plot silhouette scores to evaluate clustering')
     parser.add_argument('--n_clusters', type=int, default=None, help='The number of clusters to form')
     args = parser.parse_args()
-    if not args.plot_dendrogram_only and args.plot_elbow and args.plot_silhouette and n_clusters is None:
+    if not args.plot_dendrogram_only and args.plot_elbow and args.plot_silhouette and args.n_clusters is None:
         raise ValueError("Please specify the number of clusters using --n_clusters.")
 
     dataset_id = args.dataset
