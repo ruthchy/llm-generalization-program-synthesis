@@ -28,103 +28,129 @@ from sklearn.cluster import AgglomerativeClustering
 from scipy.cluster.hierarchy import linkage, dendrogram
 from datasets import load_dataset  # Huggingface datasets
 from openai import OpenAI
-from sklearn.metrics.pairwise import euclidean_distances
-
-with open("look_up/open_ai_key.yaml", 'r') as f:
-    open_ai_key = yaml.safe_load(f)
-# Access the API key directly from the dictionary
-client = OpenAI(api_key=open_ai_key["openai_api_key"])
-
-# Initialize argument parser
-parser = argparse.ArgumentParser(description='Few-Shot Examples Preprocessing')
-parser.add_argument('--dataset', type=str, help='Huggingface dataset name')
-parser.add_argument('--plot_dendrogram_only', action='store_true', help='Only plot the dendrogram without clustering')
-parser.add_argument('--n_clusters', type=int, default=None ,help='The number of clusters to form')
-args = parser.parse_args()
-
-dataset_id = args.dataset
-n_clusters = args.n_clusters
-embeddings_folder = "embeddings"
-embedding_file = os.path.join(embeddings_folder, f"embed_{dataset_id}.json")
-
-# Step 1: Load the dataset
-dataset = load_dataset(dataset_id)
-
-# Step 2: Compute and store embeddings for all splits
-if not os.path.exists(embedding_file):
-    print(f"Embeddings for dataset {dataset_id} not found. Computing embeddings...")
-    os.makedirs(embeddings_folder, exist_ok=True)
-
-    embeddings = {}
-    for split in dataset.keys():  # Iterate over all splits (train, validation, test)
-        print(f"Processing split: {split}")
-        descriptions = dataset[split]['Description']  # Extract descriptions for the split
-        split_embeddings = {}
-
-        # Use OpenAI's ada embedding model
-        for desc in descriptions:
-            response = client.embeddings.create(input=desc, model="text-embedding-ada-002")
-            split_embeddings[desc] = response.data[0].embedding
+import matplotlib.pyplot as plt
 
 
-        embeddings[split] = split_embeddings
+def get_base_dir():
+    """Get the base directory of the master-thesis project."""
+    current_dir = os.getcwd()
+    split_point = current_dir.find("master-thesis")
+    if split_point != -1:
+        print(f"Base directory: {current_dir}")
+        return current_dir[: split_point + len("master-thesis")]
+    else:
+        raise RuntimeError("Error: 'master-thesis' not found in the current path.")
 
-    # Save embeddings to a file
-    with open(embedding_file, 'w') as f:
-        json.dump(embeddings, f)
-    print(f"Embeddings saved to {embedding_file}")
-else:
-    print(f"Embeddings for dataset {dataset_id} found. Loading embeddings...")
-    with open(embedding_file, 'r') as f:
-        embeddings = json.load(f)
+def load_openai_api_key(base_dir):
+    """Load the OpenAI API key from the YAML file."""
+    key_file = os.path.join(base_dir, "look_up/open_ai_key.yaml")
+    with open(key_file, 'r') as f:
+        open_ai_key = yaml.safe_load(f)
+    # Access the API key directly from the dictionary
+    client = OpenAI(api_key=open_ai_key["openai_api_key"])
+    return client
+
+def load_or_compute_dataset_embeddings(dataset_id, base_dir, client):
+    """Load or compute embeddings for the dataset."""
+    embeddings_folder = os.path.join(base_dir, "look_up/embeddings")
+    embedding_file = os.path.join(embeddings_folder, f"embed_{(dataset_id.split('/')[-1])}.json")
+
+    if os.path.exists(embedding_file):
+        print(f"Embeddings for dataset {dataset_id} found. Loading embeddings...")
+        with open(embedding_file, 'r') as f:
+            embeddings = json.load(f)
+    else:
+        print(f"Embeddings for dataset {dataset_id} not found. Computing embeddings...")
+        os.makedirs(embeddings_folder, exist_ok=True)
+        dataset = load_dataset(dataset_id)
+        embeddings = {}
+
+        for split in dataset.keys():
+            print(f"Processing split: {split}")
+            descriptions = dataset[split]['Description']
+            split_embeddings = {}
+            for desc in descriptions:
+                response = client.embeddings.create(input=desc, model="text-embedding-ada-002")
+                split_embeddings[desc] = response.data[0].embedding
+            embeddings[split] = split_embeddings
+
+        with open(embedding_file, 'w') as f:
+            json.dump(embeddings, f)
+        print(f"Embeddings saved to {embedding_file}")
+
+    return embeddings
 
 # Step 3: Apply clustering algorithm
-print("Applying clustering algorithm...")
-
-# Flatten embeddings from all splits into a single list
-all_embeddings = []
-all_descriptions = []  # Keep track of descriptions for ordering
-for split, split_embeddings in embeddings.items():
-    for desc, embedding in split_embeddings.items():
-        all_embeddings.append(embedding)
-        all_descriptions.append(f"{split}_{desc}")
-
-# Convert to a NumPy array
-embeddings_array = np.array(all_embeddings)
-
-# Apply clustering
-if args.plot_dendrogram_only:
+def plot_dendrogram(embeddings_array, all_descriptions, base_dir, dataset_id):
+    """Plot and save the dendrogram."""
     print("Find the optimal number of clusters using a Dendrogram...")
-    Z = linkage(embeddings_array, method='ward', optimal_ordering = True)
+    Z = linkage(embeddings_array, method='ward', optimal_ordering=True)
 
-    # Create the plot
     plt.figure(figsize=(12, 6))
     dendrogram(Z, labels=all_descriptions, leaf_rotation=90)
     plt.title('Dendrogram (Ward Linkage)')
     plt.xlabel('Descriptions')
     plt.ylabel('Distance')
 
-    # Save the plot
-    dendrogram_path = os.path.join(embeddings_folder, f"dendrogram_{dataset_id}.png")
+    dendrogram_path = os.path.join(base_dir, f"look_up/dendrogram_{(dataset_id.split('/')[-1])}.png")
     plt.tight_layout()
     plt.savefig(dendrogram_path)
     plt.close()
     print(f"Dendrogram saved to {dendrogram_path}")
-    sys.exit(0)
-else:
+
+def apply_clustering(embeddings, n_clusters, base_dir, dataset_id, plot_dendrogram_only=False):
+    """Apply clustering and save the results."""
+    print("Applying clustering algorithm...")
+
+    # Flatten embeddings and descriptions
+    all_embeddings = []
+    all_descriptions = []
+    for split, split_embeddings in embeddings.items():
+        for desc, embedding in split_embeddings.items():
+            all_embeddings.append(embedding)
+            all_descriptions.append(f"{split}_{desc}")
+
+    embeddings_array = np.array(all_embeddings)
+
+    if args.plot_dendrogram_only:
+        plot_dendrogram(embeddings_array, all_descriptions, base_dir, dataset_id)
+        return
+
     print(f"Using specified number of clusters: {n_clusters}")
-clustering = AgglomerativeClustering(linkage='ward', n_clusters=n_clusters)
-clustering.fit(embeddings_array)
+    clustering = AgglomerativeClustering(linkage='ward', n_clusters=n_clusters)
+    clustering.fit(embeddings_array)
 
-# Group examples by cluster and order them by distance
-clusters = {}
-for idx, label in enumerate(clustering.labels_):
-    if label not in clusters:
-        clusters[label] = []
-    clusters[label].append((all_descriptions[idx], embeddings_array[idx]))
+    clusters = {}
+    for idx, label in enumerate(clustering.labels_):
+        if label not in clusters:
+            clusters[label] = []
+        clusters[label].append(all_descriptions[idx])
 
-# Save ordered clusters to a file
-output_file = os.path.join(embeddings_folder, f"clusters_{dataset_id}.json")
-with open(output_file, 'w') as f:
-    json.dump(ordered_clusters, f, indent=4)
-print(f"Ordered clusters saved to {output_file}")
+    output_file = os.path.join(base_dir, f"look_up/clusters_{(dataset_id.split('/')[-1])}.json")
+    with open(output_file, 'w') as f:
+        json.dump(clusters, f, indent=4)
+    print(f"Clusters saved to {output_file}")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Few-Shot Examples Preprocessing')
+    parser.add_argument('--dataset', type=str, help='Huggingface dataset name')
+    parser.add_argument('--plot_dendrogram_only', action='store_true', help='Only plot the dendrogram without clustering')
+    parser.add_argument('--n_clusters', type=int, default=None, help='The number of clusters to form')
+    args = parser.parse_args()
+    if not args.plot_dendrogram_only and n_clusters is None:
+        raise ValueError("Please specify the number of clusters using --n_clusters.")
+
+    dataset_id = args.dataset
+    n_clusters = args.n_clusters
+    plot_dendrogram_only = args.plot_dendrogram_only
+
+    # Set up path and load OpenAI API key
+    base_dir = get_base_dir()
+    client = load_openai_api_key(base_dir)
+
+    # Step 1: Compute or load dataset embeddings
+    embeddings = load_or_compute_dataset_embeddings(dataset_id, base_dir, client)
+
+    # Step 2: Apply clustering algorithm
+    apply_clustering(embeddings, n_clusters, base_dir, dataset_id, plot_dendrogram_only)
