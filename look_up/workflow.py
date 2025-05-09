@@ -43,7 +43,10 @@ Notes:
     - Subsampling is applied for dendrograms if the number of embeddings exceeds 500 to improve readability.
 
 Documentation of the final cluster n choosen for each of the datesest
-- ruthchy/syn-length-gen-logo-image: 5 (2 would be the best choice but 5 offers more granularity and seems resonable)
+- ruthchy/syn-length-gen-logo-image: 5 (based on shilhouette score: 2 best choice but 5 second best choice while offering more granularity)
+- ruthchy/syn-length-gen-logo-image-unbiased-test: 4 (based on shilhouette score: 2 best choice but 4 second best choice while offering more granularity)
+- ruthchy/sem-length-gen-logo-image: 5 (based on shilhouette score: 2 best choice but 5 second best choice while offering more granularity)
+- 
 '''
 import argparse
 import os
@@ -176,7 +179,7 @@ def plot_dendrogram(embeddings_array, all_descriptions, base_dir, dataset_id, ma
     plt.xlabel('Descriptions')
     plt.ylabel('Distance')
 
-    dendrogram_path = os.path.join(base_dir, f"look_up/dendrogram_{(dataset_id.split('/')[-1])}.png")
+    dendrogram_path = os.path.join(base_dir, f"look_up/images/dendrogram_{(dataset_id.split('/')[-1])}.png")
     plt.tight_layout()
     plt.savefig(dendrogram_path)
     plt.close()
@@ -196,7 +199,7 @@ def plot_elbow_method(embeddings_array, base_dir, dataset_id, max_clusters=10):
     plt.title('Elbow Method')
     plt.xlabel('Number of Clusters')
     plt.ylabel('WCSS')
-    elbow_path = os.path.join(base_dir, f"look_up/elbow_{(dataset_id.split('/')[-1])}.png")
+    elbow_path = os.path.join(base_dir, f"look_up/images/elbow_{(dataset_id.split('/')[-1])}.png")
     plt.tight_layout()
     plt.savefig(elbow_path)
     plt.close()
@@ -217,7 +220,7 @@ def plot_silhouette_scores(embeddings_array, base_dir, dataset_id, max_clusters=
     plt.title('Silhouette Scores')
     plt.xlabel('Number of Clusters')
     plt.ylabel('Silhouette Score')
-    silhouette_path = os.path.join(base_dir, f"look_up/silhouette_{(dataset_id.split('/')[-1])}.png")
+    silhouette_path = os.path.join(base_dir, f"look_up/images/silhouette_{(dataset_id.split('/')[-1])}.png")
     plt.tight_layout()
     plt.savefig(silhouette_path)
     plt.close()
