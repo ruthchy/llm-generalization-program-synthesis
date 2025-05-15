@@ -1,0 +1,36 @@
+{
+  "total_samples": 11680,
+  "valid_code": {
+    "syntactically_valid": 6531,
+    "outer_valid": 8308
+  },
+  "embed_usage": {
+    "any_embed_call": 1777,
+    "correctly_formed": 1777,
+    "alternative_patterns": 0
+  },
+  "similarity": {
+    "exact_matches": 0,
+    "avg_normalized_lev_distance": 0.4841815769136614,
+    "avg_line_similarity": 0.15475584333902725,
+    "avg_crystalbleu_score": 0.4799683052705359
+  },
+  "execution": {
+    "executable_count": 5709,
+    "avg_ssim": 0.9957055681235782,
+    "ssim_available_count": 5709,
+    "perfect_ssim_count": 1,
+    "avg_pixel_similarity": 0.9983502772545241,
+    "pixel_similarity_available_count": 5709,
+    "perfect_pixel_count": 1,
+    "avg_dreamsim": 0.17420906714871878,
+    "dreamsim_available_count": 5709,
+    "zero_dreamsim_count": 0,
+    "perfect_agreement_count": 0,
+    "all_metrics_available_count": 5709,
+    "avg_pixel_precision": 0.20153010277874886,
+    "avg_pixel_recall": 0.21009682318927433,
+    "avg_pixel_f1": 0.19367932630345192,
+    "precision_recall_available_count": 5709
+  }
+}

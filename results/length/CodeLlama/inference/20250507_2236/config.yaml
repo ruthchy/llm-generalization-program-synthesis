@@ -1,0 +1,52 @@
+data:
+  ascii_parameters:
+    black_threshold: 200
+    block_size: 32
+    crop_to_size: 512
+  dataset_id: ruthchy/syn-length-gen-logo-image
+  image_to_ascii: true
+  include_ascii: true
+  include_desc: false
+  include_sys_prompt_fn: false
+  include_sys_prompt_inf: true
+  mix_directions: false
+  use_forkstate: false
+logging:
+  use_wandb: true
+lora:
+  alpha: 512
+  dropout: 0
+  rank: 512
+  target_modules:
+  - q_proj
+  - k_proj
+  - v_proj
+  - o_proj
+  - up_proj
+  - down_proj
+  - gate_proj
+model:
+  max_new_tokens: 250
+  model_id: codellama/CodeLlama-7b-Instruct-hf
+  num_return_sequences: 10
+  temperature: 1.0
+  top_k: 50
+  topk_prompt: 0
+  topk_train: 1
+training:
+  eval_steps: 2
+  gradient_accumulation_steps: 1
+  gradient_checkpointing: true
+  learning_rate: 2e-4
+  logging_steps: 3
+  lr_scheduler_type: linear
+  max_seq_length: 1300
+  per_device_eval_batch_size: 16
+  per_device_train_batch_size: 16
+  prompt_loss_weight: 1.0
+  random_seed: 42
+  save_steps: 500
+  shuffle: true
+  train_epochs: 1
+  warmup_ratio: 0.01
+  warmup_steps: None

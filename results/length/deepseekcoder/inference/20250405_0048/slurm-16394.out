@@ -1,46 +1,0 @@
-/var/spool/slurmd/job16394/slurm_script: line 15: module: command not found
-Running with fine_tune=False, sample_fraction=1.0, config=config.yaml
-🦥 Unsloth: Will patch your computer to enable 2x faster free finetuning.
-🦥 Unsloth Zoo will now patch everything to make training faster!
-[2025-04-05 00:48:03,452] [INFO] [real_accelerator.py:222:get_accelerator] Setting ds_accelerator to cuda (auto detect)
-wandb: Using wandb-core as the SDK backend.  Please refer to https://wandb.me/wandb-core for more information.
-wandb: Currently logged in as: priscillachyrva (priscillachyrva-university-mannheim) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
-wandb: Tracking run with wandb version 0.19.7.dev1
-wandb: Run data is saved locally in /ceph/pratz/GitHub_repos/master-thesis/wandb/run-20250405_004812-ln6e4gr8
-wandb: Run `wandb offline` to turn off syncing.
-wandb: Syncing run deepseekcoder-7b-logo-pbe-test_hub_20250405_0048
-wandb: ⭐️ View project at https://wandb.ai/priscillachyrva-university-mannheim/master-thesis--inference
-wandb: 🚀 View run at https://wandb.ai/priscillachyrva-university-mannheim/master-thesis--inference/runs/ln6e4gr8
-Loaded configuration from config.yaml
-results/length/deepseekcoder/inference/20250405_0048
-Random seed set to: 42
-Begin inference on test dataset using model from hub: xu3kev/deepseekcoder-7b-logo-pbe
-==((====))==  Unsloth 2025.3.18: Fast Llama patching. Transformers: 4.50.3.
-   \\   /|    NVIDIA A40. Num GPUs = 1. Max memory: 47.415 GB. Platform: Linux.
-O^O/ \_/ \    Torch: 2.6.0+cu124. CUDA: 8.6. CUDA Toolkit: 12.4. Triton: 3.2.0
-\        /    Bfloat16 = TRUE. FA [Xformers = 0.0.29.post3. FA2 = False]
- "-____-"     Free license: http://github.com/unslothai/unsloth
-Unsloth: Fast downloading is enabled - ignore downloading bars which are red colored!
-Loading checkpoint shards:   0%|          | 0/6 [00:00<?, ?it/s]Loading checkpoint shards:  17%|█▋        | 1/6 [00:05<00:26,  5.29s/it]Loading checkpoint shards:  33%|███▎      | 2/6 [00:09<00:18,  4.61s/it]Loading checkpoint shards:  50%|█████     | 3/6 [00:13<00:12,  4.14s/it]Loading checkpoint shards:  67%|██████▋   | 4/6 [00:13<00:05,  2.87s/it]Loading checkpoint shards:  83%|████████▎ | 5/6 [00:14<00:02,  2.15s/it]Loading checkpoint shards: 100%|██████████| 6/6 [00:15<00:00,  1.62s/it]Loading checkpoint shards: 100%|██████████| 6/6 [00:15<00:00,  2.57s/it]
-wandb: uploading artifact predictions-test_hub_20250405_0048-deepseekcoder-7b-logo-pbe
-wandb:                                                                                
-wandb: 
-wandb: Run history:
-wandb:       progress/batch_number ▁▁▂▂▂▂▂▂▂▃▃▃▃▃▄▄▄▄▄▅▅▅▅▅▅▆▆▆▆▆▇▇▇▇▇▇████
-wandb: progress/examples_processed ▁▁▁▂▂▂▂▂▂▃▃▃▃▃▄▄▄▄▄▄▄▅▅▅▅▆▆▆▆▆▇▇▇▇▇█████
-wandb:              total_examples ▁
-wandb: 
-wandb: Run summary:
-wandb:       progress/batch_number 63
-wandb: progress/examples_processed 997
-wandb:              total_examples 997
-wandb: 
-wandb: 🚀 View run deepseekcoder-7b-logo-pbe-test_hub_20250405_0048 at: https://wandb.ai/priscillachyrva-university-mannheim/master-thesis--inference/runs/ln6e4gr8
-wandb: ⭐️ View project at: https://wandb.ai/priscillachyrva-university-mannheim/master-thesis--inference
-wandb: Synced 5 W&B file(s), 0 media file(s), 2 artifact file(s) and 0 other file(s)
-wandb: Find logs at: ./wandb/run-20250405_004812-ln6e4gr8/logs
-Using cache found in ./models/facebookresearch_dino_main
-/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
-  WeightNorm.apply(module, name, dim)
-/var/spool/slurmd/job16394/slurm_script: line 24: 854845 Killed                  python pipeline.py --sample_fraction 1.0 --config "config.yaml"
-slurmstepd: error: Detected 1 oom_kill event in StepId=16394.batch. Some of the step tasks have been OOM Killed.
