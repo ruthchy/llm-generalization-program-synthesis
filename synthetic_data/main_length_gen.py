@@ -225,7 +225,7 @@ def split_data_by_length(df_all_syn, split_by):
     length = int(len(test_data))
     validation_data = train_data.sample(n=length, random_state=rs)  
     train_data = train_data.drop(validation_data.index)
-    
+    print(f"Max length in train data: {train_data[length_column].max()}\nMax length in validation data: {validation_data[length_column].max()}\nMin length in test data: {test_data[length_column].min()}")
     print(f"Split dataset: \nTrain={len(train_data)}\nValidation={len(validation_data)}\nTest={len(test_data)}")
     return train_data, validation_data, test_data
 
