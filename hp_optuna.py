@@ -8,9 +8,37 @@ import wandb
 from datasets import load_dataset_builder
 from datetime import datetime
 import optuna
-from optuna.samplers import TPESampler
+from optuna.samplers import BaseSampler, TPESampler
+import threading
 import logging
 import re
+import sqlite3
+
+def remove_last_incomplete_trial(study_name, storage_file, trial_id):
+    """Remove the last incomplete trial from the Optuna study."""
+    try:
+        # Connect to the SQLite database
+        conn = sqlite3.connect(storage_file.replace("sqlite:///", ""))
+        cursor = conn.cursor()
+
+        # Find the last trial in the study
+        cursor.execute(
+            """
+            SELECT trial_id, state FROM trials
+            WHERE study_id = (SELECT study_id FROM studies WHERE study_name = ?)
+            ORDER BY trial_id DESC LIMIT 1
+            """,
+            (study_name,)
+        )
+
+        cursor.execute("DELETE FROM trials WHERE trial_id = ?", (trial_id,))
+        conn.commit()
+
+    except sqlite3.Error as e:
+        logger.error(f"Error while removing incomplete trial: {e}")
+    finally:
+        conn.close()
+
 
 # Set up logging
 logging.basicConfig(
@@ -28,6 +56,13 @@ def load_hyperparameter_space(file_path="hyperparameter_grid.yaml"):
     with open(file_path, 'r') as f:
         return yaml.safe_load(f)
 
+def calculate_search_space_size(hp_space):
+    """Calculate the total number of unique combinations in the search space."""
+    size = 1
+    for key, values in hp_space.items():
+        size *= len(values)
+    return size
+
 def get_dataset_split_length(dataset_id, split="train"):
     """Get the number of examples in a specific split of a dataset from Hugging Face."""
     builder = load_dataset_builder(dataset_id)
@@ -42,7 +77,7 @@ def create_config_for_run(base_config_path, hp_params, output_path="config_temp.
     
     # Update config with hyperparameters
     config['training']['learning_rate'] = hp_params['learning_rate']
-    config['training']['learning_rate_scheduler'] = hp_params['learning_rate_scheduler']
+    config['training']['lr_scheduler_type'] = hp_params['learning_rate_scheduler']
     config['training']['per_device_train_batch_size'] = hp_params['per_device_train_batch_size']
     config['lora']['rank'] = hp_params['lora_rank']
     config['lora']['alpha'] = hp_params['lora_alpha']
@@ -277,6 +312,69 @@ class OptunaStorage:
         self.pending_trials.sort(key=lambda x: x[1])
         return self.pending_trials.pop(0)[0]
 
+class UniqueTPESampler(BaseSampler):
+    def __init__(self, base_sampler=None, storage=None, study_name=None, seed=None):
+        """
+        Initialize a sampler that ensures unique parameter combinations across trials.
+
+        This wrapper delegates actual sampling to a base Optuna sampler (e.g., TPESampler or RandomSampler),
+        while filtering out any parameter combinations that have already been evaluated in the current study.
+
+        Args:
+            base_sampler (optuna.samplers.BaseSampler, optional): 
+                The underlying sampler to use (e.g., TPESampler, RandomSampler). 
+                If None, TPESampler with the provided seed will be used by default.
+            storage (str, optional): 
+                Path to the Optuna storage backend (e.g., SQLite URI). 
+                Not used directly, but retained for possible future extensions.
+            study_name (str, optional): 
+                Name of the study, used for identifying the trial set. 
+                Not used directly, but retained for flexibility.
+            seed (int, optional): 
+                Random seed passed to the default TPESampler if no base_sampler is provided.
+
+        Example usage:
+            sampler = UniqueTPESampler(base_sampler=TPESampler(seed=42))
+            sampler = UniqueTPESampler(base_sampler=RandomSampler(seed=42))
+            sampler = UniqueTPESampler(seed=42)  # Uses TPESampler by default
+        """
+        self.base_sampler = base_sampler or TPESampler(seed=seed)
+        self.storage = storage
+        self.study_name = study_name
+        self._lock = threading.Lock()
+
+    def infer_relative_search_space(self, study, trial):
+        return self.base_sampler.infer_relative_search_space(study, trial)
+
+    def sample_relative(self, study, trial, search_space):
+        return self.base_sampler.sample_relative(study, trial, search_space)
+
+    def sample_independent(self, study, trial, param_name, param_distribution):
+        while True:
+            # Sample a parameter using the base sampler
+            param_value = self.base_sampler.sample_independent(study, trial, param_name, param_distribution)
+            
+            # Check if the parameter combination is unique
+            with self._lock:
+                if not self._is_duplicate(study, trial):
+                    return param_value
+
+    def after_trial(self, study, trial, state, values):
+        self.base_sampler.after_trial(study, trial, state, values)
+
+    def reseed_rng(self):
+        self.base_sampler.reseed_rng()
+
+    def _is_duplicate(self, study, trial):
+        """Check if the current trial's parameters are already in the database."""
+        trial_params = trial.params
+        all_trials = study.trials
+
+        for past_trial in all_trials:
+            if past_trial.state.is_finished() and past_trial.params == trial_params:
+                return True
+        return False
+
 def objective(trial):
     """Optuna objective function with OOM pruning."""
     # Load hyperparameter space
@@ -313,28 +411,68 @@ def objective(trial):
         return comp_loss
 
 def run_optuna_optimization(n_trials, timeout):
-    """Run Optuna hyperparameter optimization"""
-    # Create study or load existing one
-    storage_file = "optuna_test_storage.json" if TEST_MODE else "optuna_storage.json"
-    study_name = "llm_finetuning_test" if TEST_MODE else "llm_finetuning_optimization"
+    """Run Optuna hyperparameter optimization."""
+    # Load hyperparameter space
+    hp_space = load_hyperparameter_space()["hyperparameter_grid"]
     
-    # Check if we have an existing study to resume
-    if os.path.exists(storage_file):
-        logger.info("Resuming from existing Optuna study")
+    # Calculate the size of the search space
+    search_space_size = calculate_search_space_size(hp_space)
+    
+    if n_trials > search_space_size:
+        logger.warning(
+            f"The specified number of trials ({n_trials}) exceeds the size of the search space ({search_space_size}). "
+            f"Reducing n_trials to {search_space_size}."
+        )
+        n_trials = search_space_size
     else:
-        logger.info("Creating new Optuna study")
+        logger.info(f"\nSearch space size: {search_space_size}\nNumber of trials: {n_trials}")
+
+    # Define SQLite storage file and study name
+    storage_file = "sqlite:///optuna_storage.db"
+    study_name = "llm_finetuning_optimization"
+
+
+    # Create or load the study
+    try:
+        study = optuna.load_study(study_name=study_name, storage=storage_file)
+        study.sampler = UniqueTPESampler(base_sampler=TPESampler(seed=42))
+        logger.info(f"Resuming from existing Optuna study '{study_name}'.")
+        logger.info(f"Sampler used in the study: {type(study.sampler).__name__}")
+        if study.trials:
+            last_trial = study.trials[-1]
+            if last_trial.state == optuna.trial.TrialState.COMPLETE:
+                logger.info(f"Last trial {last_trial.number} completed successfully. Proceeding with a new trial.")
+            else:
+                logger.info(f"Last trial {last_trial.number} failed after parameter sampling. In order to allow the parameters to be resampled the trail is removed from the optuna storage.")
+                # Remove the last incomplete trial if necessary
+                remove_last_incomplete_trial(study_name, storage_file, trial_id=last_trial.number)
+                study.enqueue_trial(last_trial.params)
+
+    except KeyError:
+        logger.info(f"Creating new Optuna study '{study_name}'.")
+        sampler = UniqueTPESampler(base_sampler=TPESampler(seed=42))
+        logger.info(f"Sampler used in the study: {type(sampler).__name__}")
+        study = optuna.create_study(
+            study_name=study_name,
+            direction="minimize",  # Minimize the loss
+            sampler=sampler,
+            storage=storage_file,
+            load_if_exists=True
+        )
     
-    # Create a study with the default TPE sampler
-    study = optuna.create_study(
-        study_name=study_name, 
-        direction="minimize",  # Minimize the loss
-        sampler=TPESampler(seed=42),
-        load_if_exists=True
-    )
+    # Calculate remaining trials
+    completed_trials = len([t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE])
+    remaining_trials = max(n_trials - completed_trials, 0)
     
+    if remaining_trials == 0:
+        logger.info("All requested trials already completed.")
+        return study.best_trial if study.best_trial else None
+    else:
+        logger.info(f"Completed trials: {completed_trials}/{n_trials}. Remaining trials: {remaining_trials}.")
+
     # Run optimization
     try:
-        study.optimize(objective, n_trials=n_trials, timeout=timeout)
+        study.optimize(objective, n_trials=remaining_trials, timeout=timeout)
     except Exception as e:
         logger.exception(f"Optimization stopped: {e}")
     finally:
@@ -354,15 +492,15 @@ def run_optuna_optimization(n_trials, timeout):
             logger.warning("No best trial found.")
     
     # Create completion marker if we've done all trials
-    storage = OptunaStorage()
-    if len(storage.data["trials"]) >= n_trials:
+    if len(study.trials) >= n_trials:
         with open("hp_tuning_completed.marker", "w") as f:
             f.write(f"Completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         logger.info("All trials completed. Created completion marker.")
     else:
-        logger.info(f"Completed {len(storage.data['trials'])}/{n_trials} trials.")
+        logger.info(f"Completed {len(study.trials)}/{n_trials} trials.")
     
-    return storage.data["best_trial"] if "best_trial" in storage.data else None
+    return study.best_trial if study.best_trial else None
+
 
 if __name__ == "__main__":
     import argparse
