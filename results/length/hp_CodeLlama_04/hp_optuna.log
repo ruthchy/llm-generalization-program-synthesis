@@ -1,0 +1,119 @@
+2025-05-12 18:41:54,810 [INFO] 
+Search space size: 48
+Number of trials: 24
+2025-05-12 18:41:58,551 [INFO] Creating new Optuna study 'llm_finetuning_optimization'.
+2025-05-12 18:41:58,553 [INFO] Sampler used in the study: UniqueTPESampler
+2025-05-12 18:41:58,873 [INFO] Completed trials: 0/24. Remaining trials: 24.
+2025-05-12 18:42:03,850 [INFO] Starting trial 0 at 20250512_184203
+2025-05-12 18:42:03,850 [INFO] Logs will be saved to hp_optuna_trial_0_20250512_184203.log
+2025-05-12 18:46:48,138 [INFO] Detected WandB run ID early: cudpxgbn
+2025-05-13 10:35:41,315 [INFO] Successfully retrieved metrics for run cudpxgbn
+2025-05-13 10:35:41,321 [INFO] Using WandB metrics: 0.1077035363252838
+2025-05-13 10:35:44,720 [INFO] Starting trial 1 at 20250513_103544
+2025-05-13 10:35:44,721 [INFO] Logs will be saved to hp_optuna_trial_1_20250513_103544.log
+2025-05-13 10:41:40,670 [INFO] Detected WandB run ID early: 79gcviof
+2025-05-14 02:26:24,606 [INFO] Successfully retrieved metrics for run 79gcviof
+2025-05-14 02:26:24,611 [INFO] Using WandB metrics: 0.11943839739521046
+2025-05-14 02:26:27,140 [INFO] Starting trial 2 at 20250514_022627
+2025-05-14 02:26:27,141 [INFO] Logs will be saved to hp_optuna_trial_2_20250514_022627.log
+2025-05-14 02:32:02,957 [INFO] Detected WandB run ID early: zx3o5kqq
+2025-05-14 19:10:06,484 [INFO] Successfully retrieved metrics for run zx3o5kqq
+2025-05-14 19:10:06,491 [INFO] Using WandB metrics: 0.15204036792744133
+2025-05-14 19:10:09,812 [INFO] Starting trial 3 at 20250514_191009
+2025-05-14 19:10:09,812 [INFO] Logs will be saved to hp_optuna_trial_3_20250514_191009.log
+2025-05-14 19:15:34,660 [INFO] Detected WandB run ID early: 2zhit72p
+2025-05-15 09:44:09,426 [INFO] Successfully retrieved metrics for run 2zhit72p
+2025-05-15 09:44:09,433 [INFO] Using WandB metrics: 0.0939223587724479
+2025-05-15 09:44:12,802 [INFO] Starting trial 4 at 20250515_094412
+2025-05-15 09:44:12,802 [INFO] Logs will be saved to hp_optuna_trial_4_20250515_094412.log
+2025-05-15 09:50:09,639 [INFO] Detected WandB run ID early: in6is80q
+2025-05-16 01:49:24,191 [INFO] Successfully retrieved metrics for run in6is80q
+2025-05-16 01:49:24,195 [INFO] Using WandB metrics: 0.13276591861778775
+2025-05-16 01:49:27,233 [INFO] Starting trial 5 at 20250516_014927
+2025-05-16 01:49:27,234 [INFO] Logs will be saved to hp_optuna_trial_5_20250516_014927.log
+2025-05-16 01:55:08,842 [INFO] Detected WandB run ID early: v79rtftj
+2025-05-16 19:24:53,954 [INFO] Successfully retrieved metrics for run v79rtftj
+2025-05-16 19:24:53,958 [INFO] Using WandB metrics: 0.08971818321198562
+2025-05-16 19:24:56,220 [INFO] Starting trial 6 at 20250516_192456
+2025-05-16 19:24:56,221 [INFO] Logs will be saved to hp_optuna_trial_6_20250516_192456.log
+2025-05-16 19:30:31,469 [INFO] Detected WandB run ID early: ahioegef
+2025-05-17 12:44:25,231 [INFO] Successfully retrieved metrics for run ahioegef
+2025-05-17 12:44:25,235 [INFO] Using WandB metrics: 0.09683517894909031
+2025-05-17 12:44:28,482 [INFO] Starting trial 7 at 20250517_124428
+2025-05-17 12:44:28,482 [INFO] Logs will be saved to hp_optuna_trial_7_20250517_124428.log
+2025-05-17 12:49:43,841 [INFO] Detected WandB run ID early: 01ld2qoy
+2025-05-18 00:57:11,433 [INFO] 
+Search space size: 48
+Number of trials: 24
+2025-05-18 00:57:14,075 [INFO] Resuming from existing Optuna study 'llm_finetuning_optimization'.
+2025-05-18 00:57:14,076 [INFO] Sampler used in the study: TPESampler
+2025-05-18 00:57:14,178 [INFO] Last trial 7 failed after parameter sampling. In order to allow the parameters to be resampled the trail is removed from the optuna storage.
+2025-05-18 00:57:14,356 [INFO] Completed trials: 7/24. Remaining trials: 17.
+2025-05-18 00:57:18,182 [INFO] Starting trial 7 at 20250518_005718
+2025-05-18 00:57:18,183 [INFO] Logs will be saved to hp_optuna_trial_7_20250518_005718.log
+2025-05-18 01:02:52,026 [INFO] Detected WandB run ID early: 4xjtye4z
+2025-05-18 17:15:28,953 [INFO] Successfully retrieved metrics for run 4xjtye4z
+2025-05-18 17:15:28,956 [INFO] Using WandB metrics: 0.1106200133223136
+2025-05-18 17:15:32,093 [INFO] Starting trial 8 at 20250518_171532
+2025-05-18 17:15:32,093 [INFO] Logs will be saved to hp_optuna_trial_8_20250518_171532.log
+2025-05-18 17:20:46,154 [INFO] Detected WandB run ID early: r5ydeh66
+2025-05-19 08:47:34,893 [INFO] Successfully retrieved metrics for run r5ydeh66
+2025-05-19 08:47:35,256 [INFO] Using WandB metrics: 0.13670880383145942
+2025-05-19 08:47:38,550 [INFO] Starting trial 9 at 20250519_084738
+2025-05-19 08:47:38,550 [INFO] Logs will be saved to hp_optuna_trial_9_20250519_084738.log
+2025-05-19 08:52:48,272 [INFO] Detected WandB run ID early: 0jvorhq2
+2025-05-19 23:57:09,519 [INFO] Successfully retrieved metrics for run 0jvorhq2
+2025-05-19 23:57:09,524 [INFO] Using WandB metrics: 0.10869177767573568
+2025-05-19 23:57:14,374 [INFO] Starting trial 10 at 20250519_235714
+2025-05-19 23:57:14,374 [INFO] Logs will be saved to hp_optuna_trial_10_20250519_235714.log
+2025-05-20 00:02:37,058 [INFO] Detected WandB run ID early: 2ylxtrfu
+2025-05-20 15:15:55,936 [INFO] Successfully retrieved metrics for run 2ylxtrfu
+2025-05-20 15:15:55,939 [INFO] Using WandB metrics: 0.13439670734531534
+2025-05-20 15:15:59,145 [INFO] Starting trial 11 at 20250520_151559
+2025-05-20 15:15:59,146 [INFO] Logs will be saved to hp_optuna_trial_11_20250520_151559.log
+2025-05-20 15:21:12,722 [INFO] Detected WandB run ID early: gvsf95lp
+2025-05-21 08:50:48,217 [INFO] Successfully retrieved metrics for run gvsf95lp
+2025-05-21 08:50:48,220 [INFO] Using WandB metrics: 0.08971818321198562
+2025-05-21 08:50:51,300 [INFO] Starting trial 12 at 20250521_085051
+2025-05-21 08:50:51,301 [INFO] Logs will be saved to hp_optuna_trial_12_20250521_085051.log
+2025-05-21 08:55:52,335 [INFO] Detected WandB run ID early: u89behiu
+2025-05-21 13:14:56,213 [INFO] 
+Search space size: 48
+Number of trials: 24
+2025-05-21 13:14:58,748 [INFO] Resuming from existing Optuna study 'llm_finetuning_optimization'.
+2025-05-21 13:14:58,749 [INFO] Sampler used in the study: UniqueTPESampler
+2025-05-21 13:14:58,794 [INFO] Last trial 10 completed successfully. Proceeding with a new trial.
+2025-05-21 13:14:58,808 [INFO] Completed trials: 10/24. Remaining trials: 14.
+2025-05-21 13:15:03,731 [INFO] Starting trial 12 at 20250521_131503
+2025-05-21 13:15:03,732 [INFO] Logs will be saved to hp_optuna_trial_12_20250521_131503.log
+2025-05-21 13:20:09,155 [INFO] Detected WandB run ID early: 7v0b6edv
+2025-05-22 07:11:44,272 [INFO] Successfully retrieved metrics for run 7v0b6edv
+2025-05-22 07:11:44,276 [INFO] Using WandB metrics: 0.08971818321198562
+2025-05-22 07:11:47,455 [INFO] Starting trial 13 at 20250522_071147
+2025-05-22 07:11:47,455 [INFO] Logs will be saved to hp_optuna_trial_13_20250522_071147.log
+2025-05-22 07:17:01,078 [INFO] Detected WandB run ID early: q2l0lawn
+2025-05-23 00:58:33,622 [INFO] Successfully retrieved metrics for run q2l0lawn
+2025-05-23 00:58:33,624 [INFO] Using WandB metrics: 0.08971818321198562
+2025-05-23 00:58:36,461 [INFO] Starting trial 14 at 20250523_005836
+2025-05-23 00:58:36,462 [INFO] Logs will be saved to hp_optuna_trial_14_20250523_005836.log
+2025-05-23 01:03:48,275 [INFO] Detected WandB run ID early: iol3dios
+2025-05-23 18:40:47,981 [INFO] Successfully retrieved metrics for run iol3dios
+2025-05-23 18:40:47,985 [INFO] Using WandB metrics: 0.08971818321198562
+2025-05-23 18:40:50,325 [INFO] Starting trial 15 at 20250523_184050
+2025-05-23 18:40:50,326 [INFO] Logs will be saved to hp_optuna_trial_15_20250523_184050.log
+2025-05-23 18:45:40,448 [INFO] Detected WandB run ID early: jbmvypp5
+2025-05-24 11:37:04,759 [INFO] Successfully retrieved metrics for run jbmvypp5
+2025-05-24 11:37:04,763 [INFO] Using WandB metrics: 0.08971818321198562
+2025-05-24 11:37:07,400 [INFO] Starting trial 16 at 20250524_113707
+2025-05-24 11:37:07,401 [INFO] Logs will be saved to hp_optuna_trial_16_20250524_113707.log
+2025-05-24 11:42:19,750 [INFO] Detected WandB run ID early: 638e4j76
+2025-05-25 04:57:18,694 [INFO] Successfully retrieved metrics for run 638e4j76
+2025-05-25 04:57:18,698 [INFO] Using WandB metrics: 0.08971818321198562
+2025-05-25 04:57:22,357 [INFO] Starting trial 17 at 20250525_045722
+2025-05-25 04:57:22,358 [INFO] Logs will be saved to hp_optuna_trial_17_20250525_045722.log
+2025-05-25 05:02:27,104 [INFO] Detected WandB run ID early: eqzh33m5
+2025-05-25 21:41:50,471 [INFO] Successfully retrieved metrics for run eqzh33m5
+2025-05-25 21:41:50,475 [INFO] Using WandB metrics: 0.08971818321198562
+2025-05-25 21:41:53,571 [INFO] Starting trial 18 at 20250525_214153
+2025-05-25 21:41:53,572 [INFO] Logs will be saved to hp_optuna_trial_18_20250525_214153.log
+2025-05-25 21:46:46,590 [INFO] Detected WandB run ID early: 81v3qnhb

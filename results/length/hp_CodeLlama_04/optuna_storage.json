@@ -1,0 +1,234 @@
+{
+  "trials": [
+    {
+      "trial_id": 0,
+      "params": {
+        "learning_rate": "1e-4",
+        "learning_rate_scheduler": "linear",
+        "per_device_train_batch_size": 8,
+        "lora_rank": 128,
+        "lora_alpha": 128
+      },
+      "value": 0.1077035363252838,
+      "datetime": "2025-05-13 10:35:41"
+    },
+    {
+      "trial_id": 1,
+      "params": {
+        "learning_rate": "2e-4",
+        "learning_rate_scheduler": "cosine",
+        "per_device_train_batch_size": 16,
+        "lora_rank": 128,
+        "lora_alpha": 128
+      },
+      "value": 0.11943839739521046,
+      "datetime": "2025-05-14 02:26:24"
+    },
+    {
+      "trial_id": 2,
+      "params": {
+        "learning_rate": "2e-5",
+        "learning_rate_scheduler": "linear",
+        "per_device_train_batch_size": 16,
+        "lora_rank": 512,
+        "lora_alpha": 128
+      },
+      "value": 0.15204036792744133,
+      "datetime": "2025-05-14 19:10:06"
+    },
+    {
+      "trial_id": 3,
+      "params": {
+        "learning_rate": "1e-4",
+        "learning_rate_scheduler": "linear",
+        "per_device_train_batch_size": 8,
+        "lora_rank": 512,
+        "lora_alpha": 512
+      },
+      "value": 0.0939223587724479,
+      "datetime": "2025-05-15 09:44:09"
+    },
+    {
+      "trial_id": 4,
+      "params": {
+        "learning_rate": "1e-4",
+        "learning_rate_scheduler": "cosine",
+        "per_device_train_batch_size": 16,
+        "lora_rank": 512,
+        "lora_alpha": 128
+      },
+      "value": 0.13276591861778775,
+      "datetime": "2025-05-16 01:49:24"
+    },
+    {
+      "trial_id": 5,
+      "params": {
+        "learning_rate": "2e-4",
+        "learning_rate_scheduler": "cosine",
+        "per_device_train_batch_size": 8,
+        "lora_rank": 128,
+        "lora_alpha": 512
+      },
+      "value": 0.08971818321198562,
+      "datetime": "2025-05-16 19:24:54"
+    },
+    {
+      "trial_id": 6,
+      "params": {
+        "learning_rate": "1e-4",
+        "learning_rate_scheduler": "linear",
+        "per_device_train_batch_size": 8,
+        "lora_rank": 128,
+        "lora_alpha": 512
+      },
+      "value": 0.09683517894909031,
+      "datetime": "2025-05-17 12:44:25"
+    },
+    {
+      "trial_id": 7,
+      "params": {
+        "learning_rate": "1e-4",
+        "learning_rate_scheduler": "linear",
+        "per_device_train_batch_size": 8,
+        "lora_rank": 512,
+        "lora_alpha": 128
+      },
+      "value": 0.1106200133223136,
+      "datetime": "2025-05-18 17:15:28"
+    },
+    {
+      "trial_id": 8,
+      "params": {
+        "learning_rate": "2e-5",
+        "learning_rate_scheduler": "linear",
+        "per_device_train_batch_size": 16,
+        "lora_rank": 512,
+        "lora_alpha": 512
+      },
+      "value": 0.13670880383145942,
+      "datetime": "2025-05-19 08:47:35"
+    },
+    {
+      "trial_id": 9,
+      "params": {
+        "learning_rate": "2e-4",
+        "learning_rate_scheduler": "cosine",
+        "per_device_train_batch_size": 16,
+        "lora_rank": 128,
+        "lora_alpha": 512
+      },
+      "value": 0.10869177767573568,
+      "datetime": "2025-05-19 23:57:09"
+    },
+    {
+      "trial_id": 10,
+      "params": {
+        "learning_rate": "2e-5",
+        "learning_rate_scheduler": "cosine",
+        "per_device_train_batch_size": 8,
+        "lora_rank": 128,
+        "lora_alpha": 128
+      },
+      "value": 0.13439670734531534,
+      "datetime": "2025-05-20 15:15:55"
+    },
+    {
+      "trial_id": 11,
+      "params": {
+        "learning_rate": "2e-4",
+        "learning_rate_scheduler": "cosine",
+        "per_device_train_batch_size": 8,
+        "lora_rank": 128,
+        "lora_alpha": 512
+      },
+      "value": 0.08971818321198562,
+      "datetime": "2025-05-21 08:50:48"
+    },
+    {
+      "trial_id": 12,
+      "params": {
+        "learning_rate": "2e-4",
+        "learning_rate_scheduler": "cosine",
+        "per_device_train_batch_size": 8,
+        "lora_rank": 128,
+        "lora_alpha": 512
+      },
+      "value": 0.08971818321198562,
+      "datetime": "2025-05-22 07:11:44"
+    },
+    {
+      "trial_id": 13,
+      "params": {
+        "learning_rate": "2e-4",
+        "learning_rate_scheduler": "cosine",
+        "per_device_train_batch_size": 8,
+        "lora_rank": 128,
+        "lora_alpha": 512
+      },
+      "value": 0.08971818321198562,
+      "datetime": "2025-05-23 00:58:33"
+    },
+    {
+      "trial_id": 14,
+      "params": {
+        "learning_rate": "2e-4",
+        "learning_rate_scheduler": "cosine",
+        "per_device_train_batch_size": 8,
+        "lora_rank": 128,
+        "lora_alpha": 512
+      },
+      "value": 0.08971818321198562,
+      "datetime": "2025-05-23 18:40:47"
+    },
+    {
+      "trial_id": 15,
+      "params": {
+        "learning_rate": "2e-4",
+        "learning_rate_scheduler": "cosine",
+        "per_device_train_batch_size": 8,
+        "lora_rank": 128,
+        "lora_alpha": 512
+      },
+      "value": 0.08971818321198562,
+      "datetime": "2025-05-24 11:37:04"
+    },
+    {
+      "trial_id": 16,
+      "params": {
+        "learning_rate": "2e-4",
+        "learning_rate_scheduler": "cosine",
+        "per_device_train_batch_size": 8,
+        "lora_rank": 128,
+        "lora_alpha": 512
+      },
+      "value": 0.08971818321198562,
+      "datetime": "2025-05-25 04:57:18"
+    },
+    {
+      "trial_id": 17,
+      "params": {
+        "learning_rate": "2e-4",
+        "learning_rate_scheduler": "cosine",
+        "per_device_train_batch_size": 8,
+        "lora_rank": 128,
+        "lora_alpha": 512
+      },
+      "value": 0.08971818321198562,
+      "datetime": "2025-05-25 21:41:50"
+    }
+  ],
+  "best_trial": {
+    "trial_id": 5,
+    "params": {
+      "learning_rate": "2e-4",
+      "learning_rate_scheduler": "cosine",
+      "per_device_train_batch_size": 8,
+      "lora_rank": 128,
+      "lora_alpha": 512
+    },
+    "value": 0.08971818321198562,
+    "datetime": "2025-05-16 19:24:54"
+  },
+  "best_value": 0.08971818321198562,
+  "oom_failures": []
+}
