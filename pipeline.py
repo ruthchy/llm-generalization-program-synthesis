@@ -15,6 +15,7 @@ Note:
 - The function inference_from_hub() is used to run inference with a model from the hub. Beside this it has two functionalities which are not implemented in the inference(): 
     - It can handle both zero-shot and few-shot prompting, depending on the value of topk_prompt in the config.yaml file.
     - Also, it can handle if the num_return_sequences > 1, meaning the llm generates n completions to each given prompt.
+    - If compute_token_stats is set, it will compute token statistics for the dataset with preprocessing applied, instead of running inference. (necessary for assessing if the max_seq_length parameter is suitable for the dataset since with few-shot prompting applied the length diverges form the one during training)
 
 
 Run script in conda thesis_env (can be gererated using the requirements.txt file)
@@ -31,6 +32,9 @@ python pipeline.py
     --eval_inf_dir <directory>  # non of the above flags is set and the directory to already generated inference results is given to evaluate
     --config <directory>config.yaml  # Path to config file
     --sample_fraction 1.0   # the entire dataset is used or by setting the number < 1 a random sample of the dataset is used
+    --wb_type <type>          # Added to the inference run name to distinguish between different runs (e.g., "baseline", "experiment").
+    --model_for_parsing <model> # Model to use for parsing during evaluation. Defaults to None.
+    --compute_token_stats     # If set, computes token statistics for the dataset with preprocessing applied, instead of running inference.
 '''
 ############################################################################################################
 # Housekeeping - single GPU unsloth setup
@@ -51,6 +55,7 @@ parser.add_argument('--sample_fraction', type=float, default=1.0, help='Fraction
 parser.add_argument('--config', type=str, default="config.yaml", help='Path to config file')
 parser.add_argument('--wb_type', type=str, help='Added to the inference run name to distinguish between different runs')
 parser.add_argument('--model_for_parsing', type=str, default=None, help='Model to use for parsing during evaluation. Defaults to None.')
+parser.add_argument('--compute_token_stats', action='store_true', help='Compute token statistics for the dataset with preprocessing')
 args = parser.parse_args()
         
 fine_tune = args.fine_tune
@@ -60,6 +65,7 @@ sample_fraction = args.sample_fraction
 config_file = args.config
 wb_type = args.wb_type
 model_for_parsing = args.model_for_parsing
+compute_token_stats = args.compute_token_stats
 
 
 # Ensure mutual exclusivity of fine_tune, inference_hub_model, and eval_inf_dir
@@ -69,7 +75,10 @@ if sum([fine_tune, inference_hub_model, bool(inf_dir)]) != 1:
 if fine_tune:
     print(f"⚙️ Fine-tuning model with sample_fraction={sample_fraction} and {config_file}")
 elif inference_hub_model:
-    print(f"⚙️ Running inference with model from hub with sample_fraction={sample_fraction} and {config_file}")
+    if compute_token_stats:
+        print(f"⚙️ Computing token statistics for input prompts with applied preprocessing as during inference from the hub.")
+    else:
+       print(f"⚙️ Running inference with model from hub with sample_fraction={sample_fraction} and {config_file}")
 else:
     print(f"⚙️ Running the evaluation on inference results in {inf_dir} and {config_file}")
 
@@ -94,6 +103,7 @@ from torch.cuda import memory_summary, reset_peak_memory_stats
 from torch.nn import CrossEntropyLoss
 from Levenshtein import distance as levenshtein_distance
 from datasets import load_dataset, DatasetDict
+from collections import defaultdict
 try:
     from unsloth import FastLanguageModel, is_bfloat16_supported, UnslothTrainer
     print("Using unsloth library.")
@@ -112,7 +122,7 @@ from transformers import (
 from transformers.trainer_utils import EvalPrediction
 from bitsandbytes.optim import AdamW8bit
 #from torch.optim import AdamW
-from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training, PeftModel
 # Custom imports
 from __eval import LLMCodeEvaluator
 # Initialize the evaluator
@@ -156,6 +166,7 @@ class ModelConfig:
     top_k: int
     temperature: float
     max_new_tokens: int
+    adapter_path: Optional[str] = None
 
 @dataclass
 class LoggingConfig:
@@ -255,6 +266,7 @@ class Config:
         )
         self.model = ModelConfig(
             model_id=str(config_dict["model"]["model_id"]),
+            adapter_path=str(config_dict["model"].get("adapter_path", None)),
             topk_train=int(config_dict["model"]["topk_train"]),
             topk_prompt=int(config_dict["model"]["topk_prompt"]),
             num_return_sequences=int(config_dict["model"]["num_return_sequences"]),
@@ -304,7 +316,10 @@ def load_config(source_config: str, fine_tune: bool) -> Tuple[Config, str, str, 
                     gen_type = parts[gen_index - 1]
 
         # Short model name
-        model_type = config.model.model_id.split('/')[-1]
+        if config.model.adapter_path is not None:
+            model_type = config.model.adapter_path.split('/')[2]
+        else:
+            model_type = config.model.model_id.split('/')[-1]
         model_type_short = model_type.split('-')[0]
 
         # Result directory
@@ -1394,9 +1409,73 @@ def inference(model, tokenizer, config: Config, result_dir: str, inference_type:
     return results, inf_dir
 
 # Step 8.2: Inference using model from hub
+def load_clustering_results(dataset_id):
+    """Load clustering results from workflow.py."""
+    current_dir = os.getcwd()
+    clustering_file = os.path.join(current_dir, f"look_up/clusters_{(dataset_id.split('/')[-1])}.json")
+    if os.path.exists(clustering_file):
+        with open(clustering_file, 'r') as f:
+            clusters = json.load(f)
+        print(f"Loaded clustering results from {clustering_file}")
+        return clusters
+    else:
+        raise FileNotFoundError(f"Clustering results not found at {clustering_file}")
+
+def build_cluster_lookup(clusters):
+    test_to_cluster = {}
+    train_by_cluster = defaultdict(list)
+
+    for cluster_id, items in clusters.items():
+        for item in items:
+            split, idx, *_ = item.split("_", 2)
+            if split == "test":
+                test_to_cluster[f"{split}_{idx}"] = cluster_id
+            elif split == "train":
+                train_by_cluster[cluster_id].append(idx)
+
+    return test_to_cluster, train_by_cluster
+
+def sample_shared_train_examples(train_by_cluster, topk_prompt):
+    shared_train_samples = {}
+
+    for cluster_id, train_indices in train_by_cluster.items():
+        if len(train_indices) < topk_prompt:
+            # Fallback: sample with replacement if not enough examples
+            samples = random.choices(train_indices, k=topk_prompt)
+        else:
+            samples = random.sample(train_indices, k=topk_prompt)
+
+        shared_train_samples[cluster_id] = samples
+
+    return shared_train_samples
+
+def get_topk_examples_shared(test_ex, dataset_ex, test_to_cluster, shared_train_samples):
+    topk_examples = {}
+
+    for test_id in range(len(test_ex)):
+        test_key = f"test_{test_id}"
+        cluster_id = test_to_cluster.get(test_key)
+
+        if cluster_id is None:
+            print(f"Warning: {test_key} not found in any cluster.")
+            continue
+
+        train_indices = shared_train_samples.get(cluster_id)
+        if not train_indices:
+            print(f"Warning: No train samples found for cluster {cluster_id}.")
+            continue
+
+        #selected_examples = [dataset_ex[int(idx)] for idx in train_indices]
+        train_indices = [int(idx) for idx in train_indices]
+        selected_examples = dataset_ex.select(train_indices)
+        topk_examples[test_key] = selected_examples
+
+    return topk_examples
+
 def inference_from_hub(config: Config, result_dir: str, inference_type: str, sample_fraction = 1.0, modifier=None, ascii_processor=None):
     """
-    Runs inference using a model loaded directly from the Hugging Face Hub.
+    Main purpose is to runs inference using a model loaded directly from the Hugging Face Hub.
+    But for debugging purposes if the --compute_token_stats is set, it calculates the token statistics for the test dataset given the required tokenizer and preprocessing steps (This is useful to check if the sequence lenght is set sufficiently in the config file).
     
     Args:
         config: Configuration object
@@ -1408,20 +1487,30 @@ def inference_from_hub(config: Config, result_dir: str, inference_type: str, sam
     if config.logging.use_wandb:
         hub_model_name = config.model.model_id.split("/")[-1]
         init_wandb_for_inf(config, hub_model_name, inference_type)
-   
-    print(f'Begin inference on test dataset using model from hub: {config.model.model_id}')
+
+    if compute_token_stats:
+        print("⚙️ Computing token statistics...")
+    else:
+        adapter_path = getattr(config.model, "adapter_path", None)
+        if adapter_path:
+            print(f"⚙️ Begin running inference on test dataset using model from hub {config.model.model_id} finetuned with the LoRA weights sroted: {adapter_path}")
+        else:
+            print(f"⚙️ Begin running inference on test dataset using model from hub: {config.model.model_id}")
 
     inf_dir = result_dir
     os.makedirs(inf_dir, exist_ok=True)
 
     # Load model and tokenizer from Hub
-    try:
+    try:        
         model, tokenizer = FastLanguageModel.from_pretrained(
             config.model.model_id,
             max_seq_length=config.training.max_seq_length,  # allows longer token seq. needed for few-shot prompting (as the default set by unsloth)
             dtype=dtype,
             load_in_4bit=True,
         )
+        
+        if adapter_path:
+            model = PeftModel.from_pretrained(model, config.model.adapter_path) # add LoRA adapter to the base model (if specified in config)
 
         model = FastLanguageModel.for_inference(model)
         print(f"Loaded model {config.model.model_id} using Unsloth's optimized inference")
@@ -1442,13 +1531,20 @@ def inference_from_hub(config: Config, result_dir: str, inference_type: str, sam
     
     # Apply modifications
     dataset = apply_modifications(dataset, config, modifier=modifier, ascii_processor=ascii_processor)
-
+    test_to_cluster = None # needs to be initalized to None for zero-shot inference
     if config.model.topk_prompt > 0:  # few-shot inference
+        clusters = load_clustering_results(config.data.dataset_id) # new: clustering results are loaded but only if they are needed because topk_prompt > 0
+        test_to_cluster, train_by_cluster = build_cluster_lookup(clusters)
+        shared_train_samples = sample_shared_train_examples(train_by_cluster, config.model.topk_prompt)
+        del clusters, train_by_cluster  # Free memory
+
         dataset_ex = load_dataset(config.data.dataset_id)["train"]
         dataset_ex = apply_modifications(dataset_ex, config, modifier=modifier, ascii_processor=ascii_processor)
     else:                       # zero-shot inference
         dataset_ex = None
 
+    if compute_token_stats:
+        token_lengths = []
     results = []
     
     # Get prompt template
@@ -1482,26 +1578,45 @@ def inference_from_hub(config: Config, result_dir: str, inference_type: str, sam
                 if config.prompt.include_sys_prompt_inf:
                     messages.append({"role": "system", "content": config.prompt._system_prompt})
                 
-                # Randomly select few-shot examples without replacement
-                used_examples = set() # tracking of already sampled examples
-                if dataset_ex and config.model.topk_prompt > 0:
-                    dataset_shuffled = dataset_ex.shuffle(seed=config.training.random_seed)
-                    available_indices = list(range(len(dataset_shuffled)))
-                    sampled_examples = []
-                    for _ in range(config.model.topk_prompt):
-                        remaining_indices = [idx for idx in available_indices if idx not in used_examples]
-                        if remaining_indices:
-                            selected_idx = random.choice(remaining_indices)
-                            sampled_examples.append(dataset_shuffled[selected_idx])
-                            used_examples.add(selected_idx)
-                        else:
-                            print("Not enough examples in the train Dataset to ensure that no example has been used priviously")
-                            break
-                    for ex in sampled_examples:
-                        train_prompt = prompt_template.format(**ex)
-                        train_completion = ex["Program"]
-                        messages.append({"role": "user", "content": train_prompt})
-                        messages.append({"role": "assistant", "content": train_completion})
+                # Add few-shot examples if available
+                if test_to_cluster is not None and config.model.topk_prompt > 0:
+                    # Retrieve top-k examples for the current test example
+                    test_key = f"test_{i}"
+                    if test_key in test_to_cluster:
+                        cluster_id = test_to_cluster[test_key]
+                        train_indices = shared_train_samples.get(cluster_id, [])
+                        train_indices = [int(idx) for idx in train_indices]  # Ensure indices are integers
+                        sampled_examples = dataset_ex.select(train_indices)
+                        
+                        # Add each sampled example to the prompt
+                        for ex in sampled_examples:
+                            train_prompt = prompt_template.format(**ex)
+                            train_completion = ex["Program"]
+                            messages.append({"role": "user", "content": train_prompt})
+                            messages.append({"role": "assistant", "content": train_completion})
+                    else:
+                        print(f"Warning: No cluster found for test example {test_key}.")
+                elif config.model.topk_prompt > 0: # No clustering results available so few-shot examples are sampled randomly
+                    print("No clustering results available. Sampling few-shot examples randomly without replacement...")
+                    used_examples = set() # tracking of already sampled examples
+                    if dataset_ex and config.model.topk_prompt > 0:
+                        dataset_shuffled = dataset_ex.shuffle(seed=config.training.random_seed)
+                        available_indices = list(range(len(dataset_shuffled)))
+                        sampled_examples = []
+                        for _ in range(config.model.topk_prompt):
+                            remaining_indices = [idx for idx in available_indices if idx not in used_examples]
+                            if remaining_indices:
+                                selected_idx = random.choice(remaining_indices)
+                                sampled_examples.append(dataset_shuffled[selected_idx])
+                                used_examples.add(selected_idx)
+                            else:
+                                print("Not enough examples in the train Dataset to ensure that no example has been used priviously")
+                                break
+                        for ex in sampled_examples:
+                            train_prompt = prompt_template.format(**ex)
+                            train_completion = ex["Program"]
+                            messages.append({"role": "user", "content": train_prompt})
+                            messages.append({"role": "assistant", "content": train_completion})
                 
                 messages.append({"role": "user", "content": formatted_prompt})
                 
@@ -1515,65 +1630,73 @@ def inference_from_hub(config: Config, result_dir: str, inference_type: str, sam
 
                 # Generate with the model
                 tokenized_input = tokenizer(chat_formatted_prompt, return_tensors="pt", padding=True)
-                input_ids = tokenized_input.input_ids.to(model.device)
-                attention_mask = tokenized_input.attention_mask.to(model.device)
+                if compute_token_stats:
+                    # Tokenize the input
+                    input_ids = tokenized_input.input_ids[0].tolist()
+                    # Calculate token length excluding padding
+                    pad_token_id = tokenizer.pad_token_id or tokenizer.unk_token_id
+                    actual_length = sum(1 for token_id in input_ids if token_id != pad_token_id)
+                    token_lengths.append(actual_length)
+                else:
+                    input_ids = tokenized_input.input_ids.to(model.device)
+                    attention_mask = tokenized_input.attention_mask.to(model.device)
 
-                generated_ids = model.generate(
-                    input_ids=input_ids,
-                    attention_mask=attention_mask,
-                    max_new_tokens=config.model.max_new_tokens,
-                    temperature=config.model.temperature,
-                    top_k=config.model.top_k,
-                    num_return_sequences=config.model.num_return_sequences,
-                    do_sample=True
-                )
+                    generated_ids = model.generate(
+                        input_ids=input_ids,
+                        attention_mask=attention_mask,
+                        max_new_tokens=config.model.max_new_tokens,
+                        temperature=config.model.temperature,
+                        top_k=config.model.top_k,
+                        num_return_sequences=config.model.num_return_sequences,
+                        do_sample=True
+                    )
 
-                # Decode generation
-                decoded_outputs = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
+                    # Decode generation
+                    decoded_outputs = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
 
-                # Group outputs per input
-                grouped_outputs = [
-                    decoded_outputs[i:i + config.model.num_return_sequences]
-                    for i in range(0, len(decoded_outputs), config.model.num_return_sequences)
-                ]
+                    # Group outputs per input
+                    grouped_outputs = [
+                        decoded_outputs[i:i + config.model.num_return_sequences]
+                        for i in range(0, len(decoded_outputs), config.model.num_return_sequences)
+                    ]
 
-                for example_idx, completions in enumerate(grouped_outputs):
-                    cleaned_completions = []
+                    for example_idx, completions in enumerate(grouped_outputs):
+                        cleaned_completions = []
 
-                    for i, comp in enumerate(completions):
-                        # Extract the completion part - adapting to different model formats
-                        if "<|assistant|>" in comp:
-                            completion = comp.split("<|assistant|>")[-1].split("<|end|>")[0].strip()
-                        elif "[/INST]" in comp:
-                            completion = comp.split("[/INST]")[-1].strip()
-                        elif "assistant:" in comp.lower():
-                            completion = comp.split("assistant:", 1)[-1].strip()
-                        else:
-                            user_content = messages[-1]["content"]
-                            if user_content in comp:
-                                completion = comp.split(user_content, 1)[-1].strip()
+                        for i, comp in enumerate(completions):
+                            # Extract the completion part - adapting to different model formats
+                            if "<|assistant|>" in comp:
+                                completion = comp.split("<|assistant|>")[-1].split("<|end|>")[0].strip()
+                            elif "[/INST]" in comp:
+                                completion = comp.split("[/INST]")[-1].strip()
+                            elif "assistant:" in comp.lower():
+                                completion = comp.split("assistant:", 1)[-1].strip()
                             else:
-                                completion = comp.strip()  # Fallback
+                                user_content = messages[-1]["content"]
+                                if user_content in comp:
+                                    completion = comp.split(user_content, 1)[-1].strip()
+                                else:
+                                    completion = comp.strip()  # Fallback
 
-                        cleaned_completions.append(completion)
+                            cleaned_completions.append(completion)
 
-                    # Get ground truth
-                    ground_truth = example["Program"]
+                        # Get ground truth
+                        ground_truth = example["Program"]
 
-                    # Store results
-                    result = {
-                        "id": example_id,  # Use the global counter
-                        "prompt": chat_formatted_prompt,
-                        "ground_truth": ground_truth
-                    }
+                        # Store results
+                        result = {
+                            "id": example_id,  # Use the global counter
+                            "prompt": chat_formatted_prompt,
+                            "ground_truth": ground_truth
+                        }
 
-                    for idx, comp in enumerate(cleaned_completions, start=1):
-                        result[f"completion_{idx}"] = comp
+                        for idx, comp in enumerate(cleaned_completions, start=1):
+                            result[f"completion_{idx}"] = comp
 
-                    results.append(result)
-                    example_id += 1  # Increment the global counter
-            
-            if results:
+                        results.append(result)
+                        example_id += 1  # Increment the global counter
+                
+            if results and not compute_token_stats:
                 with open(os.path.join(inf_dir, "predictions.json"), "w") as f:
                     json.dump(results, f, indent=2)
                 print(f"Saved {len(results)} predictions after batch {batch_start//batch_size + 1}")
@@ -1583,20 +1706,31 @@ def inference_from_hub(config: Config, result_dir: str, inference_type: str, sam
                     "progress/examples_processed": len(results),
                     "progress/batch_number": batch_start//batch_size + 1
                 })
-                
-            # Free memory after each batch
-            torch.cuda.empty_cache()
-    
-    # After all batches are processed, save the results
-    if results:
-        # Save all predictions in a single file
-        with open(os.path.join(inf_dir, "predictions.json"), "w") as f:
-            json.dump(results, f, indent=2)
-        
-        print(f"Hub inference completed. Generated {len(results)} predictions.")
+
+            if not compute_token_stats:
+                # Free memory after each batch
+                torch.cuda.empty_cache()
+
+    if compute_token_stats:    
+        # Print token statistics
+        print("\n--- TOKEN STATISTICS ---")
+        print(f"Max token length (without padding): {max(token_lengths)}")
+        print(f"Min token length (without padding): {min(token_lengths)}")
+        print(f"Average token length (without padding): {sum(token_lengths) / len(token_lengths):.2f}")
+        print(f"Number of examples: {len(token_lengths)}")
+        print(f"Max_seq_length parameter: {config.training.max_seq_length}")
+        print("\n")
     else:
-        print("Hub inference completed but no results were generated.")
-    
+        # After all batches are processed, save the results
+        if results:
+            # Save all predictions in a single file
+            with open(os.path.join(inf_dir, "predictions.json"), "w") as f:
+                json.dump(results, f, indent=2)
+            
+            print(f"Hub inference completed. Generated {len(results)} predictions.")
+        else:
+            print("Hub inference completed but no results were generated.")
+        
     if config.logging.use_wandb:
         if results:
             # Log total examples and save predictions as an artifact
@@ -1678,14 +1812,18 @@ if __name__ == "__main__":
             # Inference after Finetuning
             results, inf_dir = inference(model, tokenizer, config, result_dir, inference_type=f"{wb_type}_{timestamp}", sample_fraction = sample_fraction, modifier=modifier, ascii_processor=ascii_processor)
         elif inference_hub_model:
+            if compute_token_stats:
+                print("⚙️ Disabling WandB logging because --compute_token_stats is set.")
+                config.logging.use_wandb = False
             # Inference with Model from Hub
             results, inf_dir = inference_from_hub(config, result_dir, inference_type=f"{wb_type}_hub_{timestamp}", sample_fraction = sample_fraction, modifier=modifier, ascii_processor=ascii_processor)
         # Evaluation
         if 'model' in locals() and model is not None:
             del model
             torch.cuda.empty_cache()
-        metrics, summary = evaluation(inf_dir, n_completions=config.model.num_return_sequences, fork_state=config.data.use_forkstate)
-        print("Pipeline completed successfully! 🎉")
+        if not compute_token_stats:
+            metrics, summary = evaluation(inf_dir, n_completions=config.model.num_return_sequences, fork_state=config.data.use_forkstate)
+            print("Pipeline completed successfully! 🎉")
 
     except Exception as e:
         print(f"An error occurred: {e}")
