@@ -1519,7 +1519,7 @@ def inference_from_hub(config: Config, result_dir: str, inference_type: str, sam
     
     # Apply modifications
     dataset = apply_modifications(dataset, config, modifier=modifier, ascii_processor=ascii_processor)
-
+    test_to_cluster = None # needs to be initalized to None for zero-shot inference
     if config.model.topk_prompt > 0:  # few-shot inference
         clusters = load_clustering_results(config.data.dataset_id) # new: clustering results are loaded but only if they are needed because topk_prompt > 0
         test_to_cluster, train_by_cluster = build_cluster_lookup(clusters)
