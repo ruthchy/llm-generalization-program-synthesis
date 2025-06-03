@@ -122,7 +122,7 @@ from transformers import (
 from transformers.trainer_utils import EvalPrediction
 from bitsandbytes.optim import AdamW8bit
 #from torch.optim import AdamW
-from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training, PeftModel
 # Custom imports
 from __eval import LLMCodeEvaluator
 # Initialize the evaluator
@@ -166,6 +166,7 @@ class ModelConfig:
     top_k: int
     temperature: float
     max_new_tokens: int
+    adapter_path: Optional[str] = None
 
 @dataclass
 class LoggingConfig:
@@ -265,6 +266,7 @@ class Config:
         )
         self.model = ModelConfig(
             model_id=str(config_dict["model"]["model_id"]),
+            adapter_path=str(config_dict["model"].get("adapter_path", None)),
             topk_train=int(config_dict["model"]["topk_train"]),
             topk_prompt=int(config_dict["model"]["topk_prompt"]),
             num_return_sequences=int(config_dict["model"]["num_return_sequences"]),
@@ -314,7 +316,10 @@ def load_config(source_config: str, fine_tune: bool) -> Tuple[Config, str, str, 
                     gen_type = parts[gen_index - 1]
 
         # Short model name
-        model_type = config.model.model_id.split('/')[-1]
+        if config.model.adapter_path is not None:
+            model_type = config.model.adapter_path.split('/')[2]
+        else:
+            model_type = config.model.model_id.split('/')[-1]
         model_type_short = model_type.split('-')[0]
 
         # Result directory
@@ -1486,19 +1491,26 @@ def inference_from_hub(config: Config, result_dir: str, inference_type: str, sam
     if compute_token_stats:
         print("⚙️ Computing token statistics...")
     else:
-        print(f"⚙️ Begin running inference on test dataset using model from hub: {config.model.model_id}")
+        adapter_path = getattr(config.model, "adapter_path", None)
+        if adapter_path:
+            print(f"⚙️ Begin running inference on test dataset using model from hub {config.model.model_id} finetuned with the LoRA weights sroted: {adapter_path}")
+        else:
+            print(f"⚙️ Begin running inference on test dataset using model from hub: {config.model.model_id}")
 
     inf_dir = result_dir
     os.makedirs(inf_dir, exist_ok=True)
 
     # Load model and tokenizer from Hub
-    try:
+    try:        
         model, tokenizer = FastLanguageModel.from_pretrained(
             config.model.model_id,
             max_seq_length=config.training.max_seq_length,  # allows longer token seq. needed for few-shot prompting (as the default set by unsloth)
             dtype=dtype,
             load_in_4bit=True,
         )
+        
+        if adapter_path:
+            model = PeftModel.from_pretrained(model, config.model.adapter_path) # add LoRA adapter to the base model (if specified in config)
 
         model = FastLanguageModel.for_inference(model)
         print(f"Loaded model {config.model.model_id} using Unsloth's optimized inference")
