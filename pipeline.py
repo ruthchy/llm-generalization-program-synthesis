@@ -1488,10 +1488,11 @@ def inference_from_hub(config: Config, result_dir: str, inference_type: str, sam
         hub_model_name = config.model.model_id.split("/")[-1]
         init_wandb_for_inf(config, hub_model_name, inference_type)
 
+    adapter_path = getattr(config.model, "adapter_path", None)
+
     if compute_token_stats:
         print("⚙️ Computing token statistics...")
     else:
-        adapter_path = getattr(config.model, "adapter_path", None)
         if adapter_path:
             print(f"⚙️ Begin running inference on test dataset using model from hub {config.model.model_id} finetuned with the LoRA weights sroted: {adapter_path}")
         else:
