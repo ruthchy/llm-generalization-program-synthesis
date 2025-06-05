@@ -236,6 +236,11 @@ class ScriptArguments:
     prompt_config: PromptConfig = field(default_factory=PromptConfig)
     completion_template: str = field(default="{Program}")
 
+def parse_adapter_path(val):
+    if val in [None, "None", "null", ""]:
+        return None
+    return str(val)
+
 @dataclass
 class Config:
     """Main configuration class with type validation"""
@@ -266,7 +271,7 @@ class Config:
         )
         self.model = ModelConfig(
             model_id=str(config_dict["model"]["model_id"]),
-            adapter_path=str(config_dict["model"].get("adapter_path", None)),
+            adapter_path=parse_adapter_path(config_dict["model"].get("adapter_path", None)),
             topk_train=int(config_dict["model"]["topk_train"]),
             topk_prompt=int(config_dict["model"]["topk_prompt"]),
             num_return_sequences=int(config_dict["model"]["num_return_sequences"]),
@@ -316,7 +321,7 @@ def load_config(source_config: str, fine_tune: bool) -> Tuple[Config, str, str, 
                     gen_type = parts[gen_index - 1]
 
         # Short model name
-        if config.model.adapter_path is not None:
+        if config.model.adapter_path is not None: # config.model.adapter_path not in ["None", "null", ""]:
             model_type = config.model.adapter_path.split('/')[2]
         else:
             model_type = config.model.model_id.split('/')[-1]
@@ -1127,8 +1132,8 @@ def train_model(model, tokenizer, dataset, result_dir: str, config: Config, time
         load_best_model_at_end=True,
         metric_for_best_model="comp_loss",
         greater_is_better=False,  # Whether a higher metric value is better
-        push_to_hub = True,
-        hub_model_id = f"{gen_type}_{model_type_short}_{timestamp}"
+        push_to_hub = False #,
+        #hub_model_id = f"{gen_type}_{model_type_short}_{timestamp}"
     )    
 
     # Initialize trainer with configurable weights
