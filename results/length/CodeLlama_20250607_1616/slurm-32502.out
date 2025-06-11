@@ -1,0 +1,111 @@
+/var/spool/slurmd/job32502/slurm_script: line 14: module: command not found
+⚙️ Computing token statistics for input prompts with applied preprocessing as during inference from the hub.
+🦥 Unsloth: Will patch your computer to enable 2x faster free finetuning.
+[2025-06-07 16:30:42,261] [INFO] [real_accelerator.py:222:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+Using cache found in ./models/facebookresearch_dino_main
+/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+Unsloth: Failed to patch Gemma3ForConditionalGeneration.
+🦥 Unsloth Zoo will now patch everything to make training faster!
+Using unsloth library.
+Error initializing model: None is not a local folder and is not a valid model identifier listed on 'https://huggingface.co/models'
+If this is a private repository, make sure to pass a token having permission to this repo either by logging in with `huggingface-cli login` or by passing `token=<your_token>`
+Using cached ./models
+⚙️ Using dtype: torch.bfloat16
+⚙️ Loaded configuration from config_ft_ASCIIall.yaml
+results/length/CodeLlama/inference/20250607_1630
+🌱 Random seed set to: 42
+⚙️ Disabling WandB logging because --compute_token_stats is set.
+⚙️ Computing token statistics...
+==((====))==  Unsloth 2025.3.19: Fast Llama patching. Transformers: 4.51.3.
+   \\   /|    NVIDIA RTX A6000. Num GPUs = 1. Max memory: 47.413 GB. Platform: Linux.
+O^O/ \_/ \    Torch: 2.6.0+cu124. CUDA: 8.6. CUDA Toolkit: 12.4. Triton: 3.2.0
+\        /    Bfloat16 = TRUE. FA [Xformers = 0.0.29.post3. FA2 = False]
+ "-____-"     Free license: http://github.com/unslothai/unsloth
+Unsloth: Fast downloading is enabled - ignore downloading bars which are red colored!
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards:  50%|█████     | 1/2 [00:09<00:09,  9.64s/it]Loading checkpoint shards: 100%|██████████| 2/2 [00:12<00:00,  5.80s/it]Loading checkpoint shards: 100%|██████████| 2/2 [00:12<00:00,  6.39s/it]
+codellama/CodeLlama-7b-Instruct-hf does not have a padding token! Will use pad_token = <unk>.
+Loaded model codellama/CodeLlama-7b-Instruct-hf using Unsloth's optimized inference
+Map (num_proc=4):   0%|          | 0/1168 [00:00<?, ? examples/s]Map (num_proc=4):   1%|▏         | 16/1168 [00:00<00:52, 22.11 examples/s]Map (num_proc=4):   4%|▍         | 48/1168 [00:00<00:18, 59.18 examples/s]Map (num_proc=4):   7%|▋         | 80/1168 [00:01<00:15, 72.22 examples/s]Map (num_proc=4):   8%|▊         | 96/1168 [00:01<00:13, 81.62 examples/s]Map (num_proc=4):  11%|█         | 128/1168 [00:01<00:11, 90.51 examples/s]Map (num_proc=4):  12%|█▏        | 144/1168 [00:01<00:10, 95.30 examples/s]Map (num_proc=4):  14%|█▎        | 160/1168 [00:02<00:11, 88.05 examples/s]Map (num_proc=4):  15%|█▌        | 176/1168 [00:02<00:10, 97.75 examples/s]Map (num_proc=4):  16%|█▋        | 192/1168 [00:02<00:11, 87.35 examples/s]Map (num_proc=4):  19%|█▉        | 224/1168 [00:02<00:08, 105.19 examples/s]Map (num_proc=4):  21%|██        | 240/1168 [00:02<00:11, 82.93 examples/s] Map (num_proc=4):  23%|██▎       | 272/1168 [00:03<00:09, 96.94 examples/s]Map (num_proc=4):  26%|██▌       | 304/1168 [00:03<00:09, 94.97 examples/s]Map (num_proc=4):  27%|██▋       | 320/1168 [00:03<00:09, 93.20 examples/s]Map (num_proc=4):  30%|███       | 352/1168 [00:04<00:07, 104.72 examples/s]Map (num_proc=4):  32%|███▏      | 368/1168 [00:04<00:08, 89.85 examples/s] Map (num_proc=4):  34%|███▍      | 400/1168 [00:04<00:08, 95.70 examples/s]Map (num_proc=4):  37%|███▋      | 432/1168 [00:04<00:07, 94.45 examples/s]Map (num_proc=4):  38%|███▊      | 448/1168 [00:05<00:07, 98.56 examples/s]Map (num_proc=4):  41%|████      | 480/1168 [00:05<00:06, 101.10 examples/s]Map (num_proc=4):  42%|████▏     | 496/1168 [00:05<00:06, 104.35 examples/s]Map (num_proc=4):  44%|████▍     | 512/1168 [00:05<00:06, 94.39 examples/s] Map (num_proc=4):  45%|████▌     | 528/1168 [00:05<00:06, 102.19 examples/s]Map (num_proc=4):  47%|████▋     | 544/1168 [00:06<00:06, 91.37 examples/s] Map (num_proc=4):  49%|████▉     | 576/1168 [00:06<00:05, 107.87 examples/s]Map (num_proc=4):  51%|█████     | 592/1168 [00:06<00:06, 84.18 examples/s] Map (num_proc=4):  53%|█████▎    | 624/1168 [00:06<00:05, 98.39 examples/s]Map (num_proc=4):  56%|█████▌    | 656/1168 [00:07<00:05, 96.14 examples/s]Map (num_proc=4):  58%|█████▊    | 672/1168 [00:07<00:05, 93.29 examples/s]Map (num_proc=4):  60%|██████    | 704/1168 [00:07<00:04, 97.33 examples/s]Map (num_proc=4):  63%|██████▎   | 736/1168 [00:08<00:04, 100.15 examples/s]Map (num_proc=4):  64%|██████▍   | 752/1168 [00:08<00:04, 98.63 examples/s] Map (num_proc=4):  66%|██████▌   | 768/1168 [00:08<00:04, 96.95 examples/s]Map (num_proc=4):  67%|██████▋   | 784/1168 [00:08<00:03, 102.01 examples/s]Map (num_proc=4):  70%|██████▉   | 816/1168 [00:08<00:04, 87.79 examples/s] Map (num_proc=4):  73%|███████▎  | 848/1168 [00:09<00:03, 102.33 examples/s]Map (num_proc=4):  74%|███████▍  | 864/1168 [00:09<00:02, 107.91 examples/s]Map (num_proc=4):  75%|███████▌  | 880/1168 [00:09<00:03, 95.95 examples/s] Map (num_proc=4):  77%|███████▋  | 896/1168 [00:09<00:03, 88.32 examples/s]Map (num_proc=4):  79%|███████▉  | 928/1168 [00:10<00:02, 92.10 examples/s]Map (num_proc=4):  82%|████████▏ | 960/1168 [00:10<00:02, 103.54 examples/s]Map (num_proc=4):  84%|████████▎ | 976/1168 [00:10<00:02, 94.26 examples/s] Map (num_proc=4):  85%|████████▍ | 992/1168 [00:10<00:01, 101.08 examples/s]Map (num_proc=4):  86%|████████▋ | 1008/1168 [00:10<00:01, 96.50 examples/s]Map (num_proc=4):  89%|████████▉ | 1040/1168 [00:11<00:01, 95.11 examples/s]Map (num_proc=4):  90%|█████████ | 1056/1168 [00:11<00:01, 93.86 examples/s]Map (num_proc=4):  92%|█████████▏| 1076/1168 [00:11<00:00, 96.31 examples/s]Map (num_proc=4):  95%|█████████▌| 1112/1168 [00:11<00:00, 120.45 examples/s]Map (num_proc=4):  97%|█████████▋| 1128/1168 [00:12<00:00, 82.36 examples/s] Map (num_proc=4):  98%|█████████▊| 1144/1168 [00:12<00:00, 87.25 examples/s]Map (num_proc=4): 100%|█████████▉| 1164/1168 [00:12<00:00, 69.90 examples/s]Map (num_proc=4): 100%|██████████| 1168/1168 [00:12<00:00, 90.16 examples/s]
+Processing batch 1/73 (examples 0-15)
+Processing batch 2/73 (examples 16-31)
+Processing batch 3/73 (examples 32-47)
+Processing batch 4/73 (examples 48-63)
+Processing batch 5/73 (examples 64-79)
+Processing batch 6/73 (examples 80-95)
+Processing batch 7/73 (examples 96-111)
+Processing batch 8/73 (examples 112-127)
+Processing batch 9/73 (examples 128-143)
+Processing batch 10/73 (examples 144-159)
+Processing batch 11/73 (examples 160-175)
+Processing batch 12/73 (examples 176-191)
+Processing batch 13/73 (examples 192-207)
+Processing batch 14/73 (examples 208-223)
+Processing batch 15/73 (examples 224-239)
+Processing batch 16/73 (examples 240-255)
+Processing batch 17/73 (examples 256-271)
+Processing batch 18/73 (examples 272-287)
+Processing batch 19/73 (examples 288-303)
+Processing batch 20/73 (examples 304-319)
+Processing batch 21/73 (examples 320-335)
+Processing batch 22/73 (examples 336-351)
+Processing batch 23/73 (examples 352-367)
+Processing batch 24/73 (examples 368-383)
+Processing batch 25/73 (examples 384-399)
+Processing batch 26/73 (examples 400-415)
+Processing batch 27/73 (examples 416-431)
+Processing batch 28/73 (examples 432-447)
+Processing batch 29/73 (examples 448-463)
+Processing batch 30/73 (examples 464-479)
+Processing batch 31/73 (examples 480-495)
+Processing batch 32/73 (examples 496-511)
+Processing batch 33/73 (examples 512-527)
+Processing batch 34/73 (examples 528-543)
+Processing batch 35/73 (examples 544-559)
+Processing batch 36/73 (examples 560-575)
+Processing batch 37/73 (examples 576-591)
+Processing batch 38/73 (examples 592-607)
+Processing batch 39/73 (examples 608-623)
+Processing batch 40/73 (examples 624-639)
+Processing batch 41/73 (examples 640-655)
+Processing batch 42/73 (examples 656-671)
+Processing batch 43/73 (examples 672-687)
+Processing batch 44/73 (examples 688-703)
+Processing batch 45/73 (examples 704-719)
+Processing batch 46/73 (examples 720-735)
+Processing batch 47/73 (examples 736-751)
+Processing batch 48/73 (examples 752-767)
+Processing batch 49/73 (examples 768-783)
+Processing batch 50/73 (examples 784-799)
+Processing batch 51/73 (examples 800-815)
+Processing batch 52/73 (examples 816-831)
+Processing batch 53/73 (examples 832-847)
+Processing batch 54/73 (examples 848-863)
+Processing batch 55/73 (examples 864-879)
+Processing batch 56/73 (examples 880-895)
+Processing batch 57/73 (examples 896-911)
+Processing batch 58/73 (examples 912-927)
+Processing batch 59/73 (examples 928-943)
+Processing batch 60/73 (examples 944-959)
+Processing batch 61/73 (examples 960-975)
+Processing batch 62/73 (examples 976-991)
+Processing batch 63/73 (examples 992-1007)
+Processing batch 64/73 (examples 1008-1023)
+Processing batch 65/73 (examples 1024-1039)
+Processing batch 66/73 (examples 1040-1055)
+Processing batch 67/73 (examples 1056-1071)
+Processing batch 68/73 (examples 1072-1087)
+Processing batch 69/73 (examples 1088-1103)
+Processing batch 70/73 (examples 1104-1119)
+Processing batch 71/73 (examples 1120-1135)
+Processing batch 72/73 (examples 1136-1151)
+Processing batch 73/73 (examples 1152-1167)
+
+--- TOKEN STATISTICS ---
+Max token length (without padding): 1933
+Min token length (without padding): 1933
+Average token length (without padding): 1933.00
+Number of examples: 1168
+Max_seq_length parameter: 2048
+
+
