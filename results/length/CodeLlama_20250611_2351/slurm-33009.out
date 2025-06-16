@@ -1,0 +1,110 @@
+/var/spool/slurmd/job33009/slurm_script: line 14: module: command not found
+⚙️ Computing token statistics for input prompts with applied preprocessing as during inference from the hub.
+🦥 Unsloth: Will patch your computer to enable 2x faster free finetuning.
+[2025-06-11 23:39:35,243] [INFO] [real_accelerator.py:222:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+Using cache found in ./models/facebookresearch_dino_main
+/home/pratz/miniconda3/envs/thesis_env/lib/python3.11/site-packages/torch/nn/utils/weight_norm.py:143: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+Unsloth: Failed to patch Gemma3ForConditionalGeneration.
+🦥 Unsloth Zoo will now patch everything to make training faster!
+Using unsloth library.
+Error initializing model: None is not a local folder and is not a valid model identifier listed on 'https://huggingface.co/models'
+If this is a private repository, make sure to pass a token having permission to this repo either by logging in with `huggingface-cli login` or by passing `token=<your_token>`
+Using cached ./models
+⚙️ Using dtype: torch.bfloat16
+⚙️ Loaded configuration from config_ft_ASCIIall.yaml
+results/length/CodeLlama/inference/20250611_2340
+🌱 Random seed set to: 42
+⚙️ Disabling WandB logging because --compute_token_stats is set.
+⚙️ Computing token statistics...
+==((====))==  Unsloth 2025.3.19: Fast Llama patching. Transformers: 4.51.3.
+   \\   /|    NVIDIA RTX 6000 Ada Generation. Num GPUs = 1. Max memory: 47.383 GB. Platform: Linux.
+O^O/ \_/ \    Torch: 2.6.0+cu124. CUDA: 8.9. CUDA Toolkit: 12.4. Triton: 3.2.0
+\        /    Bfloat16 = TRUE. FA [Xformers = 0.0.29.post3. FA2 = False]
+ "-____-"     Free license: http://github.com/unslothai/unsloth
+Unsloth: Fast downloading is enabled - ignore downloading bars which are red colored!
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards:  50%|█████     | 1/2 [00:54<00:54, 54.53s/it]Loading checkpoint shards: 100%|██████████| 2/2 [01:12<00:00, 33.21s/it]Loading checkpoint shards: 100%|██████████| 2/2 [01:12<00:00, 36.41s/it]
+codellama/CodeLlama-7b-Instruct-hf does not have a padding token! Will use pad_token = <unk>.
+Loaded model codellama/CodeLlama-7b-Instruct-hf using Unsloth's optimized inference
+Processing batch 1/73 (examples 0-15)
+Processing batch 2/73 (examples 16-31)
+Processing batch 3/73 (examples 32-47)
+Processing batch 4/73 (examples 48-63)
+Processing batch 5/73 (examples 64-79)
+Processing batch 6/73 (examples 80-95)
+Processing batch 7/73 (examples 96-111)
+Processing batch 8/73 (examples 112-127)
+Processing batch 9/73 (examples 128-143)
+Processing batch 10/73 (examples 144-159)
+Processing batch 11/73 (examples 160-175)
+Processing batch 12/73 (examples 176-191)
+Processing batch 13/73 (examples 192-207)
+Processing batch 14/73 (examples 208-223)
+Processing batch 15/73 (examples 224-239)
+Processing batch 16/73 (examples 240-255)
+Processing batch 17/73 (examples 256-271)
+Processing batch 18/73 (examples 272-287)
+Processing batch 19/73 (examples 288-303)
+Processing batch 20/73 (examples 304-319)
+Processing batch 21/73 (examples 320-335)
+Processing batch 22/73 (examples 336-351)
+Processing batch 23/73 (examples 352-367)
+Processing batch 24/73 (examples 368-383)
+Processing batch 25/73 (examples 384-399)
+Processing batch 26/73 (examples 400-415)
+Processing batch 27/73 (examples 416-431)
+Processing batch 28/73 (examples 432-447)
+Processing batch 29/73 (examples 448-463)
+Processing batch 30/73 (examples 464-479)
+Processing batch 31/73 (examples 480-495)
+Processing batch 32/73 (examples 496-511)
+Processing batch 33/73 (examples 512-527)
+Processing batch 34/73 (examples 528-543)
+Processing batch 35/73 (examples 544-559)
+Processing batch 36/73 (examples 560-575)
+Processing batch 37/73 (examples 576-591)
+Processing batch 38/73 (examples 592-607)
+Processing batch 39/73 (examples 608-623)
+Processing batch 40/73 (examples 624-639)
+Processing batch 41/73 (examples 640-655)
+Processing batch 42/73 (examples 656-671)
+Processing batch 43/73 (examples 672-687)
+Processing batch 44/73 (examples 688-703)
+Processing batch 45/73 (examples 704-719)
+Processing batch 46/73 (examples 720-735)
+Processing batch 47/73 (examples 736-751)
+Processing batch 48/73 (examples 752-767)
+Processing batch 49/73 (examples 768-783)
+Processing batch 50/73 (examples 784-799)
+Processing batch 51/73 (examples 800-815)
+Processing batch 52/73 (examples 816-831)
+Processing batch 53/73 (examples 832-847)
+Processing batch 54/73 (examples 848-863)
+Processing batch 55/73 (examples 864-879)
+Processing batch 56/73 (examples 880-895)
+Processing batch 57/73 (examples 896-911)
+Processing batch 58/73 (examples 912-927)
+Processing batch 59/73 (examples 928-943)
+Processing batch 60/73 (examples 944-959)
+Processing batch 61/73 (examples 960-975)
+Processing batch 62/73 (examples 976-991)
+Processing batch 63/73 (examples 992-1007)
+Processing batch 64/73 (examples 1008-1023)
+Processing batch 65/73 (examples 1024-1039)
+Processing batch 66/73 (examples 1040-1055)
+Processing batch 67/73 (examples 1056-1071)
+Processing batch 68/73 (examples 1072-1087)
+Processing batch 69/73 (examples 1088-1103)
+Processing batch 70/73 (examples 1104-1119)
+Processing batch 71/73 (examples 1120-1135)
+Processing batch 72/73 (examples 1136-1151)
+Processing batch 73/73 (examples 1152-1167)
+
+--- TOKEN STATISTICS ---
+Max token length (without padding): 1973
+Min token length (without padding): 1956
+Average token length (without padding): 1968.37
+Number of examples: 1168
+Max_seq_length parameter: 2048
+
+
