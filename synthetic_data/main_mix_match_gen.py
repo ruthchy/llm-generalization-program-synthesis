@@ -25,7 +25,7 @@ In the main() function, you can configure:
 2. Sampling Strategy:
    - prioritize: 
      - "ratio": Maintains a 50/50 balance between sequences and snowflakes in training data
-                (may result in smaller dataset if snowflakes are limited)
+                (by oversampling snowflakes if needed because they are rare)
      - "size": Prioritizes reaching target dataset size 
                (will use all available snowflakes and fill rest with sequences)
 
@@ -41,19 +41,19 @@ Example:
 -------
 To generate a dataset prioritizing size with 10000 training examples:
 ```python
-train_df, val_df, test_df = generate_mix_match_dataset(
+train_df, val_df, test_unbiased_df, test_biased_df = generate_mix_match_dataset(
     train_size=10000,
     val_size=1000,
     test_size=1000,
-    prioritize="size"
+    prioritize="size")
 '''
 
-import pandas as pd
-import random
-import re
 import os
+import re
+import random
+import pandas as pd
 from _1_logo_pseudo_code_generator import generateLOGOPseudoCode
-from _2_sampler import LOGOProgramSampler
+from _2_sampler_improved import LOGOProgramSampler
 from __parser_pyturtle_pc import ProgramParser
 
 # Set a fixed seed for reproducibility
@@ -136,27 +136,16 @@ def generate_mix_match_dataset(train_size=8000, val_size=1000, test_size=1000, b
     generator = generateLOGOPseudoCode()
     sampler = LOGOProgramSampler(generator)
     
-    # Split training data into two categories
-    train_sequences = []
-    train_single_snowflakes = []
-    val_data = []
-    test_data = []
-    
-    # Calculate target counts for balanced training data
-    target_train_sequences = train_size // 2
-    target_train_snowflakes = train_size // 2
-    
+    single_snowflakes = []
+    target_snowflakes = (train_size + val_size + test_size) // 2 
     total_samples = 0
-    total_needed = train_size + val_size + test_size
-    
-    print(f"Generating {total_needed} samples (prioritizing {'ratio' if prioritize=='ratio' else 'total size'})...")
-    
+
     # Phase 1: Focus on collecting the rare snowflakes with single shape arms
     print("Phase 1: Collecting rare snowflakes with single shape arms...")
     collected_all_snowflakes = False
     
     for i in range(max_iterations):
-        if len(train_single_snowflakes) >= target_train_snowflakes:
+        if len(single_snowflakes) >= target_snowflakes:
             break
             
         print(f"Batch {i+1}/{max_iterations} for single shape snowflakes")
@@ -167,92 +156,114 @@ def generate_mix_match_dataset(train_size=8000, val_size=1000, test_size=1000, b
             description = sample["Description"]
             
             # Focus only on collecting single shape arm snowflakes
-            if len(train_single_snowflakes) < target_train_snowflakes and is_snowflake_with_single_shape_arm(description):
-                train_single_snowflakes.append(sample)
+            if len(single_snowflakes) < target_snowflakes and is_snowflake_with_single_shape_arm(description):
+                single_snowflakes.append(sample)
         
-        print(f"Progress: Train (Snowflakes): {len(train_single_snowflakes)}/{target_train_snowflakes}")
+        print(f"Progress: Train (Snowflakes): {len(single_snowflakes)}/{target_snowflakes}")
         
         # Check if we've collected all available snowflakes
-        if i >= 2 and len(train_single_snowflakes) == 180:
-            print("Collected all possible snowflakes with single shape arms (180)")
+        if i >= 2 and len(single_snowflakes) == 180:
+            print("All 180 snowflakes with single shape arms collected.")
             collected_all_snowflakes = True
             break
+
+    n_val = int(0.1 * len(single_snowflakes))  # 10% for validation
+    n_test = int(0.1 * len(single_snowflakes)) # 10% for test
+    val_single_snowflakes = single_snowflakes[:n_val]
+    test_single_snowflakes = single_snowflakes[n_val:n_val+n_test]
+    train_single_snowflakes = single_snowflakes[n_val+n_test:]
+
+    if prioritize == "ratio":
+        # Calculate how many snowflakes and sequences are needed for each split
+        n_train_snow = train_size // 2
+        n_val_snow = val_size // 2
+        n_test_unbiased_snow = test_size // 2
+
+        def oversample(snowflakes, target_count):
+            """Oversample snowflakes to reach target count"""
+            if len(snowflakes) >= target_count:
+                return snowflakes[:target_count]
+            else:
+                return snowflakes + random.choices(snowflakes, k=target_count - len(snowflakes))
+        train_single_snowflakes = oversample(train_single_snowflakes, n_train_snow)
+        val_single_snowflakes = oversample(val_single_snowflakes, n_val_snow)
+        test_single_snowflakes = oversample(test_single_snowflakes, n_test_unbiased_snow)
+
+    # Split training data into two categories
+    train_sequences = []
+    val_sequences = []
+    test_sequences_unbiased = []
+    test_snowflakes_seq_arms_biased = []
+
+    # Calculate target counts for the different datasubsets
+    n_train_needed = train_size - len(train_single_snowflakes)
+    n_val_needed = val_size - len(val_single_snowflakes)
+    n_test_unbiased_needed = test_size - len(test_single_snowflakes)
+    n_test_biased_needed = test_size
     
     # Phase 2: Collect sequences and snowflakes with sequence arms
-    print("\nPhase 2: Collecting sequences and snowflakes with sequence arms...")
-    
-    # Adjust sequence target based on prioritization mode
-    if prioritize == "ratio" and len(train_single_snowflakes) < target_train_snowflakes:
-        # Keep balanced ratio by limiting sequences to match snowflakes
-        actual_target_sequences = len(train_single_snowflakes)
-        print(f"Prioritizing ratio: Limiting sequences to {actual_target_sequences} to match snowflakes")
-    else:
-        # Prioritize size - fill the rest with sequences
-        actual_target_sequences = target_train_sequences + (target_train_snowflakes - len(train_single_snowflakes))
-        print(f"Prioritizing size: Collecting {actual_target_sequences} sequences to reach target size")
+    print("\nPhase 2: Filling splits with sequences and snowflakes with sequence arms...")
     
     # Collect sequences, validation and test data
     for i in range(max_iterations):
-        if (len(train_sequences) >= actual_target_sequences and 
-            len(val_data) >= val_size and 
-            len(test_data) >= test_size):
+        if (len(train_sequences) >= n_train_needed and
+            len(val_sequences) >= n_val_needed and
+            len(test_sequences_unbiased) >= n_test_unbiased_needed and
+            len(test_snowflakes_seq_arms_biased) >= n_test_biased_needed):
             break
+
             
         print(f"Batch {i+1}/{max_iterations} for remaining categories")
         batch = sampler.sample(batch_size)
-        total_samples += batch_size
         
         for sample in batch:
             description = sample["Description"]
             
-            # Sort into appropriate categories
-            if len(train_sequences) < actual_target_sequences and is_sequence(description):
+            ## Train: fill with sequences
+            if len(train_sequences) < n_train_needed and is_sequence(description):
                 train_sequences.append(sample)
-            elif len(val_data) < val_size and is_snowflake_with_sequence_arm(description):
-                val_data.append(sample)
-            elif len(test_data) < test_size and is_snowflake_with_sequence_arm(description):
-                test_data.append(sample)
-        
-        print(f"Progress: Train (Sequences): {len(train_sequences)}/{actual_target_sequences}, "
-              f"Val: {len(val_data)}/{val_size}, Test: {len(test_data)}/{test_size}")
+            # Validation: fill with sequences
+            elif len(val_sequences) < n_val_needed and is_sequence(description):
+                val_sequences.append(sample)
+            # Test (unbiased): fill with sequences
+            elif len(test_sequences_unbiased) < n_test_unbiased_needed and is_sequence(description):
+                test_sequences_unbiased.append(sample)
+            # Test (biased): fill with snowflakes with sequence arms
+            elif len(test_snowflakes_seq_arms_biased) < n_test_biased_needed and is_snowflake_with_sequence_arm(description):
+                test_snowflakes_seq_arms_biased.append(sample)
+
+        print(f"Progress: Train (Sequences): {len(train_sequences)}/{n_train_needed}, "
+              f"Val (Sequences): {len(val_sequences)}/{n_val_needed}, Test (Sequences, unbiased): {len(test_sequences_unbiased)}/{n_test_unbiased_needed}, Test (Snowflakes, biased): {len(test_snowflakes_seq_arms_biased)}/{n_test_biased_needed}")
     
-    # Report status
-    categories_complete = []
-    if len(train_sequences) >= actual_target_sequences:
-        categories_complete.append("Train sequences")
-    if collected_all_snowflakes or len(train_single_snowflakes) >= target_train_snowflakes:
-        categories_complete.append("Train snowflakes")
-    if len(val_data) >= val_size:
-        categories_complete.append("Validation data")
-    if len(test_data) >= test_size:
-        categories_complete.append("Test data")
-    
-    if len(categories_complete) < 4:
-        print(f"\nWARNING: Only completed these categories: {', '.join(categories_complete)}")
-    else:
-        print("\nAll categories filled successfully!")
-    
-    # Combine training data
-    train_data = train_sequences + train_single_snowflakes
-    random.shuffle(train_data)  # Shuffle to mix the two categories
-    
+
+    # Assemble splits
+    train_data = train_single_snowflakes + train_sequences
+    val_data = val_single_snowflakes + val_sequences
+    test_data_unbiased = test_single_snowflakes + test_sequences_unbiased
+    test_data_biased = test_snowflakes_seq_arms_biased
+
+    # Shuffle for randomness
+    random.shuffle(train_data)
+    random.shuffle(val_data)
+    random.shuffle(test_data_unbiased)
+    random.shuffle(test_data_biased)
+
     # Calculate percentages for reporting
-    total_train = len(train_data)
-    seq_percent = len(train_sequences) / total_train * 100 if total_train > 0 else 0
-    snow_percent = len(train_single_snowflakes) / total_train * 100 if total_train > 0 else 0
-    
-    print(f"\nFinal dataset sizes:")
-    print(f"- Train: {total_train} samples")
-    print(f"  - Sequences: {len(train_sequences)} ({seq_percent:.1f}%)")
-    print(f"  - Snowflakes: {len(train_single_snowflakes)} ({snow_percent:.1f}%)")
-    print(f"- Validation: {len(val_data)} samples")
-    print(f"- Test: {len(test_data)} samples")
-    
-    if prioritize == "size" and collected_all_snowflakes:
-        print(f"\nNote: Used all available snowflakes with single shape arms ({len(train_single_snowflakes)}/180)")
-        print(f"Filled the rest with sequences to reach target size")
-    
-    return pd.DataFrame(train_data)[["Description", "Program"]], pd.DataFrame(val_data)[["Description", "Program"]], pd.DataFrame(test_data)[["Description", "Program"]]
+    def report_split(split_name, data, seqs, snowflakes):
+        total = len(data)
+        seq_percent = len(seqs) / total * 100 if total > 0 else 0
+        snow_percent = len(snowflakes) / total * 100 if total > 0 else 0
+        print(f"- {split_name}: {total} samples")
+        print(f"  - Sequences: {len(seqs)} ({seq_percent:.1f}%)")
+        print(f"  - Snowflakes: {len(snowflakes)} ({snow_percent:.1f}%)")
+
+    report_split("Train", train_data, train_sequences, train_single_snowflakes)
+    report_split("Validation", val_data, val_sequences, val_single_snowflakes)
+    report_split("Test (unbiased)", test_data_unbiased, test_sequences_unbiased, test_single_snowflakes)
+    print(f"- Test (biased): {len(test_data_biased)} samples (all snowflakes with sequence arms)")
+
+
+    return pd.DataFrame(train_data)[["Description", "Program"]], pd.DataFrame(val_data)[["Description", "Program"]], pd.DataFrame(test_data_unbiased)[["Description", "Program"]], pd.DataFrame(test_data_biased)[["Description", "Program"]]
 
 def main():
     # Optional shape distribution analysis
@@ -262,12 +273,13 @@ def main():
     train_size = 8000
     val_size = 1000
     test_size = 1000
+    prioritize = "ratio" # Use "ratio" or "size" here
     
-    train_df, val_df, test_df = generate_mix_match_dataset(
+    train_df, val_df, test_unbiased_df, test_biased_df = generate_mix_match_dataset(
         train_size=train_size,
         val_size=val_size,
         test_size=test_size,
-        prioritize="size"  # Use "ratio" or "size" here
+        prioritize=prioritize
     )
     
     # Inspect the datasets instead of saving raw data
@@ -284,48 +296,73 @@ def main():
     print("\nTail:")
     print(val_df[["Description", "Program"]].tail(2))
     
-    print(f"\nTest Dataset: {len(test_df)} samples")
+    print(f"\nTest Dataset (unbiased): {len(test_unbiased_df)} samples")
     print("\nHead:")
-    print(test_df[["Description", "Program"]].head(2))
+    print(test_unbiased_df[["Description", "Program"]].head(2))
     print("\nTail:")
-    print(test_df[["Description", "Program"]].tail(2))
+    print(test_unbiased_df[["Description", "Program"]].tail(2))
+        
+    print(f"\nTest Dataset (biased): {len(test_biased_df)} samples")
+    print("\nHead:")
+    print(test_biased_df[["Description", "Program"]].head(2))
+    print("\nTail:")
+    print(test_biased_df[["Description", "Program"]].tail(2))
 
     # Analyze distribution of program types
     print("\n=== DATASET DISTRIBUTION ===")
     train_dist = analyze_dataset_distribution(train_df, "Train")
     val_dist = analyze_dataset_distribution(val_df, "Validation")
-    test_dist = analyze_dataset_distribution(test_df, "Test")
+    test_dist_unbiased = analyze_dataset_distribution(test_unbiased_df, "Test")
+    test_dist_biased = analyze_dataset_distribution(test_biased_df, "Test")
+
     
     # Combine into a single dataframe for better visualization
-    all_dist = pd.concat([train_dist, val_dist, test_dist], ignore_index=True)
+    all_dist = pd.concat([train_dist, val_dist, test_dist_unbiased], ignore_index=True)
     print(all_dist.to_string(index=False))
-    
+
+    all_dist = pd.concat([train_dist, val_dist, test_dist_biased], ignore_index=True)
+    print(all_dist.to_string(index=False))
+
     # Generate images using ProgramParser
     print("\nGenerating images for datasets...")
     
     # Create a dataset dictionary
     from datasets import Dataset, DatasetDict
-    dataset_dict = DatasetDict({
+    dataset_dict_unbiased = DatasetDict({
         "train": Dataset.from_pandas(train_df, preserve_index=False),
         "validation": Dataset.from_pandas(val_df, preserve_index=False),
-        "test": Dataset.from_pandas(test_df, preserve_index=False)
+        "test": Dataset.from_pandas(test_unbiased_df, preserve_index=False)
     })
     
+    dataset_dict_biased = DatasetDict({
+        "train": Dataset.from_pandas(train_df, preserve_index=False),
+        "validation": Dataset.from_pandas(val_df, preserve_index=False),
+        "test": Dataset.from_pandas(test_biased_df, preserve_index=False)
+    })
+
     # Create an instance of the parser
     parser = ProgramParser(save_dir="logo_graphic/mix_match_gen", save_image=True, eval_mode=False)
 
     push_to_hub = True
-    hub_name = "ruthchy/mix-match-gen-logo-data" 
+    hub_name = f"ruthchy/mix-match-gen-logo-data-{prioritize}-unbiased-test" 
 
     ds = parser.wrapper_parse_and_generate_image(
-        dataset_dict, 
+        dataset_dict_unbiased, 
+        push_to_hub=push_to_hub, 
+        hub_name=hub_name
+    )
+
+    hub_name = f"ruthchy/mix-match-gen-logo-data-{prioritize}" 
+
+    ds = parser.wrapper_parse_and_generate_image(
+        dataset_dict_biased, 
         push_to_hub=push_to_hub, 
         hub_name=hub_name
     )
     
     print("All images generated successfully!")
     if push_to_hub:
-        print("Dataset pushed to Hugging Face Hub")
+        print("Datasets pushed to Hugging Face Hub")
 
 if __name__ == "__main__":
     main()
