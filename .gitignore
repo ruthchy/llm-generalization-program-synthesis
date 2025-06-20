@@ -38,4 +38,4 @@ models/**/*
 # Ignore key files
 look_up/open_ai_key.yaml
 # Ignore large embed files
-#look_up/embeddings/*
+look_up/embeddings/*
