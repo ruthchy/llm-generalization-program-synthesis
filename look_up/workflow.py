@@ -33,6 +33,7 @@ Examples:
 
     2. Generate the elbow method and silhouette score plots:
         python look_up/workflow.py --dataset ruthchy/syn-length-gen-logo-image --plot_elbow --plot_silhouette --n_clusters 10
+        python look_up/workflow.py --dataset ruthchy/mix-match-gen-logo-data-size --plot_elbow --plot_silhouette --n_clusters 10
 
     3. Perform clustering with a specified number of clusters:
         python look_up/workflow.py --dataset ruthchy/syn-length-gen-logo-image --n_clusters 5
@@ -46,7 +47,7 @@ Documentation of the final cluster n choosen for each of the datesest
 - ruthchy/syn-length-gen-logo-image: 5 (based on shilhouette score: 2 best choice but 5 second best choice while offering more granularity)
 - ruthchy/syn-length-gen-logo-image-unbiased-test: 4 (based on shilhouette score: 2 best choice but 4 second best choice while offering more granularity)
 - ruthchy/sem-length-gen-logo-image: 5 (based on shilhouette score: 2 best choice but 5 second best choice while offering more granularity)
-- 
+- ruthchy/mix-match-gen-logo-data-size
 '''
 import argparse
 import os
@@ -59,6 +60,7 @@ from scipy.cluster.hierarchy import linkage, dendrogram
 from datasets import load_dataset  # Huggingface datasets
 from openai import OpenAI
 import matplotlib.pyplot as plt
+plt.rcParams['font.size'] = 12
 import random
 
 def get_base_dir():
@@ -151,6 +153,12 @@ def plot_dendrogram(embeddings_array, all_descriptions, base_dir, dataset_id, ma
         "validation": "#57a9d4",  # Hoeth Blue
         "test": "#8B0000"  # Dark Red
     }
+    # Assing colors to splits using the thesis color palette
+    #color_map = {
+    #    "train": "#607196",  
+    #    "validation": "#7E8CAC",  
+    #    "test": "#FF7B9C"  
+    #}
 
     splits = [desc.split('_')[0] for desc in all_descriptions]
     colors = [color_map[split] for split in splits]
@@ -195,7 +203,7 @@ def plot_elbow_method(embeddings_array, base_dir, dataset_id, max_clusters=10):
         wcss.append(kmeans.inertia_)
 
     plt.figure(figsize=(8, 5))
-    plt.plot(range(1, max_clusters + 1), wcss, marker='o')
+    plt.plot(range(1, max_clusters + 1), wcss, marker='o', color='#607196')
     plt.title('Elbow Method')
     plt.xlabel('Number of Clusters')
     plt.ylabel('WCSS')
@@ -216,7 +224,7 @@ def plot_silhouette_scores(embeddings_array, base_dir, dataset_id, max_clusters=
         silhouette_scores.append(score)
 
     plt.figure(figsize=(8, 5))
-    plt.plot(range(2, max_clusters + 1), silhouette_scores, marker='o')
+    plt.plot(range(2, max_clusters + 1), silhouette_scores, marker='o', color='#607196')
     plt.title('Silhouette Scores')
     plt.xlabel('Number of Clusters')
     plt.ylabel('Silhouette Score')
