@@ -14,7 +14,7 @@ def timeout_handler(signum, frame):
     raise TimeoutError("No block size was selected within the time limit")
 
 class AdaptiveASCIIProcessor:
-    def __init__(self, levels=10, black_threshold=150, block_size=None, crop_to_size=None, timeout=120, drop_images=False):
+    def __init__(self, levels=10, black_threshold=150, block_size=None, crop_to_size=None, resize_img=None, timeout=120, drop_images=False):
         """
         Initialize the Adaptive ASCII Processor with default parameters.
         Args:
@@ -29,6 +29,7 @@ class AdaptiveASCIIProcessor:
         self.predefined_block_size = block_size
         self.block_size = block_size       # Set directly if provided
         self.crop_to_size = crop_to_size
+        self.resize_img = resize_img
         self.timeout = timeout
         self.drop_images = drop_images
 
@@ -59,6 +60,21 @@ class AdaptiveASCIIProcessor:
         # Crop and return
         return image.crop((left, top, right, bottom))
 
+    def resize_image(self, image, target_size):
+        """
+        Resize the image to the target size.
+        
+        Args:
+            image: PIL Image object
+            target_size: Tuple (width, height) for the desired size
+        
+        Returns:
+            Resized PIL Image
+        """
+        if isinstance(target_size, int):
+            target_size = (target_size, target_size)
+        return image.resize(target_size, Image.LANCZOS)
+
     def return_divisors(self, n):
         """Find all divisors of n efficiently."""
         divisors = []
@@ -83,9 +99,14 @@ class AdaptiveASCIIProcessor:
         if self.block_size is not None:
             return self.block_size
         
+        if self.resize_img is not None:
+            sample_image = self.resize_image(images[0], self.resize_img)
+        else:
+            sample_image = images[0]
+
         # Apply optional center cropping to sample image for determining block size
         if self.crop_to_size is not None:
-            sample_image = self.center_crop(images[0], self.crop_to_size)
+            sample_image = self.center_crop(sample_image, self.crop_to_size)
             height, width = sample_image.height, sample_image.width
         else:
             unique_sizes = set((img.height, img.width) for img in images)
@@ -154,6 +175,10 @@ class AdaptiveASCIIProcessor:
         """
         if self.block_size is None:
             raise ValueError("Block size has not been set. Call determine_block_size() first.")
+            
+        # Resize the image if specified
+        if self.resize_img is not None:
+            image = self.resize_image(image, self.resize_img)
 
         # Apply center cropping if specified
         if self.crop_to_size is not None:
