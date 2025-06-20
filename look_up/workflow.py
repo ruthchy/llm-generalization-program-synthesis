@@ -33,7 +33,6 @@ Examples:
 
     2. Generate the elbow method and silhouette score plots:
         python look_up/workflow.py --dataset ruthchy/syn-length-gen-logo-image --plot_elbow --plot_silhouette --n_clusters 10
-        python look_up/workflow.py --dataset ruthchy/mix-match-gen-logo-data-size --plot_elbow --plot_silhouette --n_clusters 10
 
     3. Perform clustering with a specified number of clusters:
         python look_up/workflow.py --dataset ruthchy/syn-length-gen-logo-image --n_clusters 5
@@ -47,7 +46,8 @@ Documentation of the final cluster n choosen for each of the datesest
 - ruthchy/syn-length-gen-logo-image: 5 (based on shilhouette score: 2 best choice but 5 second best choice while offering more granularity)
 - ruthchy/syn-length-gen-logo-image-unbiased-test: 4 (based on shilhouette score: 2 best choice but 4 second best choice while offering more granularity)
 - ruthchy/sem-length-gen-logo-image: 5 (based on shilhouette score: 2 best choice but 5 second best choice while offering more granularity)
-- ruthchy/mix-match-gen-logo-data-size
+- ruthchy/sem-length-gen-logo-image-unbiased-test: 5 (based on shilhouette score: 2 best choice but 5 second best choice while offering more granularity)
+- ruthchy/mix-match-gen-logo-data-size: 3 (based on shilhouette score: 3 best)
 '''
 import argparse
 import os
@@ -60,7 +60,7 @@ from scipy.cluster.hierarchy import linkage, dendrogram
 from datasets import load_dataset  # Huggingface datasets
 from openai import OpenAI
 import matplotlib.pyplot as plt
-plt.rcParams['font.size'] = 12
+plt.rcParams['font.size'] = 16
 import random
 
 def get_base_dir():
@@ -225,7 +225,7 @@ def plot_silhouette_scores(embeddings_array, base_dir, dataset_id, max_clusters=
 
     plt.figure(figsize=(8, 5))
     plt.plot(range(2, max_clusters + 1), silhouette_scores, marker='o', color='#607196')
-    plt.title('Silhouette Scores')
+    #plt.title('Silhouette Scores')
     plt.xlabel('Number of Clusters')
     plt.ylabel('Silhouette Score')
     silhouette_path = os.path.join(base_dir, f"look_up/images/silhouette_{(dataset_id.split('/')[-1])}.png")

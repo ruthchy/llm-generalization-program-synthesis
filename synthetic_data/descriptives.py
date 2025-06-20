@@ -4,14 +4,19 @@ from _6_sem_length import SemLength
 from _6_syn_length import SynLength
 import pandas as pd
 import numpy as np
-
+import matplotlib.pyplot as plt
+plt.rcParams['font.size'] = 16
 
 dataset_name_syn = "ruthchy/syn-length-gen-logo-image"
 dataset_name_syn_unbiased = "ruthchy/syn-length-gen-logo-image-unbiased-test"
 dataset_name_sem = "ruthchy/sem-length-gen-logo-image"
+dataset_name_sem_unbiased = "ruthchy/sem-length-gen-logo-image-unbiased-test"
+
 ds_syn = load_dataset(dataset_name_syn)
 ds_syn_unbiased = load_dataset(dataset_name_syn_unbiased)
 ds_sem = load_dataset(dataset_name_sem)
+ds_sem_unbiased = load_dataset(dataset_name_sem_unbiased)
+
 
 # Helper functions
 def calc_max_lengths(ds, syn_length, sem_length):
@@ -41,7 +46,9 @@ sem_length = SemLength()
 datasets = {
     "Split by Syn. Len.": ds_syn,
     "No Length Bias (Syn. Len.)": ds_syn_unbiased,
-    "Split by Sem. Len": ds_sem
+    "Split by Sem. Len": ds_sem,
+    "No Length Bias (Sem. Len.)": ds_sem_unbiased,
+
 }
 
 for name, ds in datasets.items():
@@ -53,8 +60,7 @@ for name, ds in datasets.items():
     print(f"  MIN syn_length (test): {min_syn}")
     print(f"  MIN sem_length (test): {min_sem}")
 
-import matplotlib.pyplot as plt
-plt.rcParams['font.size'] = 12
+
 # Compute global min and max for semantic length
 # --- Compute global min/max for syntactic and semantic lengths ---
 all_syn_lengths = []
