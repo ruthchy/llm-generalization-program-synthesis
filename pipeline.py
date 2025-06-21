@@ -1800,10 +1800,13 @@ if __name__ == "__main__":
             black_threshold = config.data.ascii_parameters.get("black_threshold", 128)
             block_size = config.data.ascii_parameters.get("block_size", None)
             crop_to_size = config.data.ascii_parameters.get("crop_to_size", None)
+            resize_img = config.data.ascii_parameters.get("resize_img", None)
             ascii_processor = AdaptiveASCIIProcessor(levels=10,
                                                         black_threshold=black_threshold,
                                                         block_size=block_size,
-                                                        crop_to_size=crop_to_size,drop_images=True
+                                                        crop_to_size=crop_to_size,
+                                                        resize_img=resize_img,
+                                                        drop_images=True
                                                     )
         # Set random seed for reproducibility
         set_random_seeds(config.training.random_seed)
