@@ -1,0 +1,52 @@
+data:
+  ascii_parameters:
+    black_threshold: 200
+    block_size: 32
+    crop_to_size: 512
+  dataset_id: ruthchy/sem-length-gen-logo-image-unbiased-test
+  image_to_ascii: true
+  include_ascii: true
+  include_desc: false
+  include_sys_prompt_fn: false
+  include_sys_prompt_inf: true
+  mix_directions: false
+  use_forkstate: false
+logging:
+  use_wandb: true
+lora:
+  alpha: 512
+  dropout: 0
+  rank: 128
+  target_modules:
+  - q_proj
+  - k_proj
+  - v_proj
+  - o_proj
+  - up_proj
+  - down_proj
+model:
+  adapter_path: results/length/CodeLlama_20250531_0107/fn_model/checkpoint-750
+  max_new_tokens: 250
+  model_id: codellama/CodeLlama-7b-Instruct-hf
+  num_return_sequences: 10
+  temperature: 1.0
+  top_k: 50
+  topk_prompt: 0
+  topk_train: 1
+training:
+  eval_steps: 23
+  gradient_accumulation_steps: 4
+  gradient_checkpointing: true
+  learning_rate: 2e-4
+  logging_steps: 23
+  lr_scheduler_type: cosine
+  max_seq_length: 1350
+  per_device_eval_batch_size: 16
+  per_device_train_batch_size: 8
+  prompt_loss_weight: 0.3
+  random_seed: 42
+  save_steps: 23
+  shuffle: true
+  train_epochs: 3
+  warmup_ratio: 0.01
+  warmup_steps: None
