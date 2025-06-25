@@ -1,14 +1,13 @@
 """
-detailed_eval_modular.py
+detailed_eval.py
 
 Performs detailed evaluation of program synthesis and image generation metrics for a given experiment.
 Loads test and validation metrics, maps abstractions, computes summary statistics, correlations, and
 exports metric behavior cases. Designed for use with experiment directories containing config and metrics files.
 
 Usage:
-    python detailed_eval_modular.py --eval_dir /path/to/eval_dir
-Example:
-    python detailed_eval_modular.py --eval_dir results/length/CodeLlama_20250531_0107/inference/20250621_2247
+    python detailed_eval.py --eval_dir /path/to/eval_dir
+
 """
 # Imports
 import os
@@ -49,6 +48,16 @@ METRICS_TO_PLOT = [
 ]
 
 # Helper
+def is_full_codelama_eval_dir(eval_dir):
+    """
+    Returns True if the third path component of eval_dir matches 'CodeLlama_YYYYMMDD_HHMM'.
+    """
+    parts = eval_dir.split(os.sep)
+    if len(parts) < 3:
+        return False
+    # Check third component (index 2)
+    return bool(re.match(r"^CodeLlama_\d{8}_\d{4}$", parts[2]))
+
 def classify_abstraction(description):
     desc = description.lower()
     # Check all categories except Basic Shape first
@@ -239,33 +248,34 @@ def main():
     dataset = load_dataset(config['data']['dataset_id'], split='test')
     print(f"Loaded {len(metrics)} metrics and {len(dataset)} dataset entries.")
 
-    # Load validation metrics
-    parent_eval_dir = get_parent_eval_dir(eval_dir)
-    val_metrics = load_val_metrics(parent_eval_dir)
-    val_config = os.path.join(parent_eval_dir, 'config.yaml') 
-    val_dataset_hash = get_val_dataset_hash(val_config)
-    
-    if val_metrics:
-        val_df = filter_last_eval_step(val_metrics)
-        if "image_metrics" in val_df.columns:
-            image_metrics_df = val_df["image_metrics"].apply(pd.Series)
-            val_df = pd.concat([val_df.drop(columns=["image_metrics"]), image_metrics_df], axis=1)
+    if is_full_codelama_eval_dir(eval_dir):
+        # --- Validation: load metrics and assigne Dict values form val split of HF data --- #
+        parent_eval_dir = get_parent_eval_dir(eval_dir)
+        val_metrics = load_val_metrics(parent_eval_dir)
+        val_config = os.path.join(parent_eval_dir, 'config.yaml') 
+        val_dataset_hash = get_val_dataset_hash(val_config)
+        
+        if val_metrics:
+            val_df = filter_last_eval_step(val_metrics)
+            if "image_metrics" in val_df.columns:
+                image_metrics_df = val_df["image_metrics"].apply(pd.Series)
+                val_df = pd.concat([val_df.drop(columns=["image_metrics"]), image_metrics_df], axis=1)
 
-        val_df["prog_hash"] = val_df["program_id"].apply(lambda x: x.split("_")[1])
-        val_df["Description"] = val_df["prog_hash"].map(val_dataset_hash)
-        missing = val_df["Description"].isna().sum()
-        if missing > 0:
-            print(f"Warning: {missing} validation entries could not be matched to a Description.")
+            val_df["prog_hash"] = val_df["program_id"].apply(lambda x: x.split("_")[1])
+            val_df["Description"] = val_df["prog_hash"].map(val_dataset_hash)
+            missing = val_df["Description"].isna().sum()
+            if missing > 0:
+                print(f"Warning: {missing} validation entries could not be matched to a Description.")
 
-        val_df["abstraction"] = val_df["Description"].apply(classify_abstraction)
+            val_df["abstraction"] = val_df["Description"].apply(classify_abstraction)
 
-        # Rename for consistency
-        if "norm_lev_dist" in val_df.columns:
-            val_df = val_df.rename(columns={"norm_lev_dist": "normalized_lev_distance"})
-        print(f"Loaded {len(val_df)} validation metrics (last eval step only).")
-        # Now you can compare val_df to metrics/test set as needed
-    else:
-        print("No validation metrics loaded.")
+            # Rename for consistency
+            if "norm_lev_dist" in val_df.columns:
+                val_df = val_df.rename(columns={"norm_lev_dist": "normalized_lev_distance"})
+            print(f"Loaded {len(val_df)} validation metrics (last eval step only).")
+
+        else:
+            print("No validation metrics loaded.")
 
     # Prepare output file
     out_txt = os.path.join(eval_dir, "detailed_eval_report.txt")
@@ -311,61 +321,78 @@ def main():
         # 4 - Compare validation metrics to test metrics (last eval step:candidate program 1)
         test_first_candidates = [m for m in metrics if m.get("id", "").endswith("_1")]
         df_test = pd.DataFrame(test_first_candidates)
-        df_val = val_df  # already filtered
 
-        compare_metrics = ["normalized_lev_distance", "crystalbleu_score", "ssim_score", "dreamsim_score", "pixel_precision", "pixel_recall", "pixel_f1"]
+        abstraction_to_ids_test = (
+            df_test.groupby("abstraction")["id"].apply(list).to_dict()
+            )
+        with open(os.path.join(eval_dir, "abstraction_to_ids_test.json"), "w") as f:
+            json.dump(abstraction_to_ids_test, f, indent=2)
 
-        print("\n=== Overall Means (Test First Candidates) ===")
-        print(df_test[compare_metrics].mean())
+        if is_full_codelama_eval_dir(eval_dir):
+            df_val = val_df  # already filtered
+            abstraction_to_ids_val = (
+                df_val.groupby("abstraction")["program_id"].apply(list).to_dict()
+            )
+            with open(os.path.join(eval_dir, "abstraction_to_ids_val.json"), "w") as f:
+                json.dump(abstraction_to_ids_val, f, indent=2)
 
-        print("\n=== Overall Means (Validation Last Step) ===")
-        print(df_val[compare_metrics].mean())
+            compare_metrics = ["normalized_lev_distance", "crystalbleu_score", "ssim_score", "dreamsim_score", "pixel_precision", "pixel_recall", "pixel_f1"]
 
-        print("\n=== Spearman Correlations (Test First Candidates) ===")
-        for m1, m2 in [("normalized_lev_distance", "crystalbleu_score"),
-                    ("ssim_score", "dreamsim_score"),
-                    ("pixel_f1", "ssim_score"),
-                    ("pixel_f1", "dreamsim_score"),
-                    ("normalized_lev_distance", "pixel_f1"),
-                    ("crystalbleu_score", "pixel_f1")]:
-            corr, pval = scipy.stats.spearmanr(df_test[m1], df_test[m2], nan_policy='omit')
-            print(f"{m1} vs {m2}: {corr:.4f} (p={pval:.4g})")
+            print("\n=== Overall Means (Test First Candidates) ===")
+            print(df_test[compare_metrics].mean())
 
-        print("\n=== Spearman Correlations (Validation Last Step) ===")
-        for m1, m2 in [("normalized_lev_distance", "crystalbleu_score"),
-                    ("ssim_score", "dreamsim_score"),
-                    ("pixel_f1", "ssim_score"),
-                    ("pixel_f1", "dreamsim_score"),
-                    ("normalized_lev_distance", "pixel_f1"),
-                    ("crystalbleu_score", "pixel_f1")]:
-            corr, pval = scipy.stats.spearmanr(df_val[m1], df_val[m2], nan_policy='omit')
-            print(f"{m1} vs {m2}: {corr:.4f} (p={pval:.4g})")
+            print("\n=== Overall Means (Validation Last Step) ===")
+            print(df_val[compare_metrics].mean())
 
-        print("\n=== Per Abstraction Means and Correlations (Test First Candidates) ===")
-        for abstraction, group in df_test.groupby("abstraction"):
-            print(f"\nAbstraction: {abstraction}")
-            print(group[compare_metrics].mean())
+            print("\n=== Spearman Correlations (Test First Candidates) ===")
             for m1, m2 in [("normalized_lev_distance", "crystalbleu_score"),
                         ("ssim_score", "dreamsim_score"),
                         ("pixel_f1", "ssim_score"),
                         ("pixel_f1", "dreamsim_score"),
                         ("normalized_lev_distance", "pixel_f1"),
                         ("crystalbleu_score", "pixel_f1")]:
-                corr, pval = scipy.stats.spearmanr(group[m1], group[m2], nan_policy='omit')
+                corr, pval = scipy.stats.spearmanr(df_test[m1], df_test[m2], nan_policy='omit')
                 print(f"{m1} vs {m2}: {corr:.4f} (p={pval:.4g})")
 
-        print("\n=== Per Abstraction Means and Correlations (Validation Last Step) ===")
-        for abstraction, group in df_val.groupby("abstraction"):
-            print(f"\nAbstraction: {abstraction}")
-            print(group[compare_metrics].mean())
+            print("\n=== Spearman Correlations (Validation Last Step) ===")
             for m1, m2 in [("normalized_lev_distance", "crystalbleu_score"),
                         ("ssim_score", "dreamsim_score"),
                         ("pixel_f1", "ssim_score"),
                         ("pixel_f1", "dreamsim_score"),
                         ("normalized_lev_distance", "pixel_f1"),
                         ("crystalbleu_score", "pixel_f1")]:
-                corr, pval = scipy.stats.spearmanr(group[m1], group[m2], nan_policy='omit')
+                corr, pval = scipy.stats.spearmanr(df_val[m1], df_val[m2], nan_policy='omit')
                 print(f"{m1} vs {m2}: {corr:.4f} (p={pval:.4g})")
+
+            print("\n=== Per Abstraction Means and Correlations (Test First Candidates) ===")
+            for abstraction, group in df_test.groupby("abstraction"):
+                print(f"\nAbstraction: {abstraction}")
+                summary = evaluator.generate_summary(group.to_dict(orient="records"))
+                evaluator.print_summary(summary)
+                print(group[compare_metrics].mean())
+                for m1, m2 in [("normalized_lev_distance", "crystalbleu_score"),
+                            ("ssim_score", "dreamsim_score"),
+                            ("pixel_f1", "ssim_score"),
+                            ("pixel_f1", "dreamsim_score"),
+                            ("normalized_lev_distance", "pixel_f1"),
+                            ("crystalbleu_score", "pixel_f1")]:
+                    corr, pval = scipy.stats.spearmanr(group[m1], group[m2], nan_policy='omit')
+                    print(f"{m1} vs {m2}: {corr:.4f} (p={pval:.4g})")
+
+            print("\n=== Per Abstraction Means and Correlations (Validation Last Step) ===")
+            for abstraction, group in df_val.groupby("abstraction"):
+                print(f"\nAbstraction: {abstraction}")
+                #summary = evaluator.generate_summary(group.to_dict(orient="records"))
+                #evaluator.print_summary(summary)
+                print(group[compare_metrics].mean().round(4))
+                for m1, m2 in [("normalized_lev_distance", "crystalbleu_score"),
+                            ("ssim_score", "dreamsim_score"),
+                            ("pixel_f1", "ssim_score"),
+                            ("pixel_f1", "dreamsim_score"),
+                            ("normalized_lev_distance", "pixel_f1"),
+                            ("crystalbleu_score", "pixel_f1")]:
+                    corr, pval = scipy.stats.spearmanr(group[m1], group[m2], nan_policy='omit')
+                    print(f"{m1} vs {m2}: {corr:.4f} (p={pval:.4g})")
 
     print(f"\nDetailed evaluation report saved to {out_txt}")
 
