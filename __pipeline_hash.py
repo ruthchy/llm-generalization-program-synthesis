@@ -397,7 +397,7 @@ def build_val_dataset_hash(val_dataset, config, tokenizer):
 
         # 7. Hash and map to description
         hash_val = hashlib.md5(decoded_completion.encode("utf-8")).hexdigest()
-        val_dataset_hash[hash_val] = row["Description"]
+        val_dataset_hash[hash_val] = (row["Description"], row["Program"]) #row["Description"]
 
     return val_dataset_hash
 
