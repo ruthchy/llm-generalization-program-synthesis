@@ -299,12 +299,14 @@ class LLMCodeEvaluator:
             summary["execution"]["avg_pixel_recall"] = np.nanmean(pixel_recalls)
             summary["execution"]["avg_pixel_f1"] = np.nanmean(pixel_f1s)
             summary["execution"]["precision_recall_available_count"] = len(executable_with_precision_recall)
+            summary["execution"]["perfect_f1_count"] = sum(1 for m in executable_with_precision_recall if m.get("pixel_f1") == 1.0)
         else:
             summary["execution"]["avg_pixel_precision"] = np.nan
             summary["execution"]["avg_pixel_recall"] = np.nan
             summary["execution"]["avg_pixel_f1"] = np.nan
+            summary["execution"]["perfect_f1_count"] = 0
             summary["execution"]["precision_recall_available_count"] = 0
-
+        
         return summary
     
     def print_summary(self, summary):
@@ -362,7 +364,8 @@ class LLMCodeEvaluator:
             print(f"Average pixel precision: {execution['avg_pixel_precision']:.4f}")
             print(f"Average pixel recall: {execution['avg_pixel_recall']:.4f}")
             print(f"Average pixel F1 score: {execution['avg_pixel_f1']:.4f}")
-            print(f"Precision-recall metrics available for {execution['precision_recall_available_count']} samples")
+            print(f"Perfect pixel F1 count: {execution['perfect_f1_count']}")
+
 
     def evaluate_and_summarize(self, inf_dir, n_completions=1, fork_state=False):
         """
