@@ -194,11 +194,12 @@ def export_metric_behavior(metrics, predictions, eval_dir):
             # Only process rows with valid id
         valid_mask = df["id"].notna()
         df_valid = df[valid_mask].copy()
-        df_valid["row_idx"] = df_valid["id"].apply(lambda x: int(x.split("_")[0]))
-        df_valid["comp_idx"] = df_valid["id"].apply(lambda x: int(x.split("_")[1]))
-        df_valid["reference_program"] = df_valid["row_idx"].apply(lambda idx: predictions[idx]["ground_truth"])
-        df_valid["completion_program"] = df_valid.apply(lambda row: predictions[row["row_idx"]].get(f"completion_{row['comp_idx']}"), axis=1)
-        df_valid = df_valid.drop(columns=["row_idx", "comp_idx"])
+        if not df_valid.empty:
+            df_valid["row_idx"] = df_valid["id"].apply(lambda x: int(x.split("_")[0]))
+            df_valid["comp_idx"] = df_valid["id"].apply(lambda x: int(x.split("_")[1]))
+            df_valid["reference_program"] = df_valid["row_idx"].apply(lambda idx: predictions[idx]["ground_truth"])
+            df_valid["completion_program"] = df_valid.apply(lambda row: predictions[row["row_idx"]].get(f"completion_{row['comp_idx']}"), axis=1)
+            df_valid = df_valid.drop(columns=["row_idx", "comp_idx"])
         # For rows with missing id, fill reference/completion with np.nan
         df.loc[~valid_mask, ["reference_program", "completion_program"]] = np.nan
         # Combine back
