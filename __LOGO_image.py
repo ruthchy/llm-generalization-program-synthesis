@@ -74,7 +74,7 @@ def main():
     save_dir = os.path.join(eval_dir, "logo_graphic")
     os.makedirs(save_dir, exist_ok=True)
 
-    parser = ProgramParser(save_dir="logo_graphic", save_image=False, eval_mode=False)
+    parser = ProgramParser(save_dir=save_dir, save_image=False, eval_mode=False)
     parser.parse_and_generate_image(completion_example)
     parser.parse_and_generate_image(gt_example)
 
