@@ -14,8 +14,6 @@ Where:
 Example:
 python __LOGO_image.py --eval_dir ./eval_results --ID 0_1
 This will generate images for the first row and the first completion in the predictions file.
-
-python __LOGO_image.py --eval_dir results/length/CodeLlama_20250531_0054/inference/20250603_1637 --ID 0_1
 '''
 import os
 import json
