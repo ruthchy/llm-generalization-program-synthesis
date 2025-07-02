@@ -78,7 +78,19 @@ def classify_abstraction(description):
     return "Label Failure"
 
 def load_config_and_metrics(eval_dir):
-    config = yaml.safe_load(open(os.path.join(eval_dir, 'config.yaml')))
+    config_path = None
+    # Check if eval_dir ends with /inference
+    if eval_dir.endswith(os.sep + 'inference'):
+        parent_dir = os.path.dirname(eval_dir)
+        config_path = os.path.join(parent_dir, 'config.yaml')
+    else:
+        # Config is in the current eval_dir
+        config_path = os.path.join(eval_dir, 'config.yaml')
+    
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f"Config file not found at {config_path}")
+    
+    config = yaml.safe_load(open(config_path))
     with open(os.path.join(eval_dir, 'detailed_metrics.jsonl')) as f:
         metrics = [json.loads(line) for line in f]
     with open(os.path.join(eval_dir, 'predictions.json'), 'r') as f:
@@ -184,14 +196,6 @@ def export_metric_behavior(metrics, predictions, eval_dir):
             "reference_program": "object",
             "completion_program": "object",
             })
-        # Add reference program from HF dataset
-        #df["row_idx"] = df["id"].apply(lambda x: int(x.split("_")[0]))
-        #df["comp_idx"] = df["id"].apply(lambda x: int(x.split("_")[1]))
-
-        #df["reference_program"] = df["row_idx"].apply(lambda idx: predictions[idx]["ground_truth"])
-        #df["completion_program"] = df.apply(lambda row: predictions[row["row_idx"]].get(f"completion_{row['comp_idx']}"), axis=1)
-        #df = df.drop(columns=["row_idx", "comp_idx"])
-            # Only process rows with valid id
         valid_mask = df["id"].notna()
         df_valid = df[valid_mask].copy()
         if not df_valid.empty:
